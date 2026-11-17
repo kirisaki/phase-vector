@@ -41,3 +41,25 @@ point results are not claimed. Native tests compare complete worlds and impact
 histories. Input validation rejects non-finite and extreme values before changing
 state; trusted Rust callers remain responsible for not modifying public state
 fields to violate constructor invariants.
+
+## WEGO and playback
+
+Planning is unlimited and never advances physics. One constant friendly thrust
+vector is drafted for the next interval; the passive second ship coasts. Commit
+freezes that vector and starts simultaneous 120-second execution. Commands cannot
+be edited during execution, including while paused. Pause/resume, single physical
+steps while paused, and 1×/4×/16×/64× playback are presentation controls. Reset is
+an explicit diagnostic restart, not an in-mission order change.
+
+The browser supplies 60 fixed presentation pulses per second. An integer
+accumulator converts those pulses into whole 0.25-second physical steps; speed
+only changes the number of steps executed. Every speed stops exactly at the
+command boundary. Pausing discards a fraction of one unexecuted playback tick,
+never physical progress. Catch-up pulses or steps cannot spill into planning.
+The next interval defaults to coasting, while position, velocity, delta-v,
+projectiles, and impact history persist.
+
+Each committed vector and start tick is recorded. Replaying the log directly
+through the physics core reproduces the world without any presentation clock.
+This is a same-runtime guarantee. The mission's ten-opportunity target, richer
+maneuver timelines, and enemy decisions remain later milestones.

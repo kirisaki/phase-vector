@@ -4,6 +4,7 @@
 pub mod physics;
 pub mod probe;
 pub mod repl;
+pub mod session;
 
 #[cfg(target_arch = "wasm32")]
 mod browser;
