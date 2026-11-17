@@ -1,6 +1,9 @@
 /target/
 /dist/
 /node_modules/
+/artifacts/
+/.venv/
+__pycache__/
 /.local/
 /.agents/
 /.codex/

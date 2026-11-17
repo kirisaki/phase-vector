@@ -8,7 +8,8 @@ enemy or delay its arrival beyond a deadline through forced evasive maneuvers an
 delta-v expenditure.
 
 This document records the requested behavior, not completed functionality.
-Only the repository scaffold exists at step 0.
+The current implementation is the step-1 browser/Lua integration probe. Mission
+behavior below remains planned until its corresponding milestone is implemented.
 
 ## Scope and implementation approach
 
@@ -111,8 +112,8 @@ compilation checks alone do not satisfy this milestone.
   installation includes the required tools and WebAssembly standard library.
 - The authoritative simulation is local and single-player; networking is outside
   the current scope.
-- Bevy version, Lua implementation, browser loader, and rendering backend remain
-  open until step 1 demonstrates compatibility. Trunk is a candidate only.
+- Step 1 selects Bevy 0.20.1, piccolo 0.3.3, wasm-bindgen, and WebGL2. See
+  [the stack decision](step-1-stack.md) for tradeoffs and verification limits.
 - The timestep, units, floating-point strategy, collision radii, mission geometry,
   observation rules, AI policy, shot solver, and scoring formula remain open.
 - Reproducibility must be tested independently of rendering and playback speed.

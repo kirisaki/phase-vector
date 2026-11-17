@@ -1,6 +1,8 @@
 // SPDX-License-Identifier: MIT OR Apache-2.0
 // Copyright (c) 2026 Akihito Kirisaki <kirisaki@klara.works>
 
-fn main() {
-    println!("PHASE VECTOR: repository setup complete; gameplay is not implemented yet.");
-}
+pub mod probe;
+pub mod repl;
+
+#[cfg(target_arch = "wasm32")]
+mod browser;
