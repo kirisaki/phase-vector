@@ -56,6 +56,7 @@ support both a local root and the `/phase-vector/` GitHub Pages project path.
 | +0.25 s | Advance one physical tick during paused execution |
 | Playback speed | Select 1×, 4×, 16×, or 64× without changing physical results |
 | Reset | Restore planning at tick zero and full delta-v; Lua globals remain |
+| Show / Hide Lua console | Toggle the initially hidden REPL; input, output, and Lua globals are retained. Close or Escape returns focus to the toggle |
 | Run Lua | Evaluate input; Ctrl+Enter or Command+Enter also submits |
 | Example buttons | Fill the console input without executing it |
 | Reload page | Start a new simulation and Lua session |

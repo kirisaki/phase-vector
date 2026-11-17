@@ -21,6 +21,7 @@
         <h1>Plot the next move.</h1>
         <p>Plan a burn. Commit 120 seconds. Watch inertia take over.<br>Physics sandbox — mission rules and enemy decisions arrive next.</p>
       </section>
+      <div class="workspace-tools"><button id="console-toggle" type="button" aria-controls="console-panel" aria-expanded="false">Show Lua console</button></div>
       <div class="workspace">
         <section class="map-panel" aria-labelledby="map-title">
           <div class="panel-heading"><h2 id="map-title">Tactical display</h2><span id="engine-status" role="status">Starting engine…</span></div>
@@ -34,8 +35,8 @@
           <form id="burn-form"><fieldset id="burn-fields" disabled><legend>Constant acceleration for the next 120 s</legend><div class="burn-inputs"><label for="burn-x">ax / m/s²<input id="burn-x" type="number" value="0" step="any" required></label><label for="burn-y">ay / m/s²<input id="burn-y" type="number" value="0" step="any" required></label><button id="apply-burn" type="submit">Apply burn</button></div></fieldset><p id="plan-feedback" role="status">Coasting planned. Acceleration magnitude is limited to 0.020 m/s².</p></form>
           <p class="legend"><span class="cyan">△</span> Friendly <span class="amber">⊕</span> Passive ship · Arrows: velocity × 50 s · Circles: hit radius</p>
         </section>
-        <section class="console-panel" aria-labelledby="console-title">
-          <div class="panel-heading"><h2 id="console-title">Lua console</h2><span class="muted">LOCAL SESSION</span></div>
+        <section id="console-panel" class="console-panel" aria-labelledby="console-title" tabindex="-1" hidden>
+          <div class="panel-heading"><h2 id="console-title">Lua console</h2><button id="console-close" type="button" aria-label="Close Lua console">Close</button></div>
           <div id="console-output" role="log" aria-label="Lua output" aria-live="polite"><p class="hint">Connecting to the simulation…</p></div>
           <form id="repl-form">
             <label for="lua-input">Lua expression or statements</label>

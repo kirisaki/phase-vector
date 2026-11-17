@@ -7,6 +7,25 @@ let ready = false;
 let dirtyPlan = false;
 let lastPlan = '';
 
+function showConsole(open, moveFocus = true) {
+  element('console-panel').hidden = !open;
+  document.querySelector('.workspace').classList.toggle('console-open', open);
+  element('console-toggle').setAttribute('aria-expanded', String(open));
+  element('console-toggle').textContent = open ? 'Hide Lua console' : 'Show Lua console';
+  if (moveFocus) {
+    (open ? (input.disabled ? element('console-panel') : input) : element('console-toggle')).focus();
+  }
+}
+
+element('console-toggle').addEventListener('click', () => showConsole(element('console-panel').hidden));
+element('console-close').addEventListener('click', () => showConsole(false));
+element('console-panel').addEventListener('keydown', (event) => {
+  if (event.key === 'Escape') {
+    event.preventDefault();
+    showConsole(false);
+  }
+});
+
 function log(text, className) {
   const line = document.createElement('p');
   line.className = className;
@@ -60,7 +79,7 @@ function refresh() {
 
 function invoke(action) {
   try { action(); }
-  catch (error) { log(String(error), 'error-line'); }
+  catch (error) { log(String(error), 'error-line'); showConsole(true, false); }
   refresh();
 }
 

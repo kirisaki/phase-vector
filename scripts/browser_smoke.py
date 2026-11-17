@@ -56,6 +56,11 @@ def main():
             expect(page.locator('#ticks')).to_have_text('0')
             expect(page.locator('#mode')).to_have_text('PLANNING')
             expect(page.locator('#tactical-map')).to_be_visible()
+            expect(page.locator('#console-panel')).to_be_hidden()
+            expect(page.locator('#console-toggle')).to_have_attribute('aria-expanded', 'false')
+            page.screenshot(path=str(artifacts / 'desktop-map.png'), full_page=True)
+            page.locator('#console-toggle').click()
+            expect(page.locator('#lua-input')).to_be_focused()
 
             def lua(source, expected=None, error=False):
                 page.locator('#lua-input').fill(source)
@@ -69,6 +74,15 @@ def main():
             lua('return 1 + 2', '3')
             lua('answer = 6 * 7; print("Answer:", answer)', '42')
             lua('answer', '42')
+            page.locator('#console-close').click()
+            expect(page.locator('#console-panel')).to_be_hidden()
+            expect(page.locator('#console-toggle')).to_be_focused()
+            page.locator('#console-toggle').click()
+            expect(page.locator('#lua-input')).to_have_value('answer')
+            expect(page.locator('#console-output p').last).to_have_text('42')
+            page.locator('#lua-input').press('Escape')
+            expect(page.locator('#console-panel')).to_be_hidden()
+            page.locator('#console-toggle').click()
             expect(page.locator('#step')).to_be_disabled()
             expect(page.locator('#toggle')).to_be_disabled()
             lua("game.command('step')", 'Commit orders', error=True)
@@ -135,6 +149,10 @@ def main():
             assert page.evaluate('document.documentElement.scrollWidth <= innerWidth'), 'Horizontal overflow'
             expect(page.locator('#tactical-map')).to_be_visible()
             page.screenshot(path=str(artifacts / 'mobile.png'), full_page=True)
+            page.locator('#console-close').click()
+            expect(page.locator('#console-panel')).to_be_hidden()
+            assert page.evaluate('document.documentElement.scrollWidth <= innerWidth'), 'Horizontal overflow'
+            page.screenshot(path=str(artifacts / 'mobile-map.png'), full_page=True)
             assert not errors, errors
             assert not failed_requests, failed_requests
             print('PASS: physical motion, delta-v, WEGO boundaries, order locks, replay, Lua, and responsive layout')
