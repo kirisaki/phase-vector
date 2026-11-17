@@ -1,0 +1,53 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="theme-color" content="#070f16">
+    <title>PHASE VECTOR — systems probe</title>
+    <link rel="icon" href="data:,">
+    <link rel="stylesheet" href="./style.css">
+    <script type="module" src="./app.js"></script>
+  </head>
+  <body>
+    <header>
+      <a class="wordmark" href="./"><span class="mark" aria-hidden="true">↗</span> PHASE VECTOR</a>
+      <span class="badge">01 / SYSTEMS PROBE</span>
+      <a class="source" href="https://github.com/kirisaki/phase-vector">Source ↗</a>
+    </header>
+    <main>
+      <section class="intro">
+        <p class="eyebrow">INTERDICTION / FUTURE POSITION</p>
+        <h1>Plot the next move.</h1>
+        <p>A first contact with the tactical display and Lua console.<br>Integration probe only — mission physics arrive in the next stage.</p>
+      </section>
+      <div class="workspace">
+        <section class="map-panel" aria-labelledby="map-title">
+          <div class="panel-heading"><h2 id="map-title">Tactical display</h2><span id="engine-status" role="status">Starting engine…</span></div>
+          <div class="canvas-wrap"><canvas id="tactical-map" aria-label="Bevy tactical display with a ship, moving probe marker, and destination region"></canvas><div class="map-caption">REFERENCE FIELD <span>ILLUSTRATIVE / NO PHYSICS</span></div></div>
+          <div class="transport">
+            <div class="readout"><span id="mode">PAUSED</span><strong><span id="ticks">0</span> <small>ticks</small></strong></div>
+            <div class="buttons"><button id="toggle" disabled>Resume</button><button id="step" disabled>Step +1</button><button id="reset" disabled>Reset</button></div>
+          </div>
+          <p class="legend"><span class="cyan">△</span> Friendly marker <span class="amber">⊕</span> Probe marker <span class="amber">▯</span> Destination reference</p>
+        </section>
+        <section class="console-panel" aria-labelledby="console-title">
+          <div class="panel-heading"><h2 id="console-title">Lua console</h2><span class="muted">LOCAL SESSION</span></div>
+          <div id="console-output" role="log" aria-label="Lua output" aria-live="polite"><p class="hint">Connecting to the probe…</p></div>
+          <form id="repl-form">
+            <label for="lua-input">Lua expression or statements</label>
+            <textarea id="lua-input" spellcheck="false" rows="3" placeholder="return 1 + 2" disabled>return 1 + 2</textarea>
+            <div class="run-row"><span>Ctrl / ⌘ + Enter to run</span><button id="run" type="submit" disabled>Run Lua ↵</button></div>
+          </form>
+          <details open><summary>Try a command</summary><div class="examples">
+            <button type="button" data-example="return game.state().ticks">Read tick count</button>
+            <button type="button" data-example="game.command('pause'); game.command('step'); return game.state().ticks">Pause &amp; step</button>
+            <button type="button" data-example="answer = 6 * 7; print('Answer:', answer)">Store &amp; print</button>
+          </div><p>Globals persist between runs. UI controls and <code>game.command()</code> share the same state. Reset restores the probe; reload clears Lua globals.</p></details>
+        </section>
+      </div>
+      <p id="error" role="alert" hidden></p>
+    </main>
+    <footer><span>PHASE VECTOR / PROOF OF CONCEPT</span><span>Rust + Bevy · WebGL2 · embedded Lua</span></footer>
+  </body>
+</html>

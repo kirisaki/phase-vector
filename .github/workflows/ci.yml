@@ -1,8 +1,8 @@
-name: CI
+name: CI and Pages
 
 on:
   push:
-    branches: [main]
+    branches: [main, step-1-browser]
   pull_request:
   workflow_dispatch:
 
@@ -15,21 +15,109 @@ concurrency:
 
 jobs:
   check:
-    name: Rust and WebAssembly checks
+    name: Rust checks
     runs-on: ubuntu-24.04
     timeout-minutes: 15
     steps:
-      - name: Check out source
-        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-      - name: Install the toolchain declared in rust-toolchain.toml
-        run: rustup show active-toolchain
-      - name: Check formatting
-        run: cargo fmt --all -- --check
-      - name: Run Clippy
-        run: cargo clippy --locked --all-targets -- -D warnings
-      - name: Run tests
-        run: cargo test --locked
-      - name: Build for WebAssembly
-        run: cargo build --locked --release --target wasm32-unknown-unknown
-      - name: Run the native scaffold
-        run: cargo run --locked
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - run: rustup show active-toolchain
+      - run: cargo fmt --all -- --check
+      - run: cargo clippy --locked --all-targets -- -D warnings
+      - run: cargo test --locked
+
+  web:
+    name: Browser build and interaction tests
+    needs: check
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - run: rustup show active-toolchain
+      - name: Cache Rust dependencies and build output
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: |
+            ~/.cargo/registry
+            target
+          key: web-${{ runner.os }}-${{ hashFiles('Cargo.lock', 'rust-toolchain.toml', '.cargo/config.toml') }}
+      - name: Install the matching wasm-bindgen CLI
+        shell: bash
+        run: |
+          version=$(python3 scripts/build_web.py --bindgen-version)
+          archive="wasm-bindgen-${version}-x86_64-unknown-linux-musl"
+          mkdir -p "$RUNNER_TEMP/bindgen"
+          cd "$RUNNER_TEMP/bindgen"
+          curl --fail --location --retry 3 --remote-name "https://github.com/wasm-bindgen/wasm-bindgen/releases/download/${version}/${archive}.tar.gz"
+          curl --fail --location --retry 3 --remote-name "https://github.com/wasm-bindgen/wasm-bindgen/releases/download/${version}/${archive}.tar.gz.sha256sum"
+          sed 's@gh-release/@@' "${archive}.tar.gz.sha256sum" | sha256sum -c -
+          tar -xzf "${archive}.tar.gz"
+          echo "$RUNNER_TEMP/bindgen/$archive" >> "$GITHUB_PATH"
+      - name: Check browser Rust code
+        run: cargo clippy --locked --target wasm32-unknown-unknown -- -D warnings
+      - name: Build the static site
+        run: python3 scripts/build_web.py
+      - name: Install browser test tools
+        run: |
+          python3 -m pip install -r requirements-browser.txt
+          python3 -m playwright install --with-deps chromium
+      - name: Test the release artifact at the project subpath
+        run: python3 scripts/browser_smoke.py
+      - name: Retain browser evidence
+        if: always()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: browser-evidence
+          path: artifacts/
+          if-no-files-found: ignore
+          retention-days: 7
+      - name: Retain the tested static site
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: web-dist
+          path: dist/
+          retention-days: 7
+      - name: Package the tested artifact for Pages
+        if: github.ref == 'refs/heads/main' && github.event_name != 'pull_request'
+        uses: actions/upload-pages-artifact@fc324d3547104276b827a68afc52ff2a11cc49c9 # v5.0.0
+        with:
+          path: dist/
+
+  deploy:
+    name: Deploy and verify GitHub Pages
+    needs: web
+    if: github.ref == 'refs/heads/main' && github.event_name != 'pull_request'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    permissions:
+      pages: write
+      id-token: write
+      contents: read
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    concurrency:
+      group: github-pages
+      cancel-in-progress: false
+    steps:
+      - name: Deploy the tested artifact
+        id: deployment
+        uses: actions/deploy-pages@368f82528645a54fb793d4d04e342629a3f51346 # v5.0.1
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - name: Install browser test tools
+        run: |
+          python3 -m pip install -r requirements-browser.txt
+          python3 -m playwright install --with-deps chromium
+      - name: Verify the public deployment
+        env:
+          SITE_URL: ${{ steps.deployment.outputs.page_url }}
+        run: |
+          curl --fail --location --retry 10 --retry-delay 5 --retry-all-errors "$SITE_URL" --output /dev/null
+          python3 scripts/browser_smoke.py --url "$SITE_URL"
+      - name: Retain deployed-site evidence
+        if: always()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: deployed-browser-evidence
+          path: artifacts/
+          if-no-files-found: ignore
+          retention-days: 7
