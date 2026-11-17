@@ -1,4 +1,4 @@
-//! Browser bindings and the Bevy renderer for the step-1 integration probe.
+//! Browser bindings and presentation of the renderer-independent WEGO session.
 
 use std::cell::RefCell;
 
@@ -33,9 +33,26 @@ pub fn command(name: &str) -> Result<(), JsValue> {
 }
 
 #[wasm_bindgen]
+pub fn plan_burn(x: f64, y: f64) -> Result<(), JsValue> {
+    HOST.with_borrow_mut(|host| {
+        host.plan_burn(x, y)
+            .map_err(|error| JsValue::from_str(&error))
+    })
+}
+
+#[wasm_bindgen]
+pub fn set_speed(speed: f64) -> Result<(), JsValue> {
+    HOST.with_borrow_mut(|host| {
+        host.set_speed(speed)
+            .map_err(|error| JsValue::from_str(&error))
+    })
+}
+
+#[wasm_bindgen]
 pub fn state_json() -> String {
     HOST.with_borrow(|host| {
-        serde_json::to_string(&*host.state.borrow()).expect("serializable probe state")
+        serde_json::to_string(&host.state.borrow().snapshot())
+            .expect("serializable session snapshot")
     })
 }
 
@@ -65,77 +82,77 @@ pub fn start() {
                 Camera2d,
                 Projection::Orthographic(OrthographicProjection {
                     scaling_mode: ScalingMode::AutoMin {
-                        min_width: 760.0,
-                        min_height: 480.0,
+                        min_width: 2000.0,
+                        min_height: 1200.0,
                     },
                     ..OrthographicProjection::default_2d()
                 }),
             ));
         })
         .add_systems(FixedUpdate, || {
-            HOST.with_borrow_mut(|host| host.state.borrow_mut().advance())
+            HOST.with_borrow_mut(|host| host.state.borrow_mut().pulse())
         })
-        .add_systems(Update, draw_probe)
+        .add_systems(Update, draw_world)
         .run();
 }
 
-fn draw_probe(mut gizmos: Gizmos) {
-    let ticks = HOST.with_borrow(|host| host.state.borrow().ticks);
+fn draw_world(mut gizmos: Gizmos) {
     let grid = Color::srgb(0.08, 0.15, 0.19);
     let cyan = Color::srgb(0.3, 0.88, 0.85);
     let amber = Color::srgb(1.0, 0.66, 0.34);
     for x in -12..=12 {
         gizmos.line_2d(
-            Vec2::new(x as f32 * 40.0, -400.0),
-            Vec2::new(x as f32 * 40.0, 400.0),
+            Vec2::new(x as f32 * 100.0, -1000.0),
+            Vec2::new(x as f32 * 100.0, 1000.0),
             grid,
         );
     }
     for y in -10..=10 {
         gizmos.line_2d(
-            Vec2::new(-600.0, y as f32 * 40.0),
-            Vec2::new(600.0, y as f32 * 40.0),
+            Vec2::new(-1200.0, y as f32 * 100.0),
+            Vec2::new(1200.0, y as f32 * 100.0),
             grid,
         );
     }
-    gizmos
-        .circle_2d(Isometry2d::IDENTITY, 160.0, grid)
-        .resolution(96);
-    gizmos
-        .circle_2d(Isometry2d::IDENTITY, 80.0, grid)
-        .resolution(64);
-    gizmos.rect_2d(
-        Isometry2d::from_translation(Vec2::new(260.0, 0.0)),
-        Vec2::new(70.0, 240.0),
-        amber,
-    );
-    let ship = Vec2::new(-200.0, -40.0);
-    gizmos.linestrip_2d(
-        [
-            ship + Vec2::new(18.0, 0.0),
-            ship + Vec2::new(-12.0, 10.0),
-            ship + Vec2::new(-6.0, 0.0),
-            ship + Vec2::new(-12.0, -10.0),
-            ship + Vec2::new(18.0, 0.0),
-        ],
-        cyan,
-    );
-    gizmos.arrow_2d(
-        ship + Vec2::new(26.0, 0.0),
-        ship + Vec2::new(95.0, 0.0),
-        cyan,
-    );
-    let marker = Vec2::new(40.0 + (ticks as f32 * 0.025).sin() * 90.0, 65.0);
-    gizmos.circle_2d(Isometry2d::from_translation(marker), 9.0, amber);
-    gizmos.line_2d(
-        marker + Vec2::new(-22.0, 0.0),
-        marker + Vec2::new(22.0, 0.0),
-        amber,
-    );
-    gizmos.line_2d(
-        marker + Vec2::new(0.0, -22.0),
-        marker + Vec2::new(0.0, 22.0),
-        amber,
-    );
+    HOST.with_borrow(|host| {
+        let session = host.state.borrow();
+        let view = session.snapshot();
+        for ship in &view.world.ships {
+            let position = Vec2::new(ship.position.x as f32, ship.position.y as f32);
+            let velocity = Vec2::new(ship.velocity.x as f32, ship.velocity.y as f32);
+            let friendly = ship.id == view.player_id;
+            let color = if friendly { cyan } else { amber };
+            gizmos.circle_2d(
+                Isometry2d::from_translation(position),
+                ship.radius as f32,
+                color,
+            );
+            if friendly {
+                gizmos.linestrip_2d(
+                    [
+                        position + Vec2::new(28.0, 0.0),
+                        position + Vec2::new(-22.0, 18.0),
+                        position + Vec2::new(-12.0, 0.0),
+                        position + Vec2::new(-22.0, -18.0),
+                        position + Vec2::new(28.0, 0.0),
+                    ],
+                    color,
+                );
+            } else {
+                gizmos.cross_2d(position, 30.0, color);
+            }
+            if velocity.length_squared() > 0.0 {
+                gizmos.arrow_2d(position, position + velocity * 50.0, color);
+            }
+        }
+        for projectile in &view.world.projectiles {
+            let position = Vec2::new(projectile.position.x as f32, projectile.position.y as f32);
+            gizmos.circle_2d(
+                Isometry2d::from_translation(position),
+                (projectile.radius as f32).max(3.0),
+                Color::WHITE,
+            );
+        }
+    });
     FRAMES.with_borrow_mut(|frames| *frames = frames.saturating_add(1));
 }

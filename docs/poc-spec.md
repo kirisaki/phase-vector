@@ -8,8 +8,9 @@ enemy or delay its arrival beyond a deadline through forced evasive maneuvers an
 delta-v expenditure.
 
 This document records the requested behavior, not completed functionality.
-The current implementation is the step-1 browser/Lua integration probe. Mission
-behavior below remains planned until its corresponding milestone is implemented.
+The current implementation includes step-2 physics and WEGO, connected to the
+browser and Lua. Mission behavior below remains planned until its corresponding
+milestone is implemented.
 
 ## Scope and implementation approach
 
@@ -114,7 +115,8 @@ compilation checks alone do not satisfy this milestone.
   the current scope.
 - Step 1 selects Bevy 0.20.1, piccolo 0.3.3, wasm-bindgen, and WebGL2. See
   [the stack decision](step-1-stack.md) for tradeoffs and verification limits.
-- The timestep, units, floating-point strategy, collision radii, mission geometry,
+- Step 2 selects 0.25-second ticks, SI units, `f64` simulation state, and swept
+  circle contacts. See [physics and time](step-2-physics.md). Mission geometry,
   observation rules, AI policy, shot solver, and scoring formula remain open.
 - Reproducibility must be tested independently of rendering and playback speed.
   Bit-identical results across browsers and architectures are not claimed until

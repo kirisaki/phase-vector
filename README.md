@@ -4,20 +4,23 @@ A browser-based 2D space tactics proof of concept. Place attacks at an enemy's
 future position and prevent a breakthrough through hits, evasive course changes,
 and delta-v expenditure.
 
-**[Open the browser probe](https://kirisaki.github.io/phase-vector/)**
+**[Open the physics sandbox](https://kirisaki.github.io/phase-vector/)**
 
 ## Status
 
-**Step 1: browser and Lua integration.** Bevy renders a geometric reference field
-through WebGL2. A Lua REPL runs inside the same WebAssembly module. UI controls and
-Lua commands operate on the same Rust state.
+**Step 2: physics and WEGO execution.** Two ships move with inertia, bounded
+acceleration, and finite delta-v. Plan a constant thrust vector, then commit a
+120-second interval. Bevy draws the authoritative physical state; the UI and Lua
+use the same validated command API.
 
-This is an integration probe, not a playable mission. The moving marker is an
-illustration driven by a tick counter. Physics, WEGO, shooting, enemy AI,
-observations, scoring, and gameplay predictions belong to steps 2–6.
+This is a physics sandbox. The second ship coasts without an AI. Mission rules,
+weapons, observations, scoring, and gameplay predictions remain steps 3–6.
+Projectile contacts are implemented and tested in the physics core; firing UI
+and hit consequences are not implemented yet.
 
-See the [PoC specification](docs/poc-spec.md) and
-[technical decisions](docs/step-1-stack.md).
+See the [PoC specification](docs/poc-spec.md),
+[stack decisions](docs/step-1-stack.md), and
+[physics and time model](docs/step-2-physics.md).
 
 ## Build and run locally
 
@@ -43,33 +46,47 @@ The build script checks that the CLI version matches `Cargo.lock`. It produces a
 self-contained `dist/` with HTML, CSS, JavaScript, and WASM. Relative asset URLs
 support both a local root and the `/phase-vector/` GitHub Pages project path.
 
-## Probe controls
+## Sandbox controls
 
 | Control | Behavior |
 | --- | --- |
-| Resume / Pause | Start or stop the probe counter; rendering continues |
-| Step +1 | Advance one probe tick while paused |
-| Reset | Restore the paused probe at tick zero; Lua globals remain |
-| Run Lua | Evaluate the input; Ctrl+Enter or Command+Enter also submits |
+| Acceleration X/Y + Apply | Draft a constant vector in m/s² for the next interval; magnitude is clamped to 0.02 |
+| Commit 120 s | Freeze orders and execute both ships simultaneously |
+| Resume / Pause | Control playback during execution; orders remain locked |
+| +0.25 s | Advance one physical tick during paused execution |
+| Playback speed | Select 1×, 4×, 16×, or 64× without changing physical results |
+| Reset | Restore planning at tick zero and full delta-v; Lua globals remain |
+| Run Lua | Evaluate input; Ctrl+Enter or Command+Enter also submits |
 | Example buttons | Fill the console input without executing it |
-| Reload page | Start a new probe and Lua session |
+| Reload page | Start a new simulation and Lua session |
 
-The probe starts paused and advances at 60 ticks per second when running. These
-ticks are an integration aid, not the mission's final timestep or command cycle.
+Planning has no time limit. Every committed interval ends at exactly 120 simulated
+seconds and returns to planning. The next draft defaults to coasting. Position,
+velocity, and remaining delta-v persist. Edited input fields must be applied
+before the UI permits committing. Planning commands are rejected during execution,
+including while paused. Coordinates use metres with positive Y pointing upward.
+The grid spacing is 100 m; velocity arrows show 50 seconds of displacement.
 
 ```lua
-return 1 + 2
 answer = 6 * 7; print("Answer:", answer)
-return answer
-return game.state().ticks
+return game.state().phase
+return game.state().ship.remaining_dv
+game.burn(0.02, 0)
+game.command("commit")
 game.command("pause")
-game.command("step"); return game.state().ticks
+game.command("step"); return game.state().time_seconds
+game.speed(64)
 game.command("resume")
 game.command("reset")
 ```
 
-Bare expressions also work. `game.state()` returns a copy with `paused` and
-`ticks`; modifying that table does not change the Rust state. Invalid commands,
+Bare expressions also work. `game.state()` returns a detached snapshot with
+`phase`, `paused`, `ticks`, `time_seconds`, `remaining_seconds`, `speed`,
+`command_number`, `command_count`, `planned_burn`, and `ships`. `ship` aliases the
+friendly ship snapshot. Ship fields include `id`, `x`, `y`, `vx`, `vy`,
+`remaining_dv`, `spent_dv`, and `max_acceleration`. Projectile and impact counts
+are also exposed. Changing these Lua tables does not modify the Rust state.
+Invalid commands,
 syntax errors, and runtime errors appear in the console. One evaluation has a
 20,000-fuel budget to interrupt accidental infinite loops. Effects performed
 before an error or budget exhaustion are retained; there is no transaction rollback.
@@ -86,10 +103,11 @@ cargo clippy --locked --target wasm32-unknown-unknown -- -D warnings
 python3 scripts/build_web.py
 ```
 
-Native Rust tests cover real Lua evaluation, persistent globals, UI/REPL command
-consistency, pause validation, snapshot isolation, and recovery from errors and
-an infinite loop. Bevy is a browser-target dependency; native tests do not need a
-display server or graphics libraries.
+Native Rust tests cover inertial motion, acceleration magnitude limits, partial
+fuel exhaustion, braking, fast and moving-target contacts, temporal misses,
+contact ordering, deterministic replay, WEGO boundaries at every playback speed,
+paused command locks, projectile persistence, reset, and Lua error recovery.
+Bevy is a browser-target dependency; native tests need no display server.
 
 For real browser interaction checks:
 
@@ -103,8 +121,9 @@ python scripts/browser_smoke.py
 
 The smoke test opens Chromium and fulfills browser requests from `dist/` at a
 virtual HTTPS `/phase-vector/` URL. It checks engine startup, a visible scene
-change after commands, Lua results and persistence, UI/REPL state sharing,
-validation, error recovery, and a narrow viewport. Screenshots and errors are
+change after commands, delta-v consumption, exact interval boundaries, locked
+orders, and identical results from playback and manual stepping. It also checks
+Lua persistence, validation, error recovery, and a narrow viewport. Screenshots and errors are
 written to ignored `artifacts/`. `--executable-path` can select an existing
 Chromium installation. To exercise the real hosted site:
 
@@ -145,8 +164,16 @@ not require a game server or custom domain.
 - Browser execution is single-threaded and uses WebGL2. WebGPU, shared-memory
   threads, native graphical builds, and cross-browser compatibility are not
   verified in this milestone. CI uses Chromium with software rendering.
-- The counter and visual movement do not establish deterministic game physics.
-  The 120-second WEGO cycle and command-phase restrictions are future work.
+- Physics uses 0.25-second ticks and `f64` values. Each tick applies a bounded
+  velocity increment, then drifts linearly. Swept contacts are continuous along
+  these discrete segments; sub-tick thrust cutoff and curved paths are not modeled.
+- Replay is deterministic for the same initial state, commands, and build/runtime.
+  Bit-identical results across browsers or CPU architectures are not claimed.
+- Step 2 supports one constant burn per interval. There is no mission deadline,
+  enemy evasion, firing UI, victory condition, or observation model yet. The fixed
+  map can be left after many intervals; telemetry continues to show the state.
+- Projectiles have no expiry or map culling. Contacts consume projectiles and
+  record events; ship disablement will be defined by step-3 mission rules.
 - First-load size and performance are not final. Browser errors are shown in the
   page; details are also available in the browser developer console.
 

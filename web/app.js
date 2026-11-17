@@ -1,13 +1,11 @@
-import init, { start, command, run_lua, state_json, rendered_frames } from './pkg/phase_vector.js';
+import init, { start, command, plan_burn, set_speed, run_lua, state_json, rendered_frames } from './pkg/phase_vector.js';
 
-const output = document.querySelector('#console-output');
-const input = document.querySelector('#lua-input');
-const toggle = document.querySelector('#toggle');
-const step = document.querySelector('#step');
-const reset = document.querySelector('#reset');
-const run = document.querySelector('#run');
-const status = document.querySelector('#engine-status');
+const element = (id) => document.getElementById(id);
+const output = element('console-output');
+const input = element('lua-input');
 let ready = false;
+let dirtyPlan = false;
+let lastPlan = '';
 
 function log(text, className) {
   const line = document.createElement('p');
@@ -20,28 +18,70 @@ function log(text, className) {
 
 function refresh() {
   const state = JSON.parse(state_json());
-  document.querySelector('#mode').textContent = state.paused ? 'PAUSED' : 'RUNNING';
-  document.querySelector('#ticks').textContent = state.ticks;
-  toggle.textContent = state.paused ? 'Resume' : 'Pause';
-  step.disabled = !ready || !state.paused;
   if (!ready && rendered_frames() > 2) {
     ready = true;
-    status.textContent = 'ENGINE ONLINE';
+    element('engine-status').textContent = 'ENGINE ONLINE';
     document.body.dataset.ready = 'true';
-    for (const control of [toggle, step, reset, run, input]) control.disabled = false;
-    log('Lua ready. Try return 1 + 2 or game.state().ticks.', 'hint');
+    log('Lua ready. Inspect game.state(), plan with game.burn(ax, ay), then commit.', 'hint');
   }
+  const planning = state.phase === 'planning';
+  const plan = JSON.stringify(state.planned_burn);
+  if (lastPlan !== plan) {
+    element('burn-x').value = state.planned_burn.x;
+    element('burn-y').value = state.planned_burn.y;
+    dirtyPlan = false;
+    lastPlan = plan;
+  }
+  element('mode').textContent = planning ? 'PLANNING' : state.paused ? 'PAUSED' : 'EXECUTING';
+  element('ticks').textContent = state.world.tick;
+  element('time').textContent = state.time_seconds.toFixed(2);
+  element('command-number').textContent = `COMMAND ${String(state.command_number).padStart(2, '0')}`;
+  element('window-time').textContent = `${planning ? 'Next window' : 'Remaining'}: ${state.remaining_seconds.toFixed(2)} s`;
+  element('toggle').textContent = state.paused ? 'Resume' : 'Pause';
+  element('toggle').disabled = !ready || planning;
+  element('step').disabled = !ready || planning || !state.paused;
+  element('commit').disabled = !ready || !planning || dirtyPlan;
+  element('burn-fields').disabled = !ready || !planning;
+  element('reset').disabled = !ready;
+  element('speed').disabled = !ready;
+  element('speed').value = state.speed;
+  element('run').disabled = !ready;
+  input.disabled = !ready;
+  const ship = state.world.ships.find((ship) => ship.id === state.player_id);
+  element('position').textContent = `${ship.position.x.toFixed(2)}, ${ship.position.y.toFixed(2)}`;
+  element('velocity').textContent = `${ship.velocity.x.toFixed(3)}, ${ship.velocity.y.toFixed(3)}`;
+  element('dv').textContent = ship.remaining_dv.toFixed(3);
+  element('spent-dv').textContent = ship.spent_dv.toFixed(3);
+  element('plan-feedback').textContent = !planning
+    ? 'Orders are locked until this 120-second interval completes, including while paused.'
+    : dirtyPlan ? 'Apply edited values before committing.'
+    : `Planned a = (${state.planned_burn.x.toFixed(5)}, ${state.planned_burn.y.toFixed(5)}) m/s². Magnitude limit: ${ship.max_acceleration.toFixed(3)} m/s².`;
 }
 
-function send(name) {
-  try { command(name); refresh(); }
+function invoke(action) {
+  try { action(); }
   catch (error) { log(String(error), 'error-line'); }
+  refresh();
 }
 
-toggle.addEventListener('click', () => send(JSON.parse(state_json()).paused ? 'resume' : 'pause'));
-step.addEventListener('click', () => send('step'));
-reset.addEventListener('click', () => send('reset'));
-document.querySelector('#repl-form').addEventListener('submit', (event) => {
+element('commit').addEventListener('click', () => invoke(() => command('commit')));
+element('toggle').addEventListener('click', () => invoke(() => command(JSON.parse(state_json()).paused ? 'resume' : 'pause')));
+element('step').addEventListener('click', () => invoke(() => command('step')));
+element('reset').addEventListener('click', () => invoke(() => { command('reset'); dirtyPlan = false; lastPlan = ''; }));
+element('speed').addEventListener('change', (event) => invoke(() => set_speed(Number(event.target.value))));
+for (const id of ['burn-x', 'burn-y']) {
+  element(id).addEventListener('input', () => { dirtyPlan = true; refresh(); });
+}
+element('burn-form').addEventListener('submit', (event) => {
+  event.preventDefault();
+  if (!ready) return;
+  invoke(() => {
+    plan_burn(element('burn-x').valueAsNumber, element('burn-y').valueAsNumber);
+    dirtyPlan = false;
+    lastPlan = '';
+  });
+});
+element('repl-form').addEventListener('submit', (event) => {
   event.preventDefault();
   if (!ready || !input.value.trim()) return;
   log(`> ${input.value}`, 'input-line');
@@ -52,7 +92,7 @@ document.querySelector('#repl-form').addEventListener('submit', (event) => {
 input.addEventListener('keydown', (event) => {
   if (event.key === 'Enter' && (event.ctrlKey || event.metaKey)) {
     event.preventDefault();
-    document.querySelector('#repl-form').requestSubmit();
+    element('repl-form').requestSubmit();
   }
 });
 document.querySelectorAll('[data-example]').forEach((button) => {
@@ -75,8 +115,7 @@ try {
 }
 
 function fail(message) {
-  status.textContent = 'ENGINE UNAVAILABLE';
-  const error = document.querySelector('#error');
-  error.textContent = message;
-  error.hidden = false;
+  element('engine-status').textContent = 'ENGINE UNAVAILABLE';
+  element('error').textContent = message;
+  element('error').hidden = false;
 }

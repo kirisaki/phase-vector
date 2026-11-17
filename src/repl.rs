@@ -1,20 +1,25 @@
-//! A persistent, fuel-limited Lua probe using the same command API as the UI.
+//! A persistent, fuel-limited Lua REPL using the same WEGO command API as the UI.
 
 use std::{cell::RefCell, rc::Rc};
 
-use piccolo::{Callback, CallbackReturn, Closure, Executor, Fuel, Lua, Table, Value, Variadic};
+use piccolo::{
+    Callback, CallbackReturn, Closure, Context, Executor, Fuel, Lua, Table, Value, Variadic,
+};
 
-use crate::probe::ProbeState;
+use crate::{
+    physics::{Ship, Vector2},
+    session::{Command, Session},
+};
 
 pub struct Host {
-    pub state: Rc<RefCell<ProbeState>>,
+    pub state: Rc<RefCell<Session>>,
     lua: Lua,
     output: Rc<RefCell<Vec<String>>>,
 }
 
 impl Default for Host {
     fn default() -> Self {
-        let state = Rc::new(RefCell::new(ProbeState::default()));
+        let state = Rc::new(RefCell::new(Session::default()));
         let output = Rc::new(RefCell::new(Vec::new()));
         let mut lua = Lua::core();
         lua.enter(|ctx| {
@@ -25,9 +30,45 @@ impl Default for Host {
                 "command",
                 Callback::from_fn(&ctx, move |ctx, _, mut stack| {
                     let name: String = stack.consume(ctx)?;
-                    command_state.borrow_mut().command(&name).map_err(|error| {
-                        piccolo::Error::from_value(Value::String(ctx.intern(error.as_bytes())))
-                    })?;
+                    Command::named(&name)
+                        .and_then(|command| command_state.borrow_mut().dispatch(command))
+                        .map_err(|error| {
+                            piccolo::Error::from_value(Value::String(ctx.intern(error.as_bytes())))
+                        })?;
+                    stack.replace(ctx, true);
+                    Ok(CallbackReturn::Return)
+                }),
+            )
+            .expect("static table key");
+            let burn_state = state.clone();
+            game.set(
+                ctx,
+                "burn",
+                Callback::from_fn(&ctx, move |ctx, _, mut stack| {
+                    let (x, y): (f64, f64) = stack.consume(ctx)?;
+                    burn_state
+                        .borrow_mut()
+                        .dispatch(Command::PlanBurn(Vector2::new(x, y)))
+                        .map_err(|error| {
+                            piccolo::Error::from_value(Value::String(ctx.intern(error.as_bytes())))
+                        })?;
+                    stack.replace(ctx, true);
+                    Ok(CallbackReturn::Return)
+                }),
+            )
+            .expect("static table key");
+            let speed_state = state.clone();
+            game.set(
+                ctx,
+                "speed",
+                Callback::from_fn(&ctx, move |ctx, _, mut stack| {
+                    let speed: f64 = stack.consume(ctx)?;
+                    speed_state
+                        .borrow_mut()
+                        .dispatch(Command::SetSpeed(speed))
+                        .map_err(|error| {
+                            piccolo::Error::from_value(Value::String(ctx.intern(error.as_bytes())))
+                        })?;
                     stack.replace(ctx, true);
                     Ok(CallbackReturn::Return)
                 }),
@@ -39,9 +80,30 @@ impl Default for Host {
                 "state",
                 Callback::from_fn(&ctx, move |ctx, _, mut stack| {
                     let state = read_state.borrow();
+                    let view = state.snapshot();
                     let snapshot = Table::new(&ctx);
-                    snapshot.set(ctx, "paused", state.paused)?;
-                    snapshot.set(ctx, "ticks", state.ticks)?;
+                    snapshot.set(ctx, "paused", view.paused)?;
+                    snapshot.set(ctx, "phase", view.phase.label())?;
+                    snapshot.set(ctx, "ticks", view.world.tick as f64)?;
+                    snapshot.set(ctx, "time_seconds", view.time_seconds)?;
+                    snapshot.set(ctx, "remaining_seconds", view.remaining_seconds)?;
+                    snapshot.set(ctx, "speed", view.speed)?;
+                    snapshot.set(ctx, "command_number", view.command_number as f64)?;
+                    snapshot.set(ctx, "command_count", view.command_log.len() as f64)?;
+                    let plan = Table::new(&ctx);
+                    plan.set(ctx, "x", view.planned_burn.x)?;
+                    plan.set(ctx, "y", view.planned_burn.y)?;
+                    snapshot.set(ctx, "planned_burn", plan)?;
+                    let ships = Table::new(&ctx);
+                    for (index, ship) in view.world.ships.iter().enumerate() {
+                        ships.set(ctx, (index + 1) as i64, ship_table(ctx, ship)?)?;
+                        if ship.id == view.player_id {
+                            snapshot.set(ctx, "ship", ship_table(ctx, ship)?)?;
+                        }
+                    }
+                    snapshot.set(ctx, "ships", ships)?;
+                    snapshot.set(ctx, "projectile_count", view.world.projectiles.len() as f64)?;
+                    snapshot.set(ctx, "impact_count", view.world.impacts.len() as f64)?;
                     stack.replace(ctx, snapshot);
                     Ok(CallbackReturn::Return)
                 }),
@@ -76,7 +138,17 @@ impl Default for Host {
 
 impl Host {
     pub fn command(&mut self, name: &str) -> Result<(), String> {
-        self.state.borrow_mut().command(name)
+        self.state.borrow_mut().dispatch(Command::named(name)?)
+    }
+
+    pub fn plan_burn(&mut self, x: f64, y: f64) -> Result<(), String> {
+        self.state
+            .borrow_mut()
+            .dispatch(Command::PlanBurn(Vector2::new(x, y)))
+    }
+
+    pub fn set_speed(&mut self, speed: f64) -> Result<(), String> {
+        self.state.borrow_mut().dispatch(Command::SetSpeed(speed))
     }
 
     pub fn evaluate(&mut self, source: &str) -> Result<String, String> {
@@ -128,6 +200,23 @@ impl Host {
     }
 }
 
+fn ship_table<'gc>(ctx: Context<'gc>, ship: &Ship) -> Result<Table<'gc>, piccolo::Error<'gc>> {
+    let table = Table::new(&ctx);
+    for (key, value) in [
+        ("id", ship.id as f64),
+        ("x", ship.position.x),
+        ("y", ship.position.y),
+        ("vx", ship.velocity.x),
+        ("vy", ship.velocity.y),
+        ("remaining_dv", ship.remaining_dv),
+        ("spent_dv", ship.spent_dv),
+        ("max_acceleration", ship.max_acceleration),
+    ] {
+        table.set(ctx, key, value)?;
+    }
+    Ok(table)
+}
+
 fn format_value(value: &Value<'_>) -> String {
     let text = value.to_string();
     text.chars().take(1024).collect()
@@ -152,23 +241,32 @@ mod tests {
     #[test]
     fn ui_and_lua_share_state_and_validation() {
         let mut host = Host::default();
+        host.plan_burn(0.02, 0.0).unwrap();
+        host.command("commit").unwrap();
+        host.command("pause").unwrap();
         host.command("step").unwrap();
         assert_eq!(host.evaluate("game.state().ticks").unwrap(), "1");
         host.evaluate("game.command('resume')").unwrap();
         assert!(host.command("step").is_err());
         assert!(host.evaluate("game.command('step')").is_err());
         host.command("pause").unwrap();
+        assert!(host.evaluate("game.burn(0, 0)").is_err());
+        assert!(host.plan_burn(0.0, 0.0).is_err());
         host.evaluate("game.command('step')").unwrap();
-        assert_eq!(host.state.borrow().ticks, 2);
+        assert_eq!(host.state.borrow().world().tick, 2);
+        assert_eq!(host.evaluate("game.state().ship.vx > 1").unwrap(), "true");
         host.command("reset").unwrap();
-        assert_eq!(*host.state.borrow(), ProbeState::default());
+        assert_eq!(host.state.borrow().world(), Session::default().world());
     }
 
     #[test]
     fn state_is_a_snapshot_and_errors_are_recoverable() {
         let mut host = Host::default();
         host.evaluate("game.state().ticks = 99").unwrap();
-        assert_eq!(host.state.borrow().ticks, 0);
+        host.evaluate("game.state().ship.remaining_dv = 999")
+            .unwrap();
+        assert_eq!(host.state.borrow().world().tick, 0);
+        assert_eq!(host.state.borrow().world().ships[0].remaining_dv, 20.0);
         assert!(host.evaluate("function (").is_err());
         assert!(host.evaluate("error('probe error')").is_err());
         assert!(
@@ -180,13 +278,19 @@ mod tests {
     }
 
     #[test]
-    fn paused_probe_does_not_advance() {
-        let mut state = ProbeState::default();
-        state.advance();
-        assert_eq!(state.ticks, 0);
-        state.command("resume").unwrap();
-        state.advance();
-        assert_eq!(state.ticks, 1);
-        assert!(state.command("fire").is_err());
+    fn lua_validation_and_interval_boundary_match_the_native_api() {
+        let mut host = Host::default();
+        assert!(host.evaluate("game.burn(0/0, 0)").is_err());
+        assert!(host.evaluate("game.speed(1.5)").is_err());
+        host.evaluate(
+            "game.burn(0.02, 0); game.speed(64); game.command('commit'); game.command('pause')",
+        )
+        .unwrap();
+        host.evaluate("for i=1,480 do game.command('step') end")
+            .unwrap();
+        assert_eq!(host.evaluate("game.state().phase").unwrap(), "planning");
+        assert_eq!(host.evaluate("game.state().time_seconds").unwrap(), "120");
+        assert!(host.evaluate("game.command('step')").is_err());
+        assert_eq!(host.evaluate("game.state().command_count").unwrap(), "1");
     }
 }
