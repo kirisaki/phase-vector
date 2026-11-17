@@ -1,0 +1,13 @@
+[package]
+name = "phase-vector"
+version = "0.1.0"
+edition = "2024"
+rust-version = "1.100"
+description = "A browser-based 2D space tactics proof of concept about future-position interdiction."
+authors = ["Akihito Kirisaki <kirisaki@klara.works>"]
+license = "MIT OR Apache-2.0"
+repository = "https://github.com/kirisaki/phase-vector"
+readme = "README.md"
+publish = false
+
+[dependencies]
