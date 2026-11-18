@@ -69,11 +69,31 @@ the release build and GitHub Pages pipeline continue using `scripts/build_web.py
 See the [Vite server documentation](https://vite.dev/config/server-options) for
 watcher settings if your filesystem does not report changes.
 
+To preview on a phone connected to the same LAN, bind to the computer's LAN IPv4
+address instead of loopback (replace the example address with your own):
+
+```sh
+npm run dev -- --host 192.168.100.3
+```
+
+Open `http://192.168.100.3:5173/` on the phone. CSS hot updates and automatic page
+reloads work over this connection too. The default `npm run dev` remains limited
+to loopback. Use a trusted LAN and stop the LAN server when finished.
+On WSL2, mirrored networking supports direct LAN access; Windows/Hyper-V firewall
+rules must also permit incoming TCP traffic on port 5173. NAT mode needs additional
+forwarding. See [Microsoft's WSL networking guide](https://learn.microsoft.com/en-us/windows/wsl/networking).
+The current workstation uses the scoped Hyper-V rule `PhaseVector-Vite-LAN`
+(TCP 5173, destination `192.168.100.3`, source `192.168.100.0/24`). To remove this
+permission later, run `Remove-NetFirewallHyperVRule -Name PhaseVector-Vite-LAN`
+in an administrator PowerShell window. If the LAN address changes, update both
+the bind address and the scoped firewall rule.
+
 As of 2026-11-18, `npm audit` reports the transitive `picomatch` ReDoS advisory
 [GHSA-fc5q-39xc-vjpf](https://github.com/advisories/GHSA-fc5q-39xc-vjpf), including
 its dependents. The registry currently has no patched picomatch release. Keep
-this development server local; Vite and its dependencies are not shipped in the
-published site. Do not use `npm audit fix --force` to downgrade Vite automatically.
+this development server on loopback or a trusted LAN; Vite and its dependencies
+are not shipped in the published site. Do not use `npm audit fix --force` to
+downgrade Vite automatically.
 
 ## Sandbox controls
 
