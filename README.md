@@ -27,7 +27,7 @@ See the [PoC specification](docs/poc-spec.md),
 Install Git, [rustup](https://rustup.rs/), and Python 3.10 or newer. Rust 1.100.0,
 `rustfmt`, Clippy, and `wasm32-unknown-unknown` are declared in
 `rust-toolchain.toml`. The first build requires access to Rust distribution and
-crate servers. Node.js, Trunk, and an Emscripten toolchain are not required.
+crate servers. The release build does not require Node.js, Trunk, or Emscripten.
 
 ```sh
 git clone https://github.com/kirisaki/phase-vector.git
@@ -45,6 +45,35 @@ opening `index.html` with `file://` does not load the WebAssembly module correct
 The build script checks that the CLI version matches `Cargo.lock`. It produces a
 self-contained `dist/` with HTML, CSS, JavaScript, and WASM. Relative asset URLs
 support both a local root and the `/phase-vector/` GitHub Pages project path.
+
+### Live UI development
+
+For UI work, install Node.js satisfying `^20.19.0 || >=22.12.0`, then run:
+
+```sh
+npm ci
+npm run build:wasm # Once initially, and again after changing Rust code
+npm run dev
+```
+
+Open `http://127.0.0.1:5173/`. If `dist/pkg/` already contains a current WASM
+build, skip the build command. Vite serves `web/` directly and uses the generated
+module in `dist/pkg/`; edit `web/`, not `dist/`. CSS changes update in place.
+HTML and JavaScript changes reload the page, resetting the simulation and Lua
+session. The dev server binds only to loopback; stop it with Ctrl+C.
+
+Rust changes are not hot-swapped. Run `npm run build:wasm` in another terminal,
+wait for it to finish, then reload the page. This requires the Rust toolchain and
+matching wasm-bindgen CLI described above. Vite is only a local development tool;
+the release build and GitHub Pages pipeline continue using `scripts/build_web.py`.
+See the [Vite server documentation](https://vite.dev/config/server-options) for
+watcher settings if your filesystem does not report changes.
+
+As of 2026-11-18, `npm audit` reports the transitive `picomatch` ReDoS advisory
+[GHSA-fc5q-39xc-vjpf](https://github.com/advisories/GHSA-fc5q-39xc-vjpf), including
+its dependents. The registry currently has no patched picomatch release. Keep
+this development server local; Vite and its dependencies are not shipped in the
+published site. Do not use `npm audit fix --force` to downgrade Vite automatically.
 
 ## Sandbox controls
 
