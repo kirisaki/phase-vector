@@ -7,11 +7,36 @@ let ready = false;
 let dirtyPlan = false;
 let lastPlan = '';
 
+const narrowScreen = matchMedia('(max-width: 900px)');
+
+function syncConsoleLayout() {
+  const overlay = narrowScreen.matches || document.documentElement.classList.contains('short-viewport');
+  document.querySelector('.map-panel').inert = !element('console-panel').hidden && overlay;
+}
+
+function fitViewport() {
+  const viewport = window.visualViewport;
+  // Preserve browser zoom; only fit the keyboard/browser-chrome viewport at 1x.
+  if (viewport && Math.abs(viewport.scale - 1) > 0.01) return;
+  const height = viewport?.height ?? innerHeight;
+  document.documentElement.style.setProperty('--app-height', `${height}px`);
+  document.documentElement.style.setProperty('--app-top', `${viewport?.offsetTop ?? 0}px`);
+  document.documentElement.classList.toggle('short-viewport', height < 500);
+  syncConsoleLayout();
+}
+
+window.addEventListener('resize', fitViewport);
+window.visualViewport?.addEventListener('resize', fitViewport);
+window.visualViewport?.addEventListener('scroll', fitViewport);
+narrowScreen.addEventListener('change', syncConsoleLayout);
+fitViewport();
+
 function showConsole(open, moveFocus = true) {
   element('console-panel').hidden = !open;
   document.querySelector('.workspace').classList.toggle('console-open', open);
   element('console-toggle').setAttribute('aria-expanded', String(open));
   element('console-toggle').textContent = open ? 'Hide Lua console' : 'Show Lua console';
+  syncConsoleLayout();
   if (moveFocus) {
     (open ? (input.disabled ? element('console-panel') : input) : element('console-toggle')).focus();
   }

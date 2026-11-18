@@ -97,6 +97,15 @@ downgrade Vite automatically.
 
 ## Sandbox controls
 
+The application fills the available browser viewport without page scrolling or
+visible scrollbars. The map uses the remaining space above the controls; short,
+wide viewports place the controls beside it. On narrow or short screens, opening
+the Lua console replaces the map area until closed. Console history remains
+scrollable by touch, wheel, or keyboard. Very short viewports (such as when the
+software keyboard is open) also allow scrolling within the flight controls so
+inputs remain reachable. Browser chrome stays visible; no fullscreen permission
+is requested. The layout follows visual-viewport changes and device safe areas.
+
 | Control | Behavior |
 | --- | --- |
 | Acceleration X/Y + Apply | Draft a constant vector in m/s² for the next interval; magnitude is clamped to 0.02 |

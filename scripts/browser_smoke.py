@@ -147,12 +147,31 @@ def main():
             page.set_viewport_size({'width': 390, 'height': 844})
             page.wait_for_timeout(300)
             assert page.evaluate('document.documentElement.scrollWidth <= innerWidth'), 'Horizontal overflow'
-            expect(page.locator('#tactical-map')).to_be_visible()
+            expect(page.locator('#tactical-map')).to_be_hidden()
             page.screenshot(path=str(artifacts / 'mobile.png'), full_page=True)
             page.locator('#console-close').click()
             expect(page.locator('#console-panel')).to_be_hidden()
             assert page.evaluate('document.documentElement.scrollWidth <= innerWidth'), 'Horizontal overflow'
             page.screenshot(path=str(artifacts / 'mobile-map.png'), full_page=True)
+            for width, height in [(1360, 768), (1024, 600), (390, 844), (320, 568), (844, 390)]:
+                page.set_viewport_size({'width': width, 'height': height})
+                page.wait_for_timeout(200)
+                expect(page.locator('#tactical-map')).to_be_visible()
+                assert page.evaluate('document.documentElement.scrollWidth <= innerWidth && document.documentElement.scrollHeight <= innerHeight'), 'Page overflow'
+                for selector in ['#console-toggle', '#commit', '#toggle', '#step', '#reset', '#speed', '#burn-x', '#burn-y', '#apply-burn']:
+                    box = page.locator(selector).bounding_box()
+                    assert box and box['x'] >= 0 and box['y'] >= 0 and box['x'] + box['width'] <= width + 1 and box['y'] + box['height'] <= height + 1, (width, height, selector, box)
+                page.mouse.wheel(0, 1000)
+                assert page.evaluate('scrollX === 0 && scrollY === 0'), 'Page scrolled'
+                page.screenshot(path=str(artifacts / f'viewport-{width}x{height}.png'))
+                page.locator('#console-toggle').click()
+                expect(page.locator('#lua-input')).to_be_focused()
+                for selector in ['#console-close', '#lua-input', '#run']:
+                    box = page.locator(selector).bounding_box()
+                    assert box and box['y'] >= 0 and box['y'] + box['height'] <= height + 1, (width, height, selector, box)
+                lua('answer', '42')
+                page.locator('#console-close').click()
+                expect(page.locator('#console-toggle')).to_be_focused()
             assert not errors, errors
             assert not failed_requests, failed_requests
             print('PASS: physical motion, delta-v, WEGO boundaries, order locks, replay, Lua, and responsive layout')
