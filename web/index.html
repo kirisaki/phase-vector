@@ -23,10 +23,21 @@
           <div class="canvas-wrap"><canvas id="tactical-map" aria-label="Physical positions and velocity vectors of the friendly and passive ships"></canvas><div class="map-caption">GRID / 100 m <span id="command-number">COMMAND 01</span></div></div>
           <div class="flight-controls" tabindex="0" aria-label="Flight controls">
             <div class="transport">
-              <div class="readout"><span id="mode">PLANNING</span><strong><span id="time">0.00</span> <small>s</small></strong><small>tick <span id="ticks">0</span></small></div>
-              <div class="buttons"><button id="commit" disabled>Commit 120 s</button><button id="toggle" disabled>Resume</button><button id="step" disabled>+0.25 s</button><button id="reset" disabled>Reset</button></div>
+              <div class="command-row">
+                <div class="clock"><div class="readout"><span id="mode">PLANNING</span><strong><span id="time">0.00</span> <small>s</small></strong><small>tick <span id="ticks">0</span></small></div><span id="window-time">Next window: 120.00 s</span></div>
+                <div class="buttons"><button id="commit" disabled>Commit 120 s</button></div>
+              </div>
+              <div class="playback" role="group" aria-label="Playback controls">
+                <button id="toggle" disabled>Resume</button>
+                <button id="step" aria-label="Advance 0.25 seconds" disabled>+0.25 s</button>
+                <div id="speed" class="speed-buttons" role="group" aria-label="Playback speed">
+                  <button type="button" data-speed="1" aria-pressed="true" disabled>1×</button>
+                  <button type="button" data-speed="4" aria-pressed="false" disabled>4×</button>
+                  <button type="button" data-speed="16" aria-pressed="false" disabled>16×</button>
+                  <button type="button" data-speed="64" aria-pressed="false" disabled>64×</button>
+                </div>
+              </div>
             </div>
-            <div class="playback"><label for="speed">Playback</label><select id="speed" disabled><option value="1">1×</option><option value="4">4×</option><option value="16">16×</option><option value="64">64×</option></select><span id="window-time">Next window: 120.00 s</span></div>
             <div class="telemetry" aria-label="Friendly ship telemetry"><div>POSITION / m<strong id="position">−600.00, −150.00</strong></div><div>VELOCITY / m/s<strong id="velocity">1.000, 0.000</strong></div><div>REMAINING Δv / m/s<strong id="dv">20.000</strong></div><div>SPENT Δv / m/s<strong id="spent-dv">0.000</strong></div></div>
             <form id="burn-form"><fieldset id="burn-fields" disabled><legend>Constant acceleration for the next 120 s</legend><div class="burn-inputs"><label for="burn-x">ax / m/s²<input id="burn-x" type="number" value="0" step="any" required></label><label for="burn-y">ay / m/s²<input id="burn-y" type="number" value="0" step="any" required></label><button id="apply-burn" type="submit">Apply burn</button></div></fieldset><p id="plan-feedback" role="status">Coasting planned. Acceleration magnitude is limited to 0.020 m/s².</p></form>
           </div>

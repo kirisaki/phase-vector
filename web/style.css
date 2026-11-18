@@ -4,7 +4,7 @@
 html { width: 100%; height: 100%; overflow: hidden; overscroll-behavior: none; }
 body { position: fixed; top: var(--app-top, 0px); left: 0; width: 100%; height: 100vh; height: var(--app-height, 100dvh); margin: 0; padding: env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left); display: flex; flex-direction: column; overflow: hidden; }
 [hidden] { display: none !important; }
-button, textarea, input, select { font: inherit; }
+button, textarea, input { font: inherit; }
 a { color: inherit; text-decoration: none; }
 a:hover { color: var(--cyan); }
 header { flex: 0 0 auto; min-height: 52px; display: flex; align-items: center; gap: 18px; padding: 6px 14px; border-bottom: 1px solid var(--line); }
@@ -27,9 +27,12 @@ h2 { font-size: 11px; font-weight: 500; letter-spacing: .04em; text-transform: u
 canvas { display: block; width: 100%; height: 100%; min-width: 0 !important; min-height: 0 !important; outline: none; }
 .map-caption { position: absolute; top: 12px; left: 12px; right: 12px; display: flex; justify-content: space-between; gap: 10px; color: var(--muted); font-size: 9px; pointer-events: none; }
 .map-caption span { text-align: right; }
-.flight-controls { flex: 0 1 auto; min-height: 0; display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); grid-template-areas: 'transport transport' 'telemetry burn' 'playback burn'; overflow: auto; overscroll-behavior: contain; border-top: 1px solid var(--line); }
-.transport { grid-area: transport; padding: 8px 12px; display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 8px; border-bottom: 1px solid var(--line); }
-.readout { display: flex; gap: 12px; align-items: center; font-size: 10px; }
+.flight-controls { flex: 0 1 auto; min-height: 0; display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); grid-template-areas: 'transport transport' 'telemetry burn'; overflow: auto; overscroll-behavior: contain; border-top: 1px solid var(--line); }
+.transport { grid-area: transport; padding: 8px 12px; display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 10px 20px; border-bottom: 1px solid var(--line); }
+.command-row { display: flex; align-items: center; justify-content: space-between; gap: 8px; flex: 1 1 360px; min-width: 0; }
+.clock { min-width: 0; }
+#window-time { display: block; margin-top: 4px; color: var(--muted); font: 9px ui-monospace, monospace; }
+.readout { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; font-size: 10px; }
 #mode { color: var(--cyan); }
 .readout strong { font-size: 15px; font-weight: 500; }
 small { color: var(--muted); font-size: 10px; }
@@ -37,7 +40,7 @@ small { color: var(--muted); font-size: 10px; }
 button { border: 1px solid #354b59; border-radius: 3px; padding: 8px 11px; min-height: 36px; cursor: pointer; color: #d8e4eb; background: #14232d; font-size: 12px; }
 button:hover:not(:disabled) { border-color: var(--cyan); background: #1b343b; }
 button:disabled { opacity: .4; cursor: default; }
-button:focus-visible, textarea:focus-visible, input:focus-visible, select:focus-visible, a:focus-visible, summary:focus-visible, [tabindex]:focus-visible { outline: 2px solid var(--cyan); outline-offset: -2px; }
+button:focus-visible, textarea:focus-visible, input:focus-visible, a:focus-visible, summary:focus-visible, [tabindex]:focus-visible { outline: 2px solid var(--cyan); outline-offset: -2px; }
 #commit, #run { background: #51d8d0; color: #071319; border-color: #51d8d0; }
 .legend { flex: 0 0 auto; border-top: 1px solid var(--line); margin: 0; padding: 5px 12px; color: var(--muted); font-size: 9px; line-height: 1.5; }
 .legend span:not(:first-child) { margin-left: 10px; }
@@ -63,10 +66,16 @@ summary { cursor: pointer; }
 .examples button { font-size: 10px; padding: 6px 8px; }
 details p { color: var(--muted); line-height: 1.7; font-size: 11px; margin-bottom: 0; }
 #error { position: absolute; z-index: 3; inset: 12px 12px auto; max-height: calc(100% - 24px); overflow: auto; color: #ffad92; background: #211915; border: 1px solid #774839; margin: 0; padding: 12px; line-height: 1.6; }
-.playback { grid-area: playback; display: flex; align-items: center; gap: 8px; padding: 6px 12px; color: var(--muted); font: 10px ui-monospace, monospace; }
-.playback label { margin: 0; }
-.playback span { margin-left: auto; }
-input, select { min-width: 0; color: #d8e4eb; background: #071017; border: 1px solid #354b59; border-radius: 3px; padding: 6px; min-height: 36px; font-size: 16px; }
+.playback { display: flex; align-items: center; gap: 6px; flex: 0 1 320px; min-width: 0; }
+.playback > button { padding-inline: 7px; white-space: nowrap; }
+#toggle { min-width: 66px; }
+.speed-buttons { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); flex: 1; min-width: 136px; }
+.speed-buttons button { padding-inline: 4px; border-radius: 0; }
+.speed-buttons button + button { margin-left: -1px; }
+.speed-buttons button:first-child { border-radius: 3px 0 0 3px; }
+.speed-buttons button:last-child { border-radius: 0 3px 3px 0; }
+.speed-buttons button[aria-pressed="true"] { position: relative; border-color: var(--cyan); color: var(--cyan); background: #173b40; font-weight: 700; }
+input { min-width: 0; color: #d8e4eb; background: #071017; border: 1px solid #354b59; border-radius: 3px; padding: 6px; min-height: 36px; font-size: 16px; }
 .telemetry { grid-area: telemetry; display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 8px; padding: 10px 12px 4px; color: var(--muted); font: 9px ui-monospace, monospace; }
 .telemetry strong { display: block; margin-top: 5px; color: #d8e4eb; font-size: 12px; font-weight: 500; overflow-wrap: anywhere; }
 #burn-form { grid-area: burn; border-left: 1px solid var(--line); }
@@ -81,11 +90,12 @@ legend { color: var(--muted); font-size: 11px; margin-bottom: 8px; }
   .telemetry { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 }
 @container tactical (max-width: 600px) {
-  .flight-controls { grid-template-columns: minmax(0, 1fr); grid-template-areas: 'transport' 'playback' 'telemetry' 'burn'; }
+  .flight-controls { grid-template-columns: minmax(0, 1fr); grid-template-areas: 'transport' 'telemetry' 'burn'; }
   .transport { gap: 6px; padding: 6px 10px; }
-  .buttons { width: 100%; display: grid; grid-template-columns: 1.3fr 1fr 1fr .8fr; gap: 5px; }
+  .command-row, .playback { flex-basis: 100%; }
+  .buttons { flex-shrink: 0; gap: 5px; }
   .buttons button { padding: 6px 4px; }
-  .playback { padding: 4px 10px; }
+
   .telemetry { padding: 5px 10px; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 6px 10px; }
   .telemetry strong { margin-top: 3px; }
   #burn-form { border-left: 0; border-top: 1px solid var(--line); padding: 7px 10px; }
@@ -118,12 +128,13 @@ legend { color: var(--muted); font-size: 11px; margin-bottom: 8px; }
 .short-viewport .map-panel { display: grid; grid-template-columns: minmax(0, 1fr) minmax(280px, 340px); grid-template-rows: 30px minmax(0, 1fr); }
 .short-viewport .map-panel > .panel-heading { grid-column: 1 / -1; }
 .short-viewport .canvas-wrap { grid-column: 1; grid-row: 2; }
-.short-viewport .flight-controls { grid-column: 2; grid-row: 2; border-top: 0; border-left: 1px solid var(--line); grid-template-columns: minmax(0, 1fr); grid-template-areas: 'transport' 'playback' 'telemetry' 'burn'; align-content: start; }
-.short-viewport .buttons { width: 100%; display: grid; grid-template-columns: 1.3fr 1fr 1fr .8fr; gap: 4px; }
+.short-viewport .flight-controls { grid-column: 2; grid-row: 2; border-top: 0; border-left: 1px solid var(--line); grid-template-columns: minmax(0, 1fr); grid-template-areas: 'transport' 'telemetry' 'burn'; align-content: start; }
+.short-viewport .command-row, .short-viewport .playback { flex-basis: 100%; }
+.short-viewport .buttons { flex-shrink: 0; gap: 4px; }
 .short-viewport .buttons button { padding: 4px; }
 .short-viewport .telemetry { grid-template-columns: repeat(2, minmax(0, 1fr)); padding: 4px 10px; gap: 5px; }
 .short-viewport .telemetry strong { margin-top: 2px; }
-.short-viewport .transport, .short-viewport .playback { padding: 4px 10px; }
+.short-viewport .transport { padding: 6px 10px; gap: 8px; }
 .short-viewport #burn-form { border: 0; border-top: 1px solid var(--line); padding: 6px 10px; }
 @media (max-width: 600px) {
   .short-viewport .map-panel { display: flex; }

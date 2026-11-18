@@ -74,6 +74,15 @@ def main():
             lua('return 1 + 2', '3')
             lua('answer = 6 * 7; print("Answer:", answer)', '42')
             lua('answer', '42')
+            for speed in [4, 16, 64, 1]:
+                page.locator(f'[data-speed="{speed}"]').click()
+                expect(page.locator('#speed [aria-pressed="true"]')).to_have_text(f'{speed}×')
+                lua('game.state().speed', str(speed))
+                expect(page.locator('#ticks')).to_have_text('0')
+            lua('game.speed(16)')
+            expect(page.locator('[data-speed="16"]')).to_have_attribute('aria-pressed', 'true')
+            lua('game.speed(1)')
+            lua('answer', '42')
             page.locator('#console-close').click()
             expect(page.locator('#console-panel')).to_be_hidden()
             expect(page.locator('#console-toggle')).to_be_focused()
@@ -109,8 +118,10 @@ def main():
             page.locator('#step').click()
             expect(page.locator('#ticks')).to_have_text(str(int(paused_ticks) + 1))
             lua('game.state().ship.vx > 1', 'true')
-            page.locator('#speed').select_option('64')
+            page.locator('[data-speed="64"]').click()
             lua('game.state().speed', '64')
+            expect(page.locator('#mode')).to_have_text('PAUSED')
+            expect(page.locator('#speed [aria-pressed="true"]')).to_have_text('64×')
             page.locator('#toggle').click()
             expect(page.locator('#mode')).to_have_text('PLANNING', timeout=15000)
             expect(page.locator('#time')).to_have_text('120.00')
@@ -123,16 +134,17 @@ def main():
             assert before != after, 'Physical movement was not rendered'
             sample = 'return game.state().ship.x, game.state().ship.vx, game.state().ship.remaining_dv'
             played_result = lua(sample)
-            page.locator('#reset').click()
+            lua("game.command('reset')")
             expect(page.locator('#ticks')).to_have_text('0')
             expect(page.locator('#dv')).to_have_text('20.000')
+            expect(page.locator('#speed [aria-pressed="true"]')).to_have_text('1×')
             lua('answer', '42')
             lua("game.burn(0.02, 0); game.command('commit'); game.command('pause'); for i=1,480 do game.command('step') end")
             assert lua(sample) == played_result, 'Playback and manual stepping diverged'
             expect(page.locator('#time')).to_have_text('120.00')
             lua('game.state().command_count', '1')
             expect(page.locator('#burn-x')).to_have_value('0')
-            page.locator('#speed').select_option('64')
+            page.locator('[data-speed="64"]').click()
             page.locator('#commit').click()
             expect(page.locator('#mode')).to_have_text('PLANNING', timeout=15000)
             expect(page.locator('#time')).to_have_text('240.00')
@@ -158,7 +170,7 @@ def main():
                 page.wait_for_timeout(200)
                 expect(page.locator('#tactical-map')).to_be_visible()
                 assert page.evaluate('document.documentElement.scrollWidth <= innerWidth && document.documentElement.scrollHeight <= innerHeight'), 'Page overflow'
-                for selector in ['#console-toggle', '#commit', '#toggle', '#step', '#reset', '#speed', '#burn-x', '#burn-y', '#apply-burn']:
+                for selector in ['#console-toggle', '#commit', '#toggle', '#step', '[data-speed="1"]', '[data-speed="4"]', '[data-speed="16"]', '[data-speed="64"]', '#burn-x', '#burn-y', '#apply-burn']:
                     box = page.locator(selector).bounding_box()
                     assert box and box['x'] >= 0 and box['y'] >= 0 and box['x'] + box['width'] <= width + 1 and box['y'] + box['height'] <= height + 1, (width, height, selector, box)
                 page.mouse.wheel(0, 1000)

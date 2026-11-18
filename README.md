@@ -112,8 +112,7 @@ is requested. The layout follows visual-viewport changes and device safe areas.
 | Commit 120 s | Freeze orders and execute both ships simultaneously |
 | Resume / Pause | Control playback during execution; orders remain locked |
 | +0.25 s | Advance one physical tick during paused execution |
-| Playback speed | Select 1×, 4×, 16×, or 64× without changing physical results |
-| Reset | Restore planning at tick zero and full delta-v; Lua globals remain |
+| Playback speed buttons | Select 1×, 4×, 16×, or 64× beside Resume / Pause and Step; the active speed is highlighted and follows Lua changes |
 | Show / Hide Lua console | Toggle the initially hidden REPL; input, output, and Lua globals are retained. Close or Escape returns focus to the toggle |
 | Run Lua | Evaluate input; Ctrl+Enter or Command+Enter also submits |
 | Example buttons | Fill the console input without executing it |
@@ -145,6 +144,9 @@ Bare expressions also work. `game.state()` returns a detached snapshot with
 friendly ship snapshot. Ship fields include `id`, `x`, `y`, `vx`, `vy`,
 `remaining_dv`, `spent_dv`, and `max_acceleration`. Projectile and impact counts
 are also exposed. Changing these Lua tables does not modify the Rust state.
+`game.command("reset")` is a developer REPL command that restores planning at
+tick zero with full delta-v while retaining Lua globals; there is no reset button
+in the normal controls.
 Invalid commands,
 syntax errors, and runtime errors appear in the console. One evaluation has a
 20,000-fuel budget to interrupt accidental infinite loops. Effects performed

@@ -3,6 +3,7 @@ import init, { start, command, plan_burn, set_speed, run_lua, state_json, render
 const element = (id) => document.getElementById(id);
 const output = element('console-output');
 const input = element('lua-input');
+const speedButtons = document.querySelectorAll('[data-speed]');
 let ready = false;
 let dirtyPlan = false;
 let lastPlan = '';
@@ -86,9 +87,10 @@ function refresh() {
   element('step').disabled = !ready || planning || !state.paused;
   element('commit').disabled = !ready || !planning || dirtyPlan;
   element('burn-fields').disabled = !ready || !planning;
-  element('reset').disabled = !ready;
-  element('speed').disabled = !ready;
-  element('speed').value = state.speed;
+  for (const button of speedButtons) {
+    button.disabled = !ready;
+    button.setAttribute('aria-pressed', String(Number(button.dataset.speed) === state.speed));
+  }
   element('run').disabled = !ready;
   input.disabled = !ready;
   const ship = state.world.ships.find((ship) => ship.id === state.player_id);
@@ -111,8 +113,9 @@ function invoke(action) {
 element('commit').addEventListener('click', () => invoke(() => command('commit')));
 element('toggle').addEventListener('click', () => invoke(() => command(JSON.parse(state_json()).paused ? 'resume' : 'pause')));
 element('step').addEventListener('click', () => invoke(() => command('step')));
-element('reset').addEventListener('click', () => invoke(() => { command('reset'); dirtyPlan = false; lastPlan = ''; }));
-element('speed').addEventListener('change', (event) => invoke(() => set_speed(Number(event.target.value))));
+for (const button of speedButtons) {
+  button.addEventListener('click', () => invoke(() => set_speed(Number(button.dataset.speed))));
+}
 for (const id of ['burn-x', 'burn-y']) {
   element(id).addEventListener('input', () => { dirtyPlan = true; refresh(); });
 }
