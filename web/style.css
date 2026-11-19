@@ -169,7 +169,7 @@ legend { color: var(--muted); font-size: 11px; margin-bottom: 8px; }
 .reach-area { pointer-events: all; cursor: crosshair; fill: #12403c30; stroke: #3e817c; }
 #map-coast-route { fill: none; stroke: #8a9eab; stroke-dasharray: 5 5; }
 #map-planned-route, #arrival-arrow { fill: none; stroke: var(--cyan); stroke-width: 2; }
-#map-after-route { fill: none; stroke: var(--cyan); stroke-dasharray: 3 4; }
+#map-planned-route { stroke-dasharray: 1 5; stroke-linecap: round; }
 #route-editor[data-invalid="true"] .handle-dot { fill: #ffad92; }
 #route-editor[data-invalid="true"] #arrival-handle text { fill: #ffad92; }
 .route-stats { display: grid; grid-template-columns: 1fr 1fr 2fr; gap: 8px; padding: 0; font: 9px ui-monospace, monospace; color: var(--muted); }
@@ -183,8 +183,9 @@ legend { color: var(--muted); font-size: 11px; margin-bottom: 8px; }
 @media (max-width: 480px) {
   .map-tools button { font-size: 10px; padding-inline: 5px; }
 }
-#burn-label, #actual-arrival text { fill: #a3b6c2; font: 9px ui-monospace, monospace; pointer-events: none; }
-#actual-arrival { pointer-events: none; }
+#burn-label, #forecast-boundaries text { fill: #a3b6c2; font: 9px ui-monospace, monospace; pointer-events: none; }
+#forecast-boundaries { pointer-events: none; }
+#forecast-boundaries path { fill: none; stroke: var(--cyan); stroke-width: 1; }
 #arrival-handle { outline: none; }
 
 @media (max-width: 480px) { body[data-ready="true"] #railgun-label { display: none; } }

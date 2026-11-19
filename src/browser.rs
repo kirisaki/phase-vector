@@ -192,7 +192,7 @@ fn draw_world(mut gizmos: Gizmos, windows: Query<&Window>, time: Res<Time>) {
         let on_screen =
             |p: Vector2| p.x.abs() <= half_width + 100.0 && p.y.abs() <= half_height + 100.0;
         if !ROUTE_EDITING.with_borrow(|v| *v) {
-            let route = route_preview(&view);
+            let route = crate::maneuver::preview(&view.planning_ship(), view.planned_burn);
             let project = |p| {
                 let p = frame.project(p);
                 Vec2::new(p.x as f32, p.y as f32)
@@ -206,12 +206,7 @@ fn draw_world(mut gizmos: Gizmos, windows: Query<&Window>, time: Res<Time>) {
                     Color::srgb(0.35, 0.43, 0.5),
                 );
             }
-            gizmos.linestrip_2d(route.points.iter().copied().map(project), cyan);
-            gizmos.line_2d(
-                project(route.endpoint),
-                project(route.after_coast),
-                Color::srgb(0.2, 0.5, 0.5),
-            );
+            // The SVG overlay draws the planned route with continuous pixel-spaced dots.
         }
         for ship in &view.world.ships {
             let local = frame.project(ship.position);

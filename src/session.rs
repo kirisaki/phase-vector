@@ -287,13 +287,23 @@ impl Snapshot<'_> {
     /// Preview the queued interval, including the frozen remainder as a route prefix.
     pub fn planned_route(&self, acceleration: Vector2) -> crate::maneuver::Preview {
         let mut route = crate::maneuver::preview(&self.planning_ship(), acceleration);
+        let ship = self
+            .world
+            .ships
+            .iter()
+            .find(|s| s.id == self.player_id)
+            .unwrap();
+        route.forecast = Some(crate::maneuver::forecast(
+            ship,
+            if self.phase == Phase::Executing {
+                self.active_burn
+            } else {
+                acceleration
+            },
+            acceleration,
+            (self.remaining_seconds / STEP_SECONDS) as u64,
+        ));
         if self.phase == Phase::Executing {
-            let ship = self
-                .world
-                .ships
-                .iter()
-                .find(|s| s.id == self.player_id)
-                .unwrap();
             let mut prefix = crate::maneuver::preview_ticks(
                 ship,
                 self.active_burn,

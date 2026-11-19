@@ -205,3 +205,55 @@ fn queued_arrival_uses_the_fuel_left_after_the_active_interval() {
     s.dispatch(C::NextTurn).unwrap();
     assert_eq!(s.world().ships[0].position, route.endpoint);
 }
+
+#[test]
+fn three_turn_forecast_matches_execution_and_fuel_exhaustion() {
+    for remaining_dv in [0.0, 6_000.0, 60_000.0] {
+        for elapsed in [0, 37] {
+            let mut world = Session::default().world().clone();
+            world.ships[0].remaining_dv = remaining_dv;
+            let mut session = Session::new(world, 1).unwrap();
+            session.dispatch(C::PlanBurn(V::new(10.0, 0.0))).unwrap();
+            if elapsed > 0 {
+                for _ in 0..elapsed {
+                    session.dispatch(C::Step).unwrap();
+                }
+                session.dispatch(C::Resume).unwrap();
+            }
+            let queued = V::new(0.0, -MAX_ACCELERATION);
+            session.dispatch(C::PlanBurn(queued)).unwrap();
+            let original = session.world().clone();
+            let log = session.snapshot().command_log.to_vec();
+            let preview = session.snapshot().planned_route(queued);
+            let forecast = preview.forecast.unwrap();
+            assert_eq!(session.world(), &original);
+            assert_eq!(session.snapshot().command_log, log);
+            assert_eq!(forecast.boundaries.len(), 3);
+            assert_eq!(forecast.points.first(), Some(&original.ships[0].position));
+            for (index, boundary) in forecast.boundaries.iter().enumerate() {
+                session.dispatch(C::NextTurn).unwrap();
+                let actual = &session.world().ships[0];
+                assert_eq!(
+                    boundary.seconds_ahead,
+                    (index + 1) as f64 * 120.0 - elapsed as f64 * 0.25
+                );
+                assert_eq!(boundary.position, actual.position);
+                assert_eq!(boundary.velocity, actual.velocity);
+                assert_eq!(boundary.remaining_dv, actual.remaining_dv);
+            }
+            let editable = usize::from(elapsed > 0);
+            assert_eq!(preview.endpoint, forecast.boundaries[editable].position);
+            assert_eq!(
+                preview.remaining_dv,
+                forecast.boundaries[editable].remaining_dv
+            );
+            assert_eq!(
+                forecast.points.last(),
+                Some(&session.world().ships[0].position)
+            );
+            if remaining_dv <= 6_000.0 {
+                assert_eq!(session.world().ships[0].remaining_dv, 0.0);
+            }
+        }
+    }
+}

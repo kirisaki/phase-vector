@@ -89,12 +89,22 @@ export function createRouteEditor(onChange) {
     // Leave the ship itself visible at zero thrust, while retaining the hit target.
     handle.querySelector('.handle-dot').style.display = Math.hypot(x - cx, y - cy) > 2 ? '' : 'none';
     el('map-coast-route').setAttribute('d', dragging ? path([context.maneuver.points[0], coast]) : '');
-    el('map-planned-route').setAttribute('d', dragging && candidate ? path(candidate.points) : '');
-    el('map-after-route').setAttribute('d', dragging && candidate ? path([candidate.endpoint, candidate.after_coast]) : '');
+    el('map-planned-route').setAttribute('d', candidate ? path(candidate.forecast.points) : '');
     svg.dataset.invalid = String(dragging && !valid);
     handle.querySelector('text').textContent = 'Burn';
-    el('actual-arrival').setAttribute('transform', `translate(${actualX} ${actualY})`);
-    el('actual-arrival').querySelector('text').textContent = `+${number.format(state.order_start_seconds + 120 - state.time_seconds)} s`;
+    const markers = el('forecast-boundaries');
+    markers.replaceChildren();
+    for (const boundary of candidate?.forecast.boundaries ?? []) {
+      const [mx, my] = project(boundary.position);
+      const group = document.createElementNS('http://www.w3.org/2000/svg', 'g');
+      group.setAttribute('transform', `translate(${mx} ${my})`);
+      const tick = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+      tick.setAttribute('d', 'M-3 0H3');
+      const text = document.createElementNS('http://www.w3.org/2000/svg', 'text');
+      text.setAttribute('x', '8'); text.setAttribute('y', '3');
+      text.textContent = `+${number.format(boundary.seconds_ahead)} s`;
+      group.append(tick, text); markers.append(group);
+    }
     const dx = x - cx, dy = y - cy, length = Math.hypot(dx, dy);
     const ux = length > 0 ? dx / length : 0, uy = length > 0 ? dy / length : 0;
     el('burn-vector').setAttribute('d', length > 2

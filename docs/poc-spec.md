@@ -13,7 +13,7 @@ browser and Lua. Mission behavior below remains planned until its corresponding
 milestone is implemented.
 
 An early subset of step 4 now provides friendly 120-second endpoint planning,
-route and arrival-velocity previews, and direct map manipulation with a ship-centered
+a three-boundary route forecast, arrival-velocity previews, and direct map manipulation with a ship-centered
 burn control. This does not
 implement enemy predictions, a variable-time slider, or the shot solver.
 

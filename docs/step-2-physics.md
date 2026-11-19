@@ -84,8 +84,7 @@ weapons, enemy forecasts, variable arrival times, or intermediate waypoints.
 
 `maneuver::preview` clones the friendly ship and uses the same kick/drift routine
 as execution, including partial fuel exhaustion. It samples the route every two
-seconds, reports final velocity and delta-v use, and draws another 30 seconds of
-coasting after the burn. Previews do not mutate the world or evaluate mission
+seconds and reports final velocity and delta-v use. Previews do not mutate the world or evaluate mission
 outcomes. Enemy state is not part of the friendly prediction.
 
 The inverse solver measures the requested endpoint relative to the coast
@@ -134,9 +133,14 @@ gesture. Releasing always uses the current boundary state.
 `Snapshot::planning_ship` predicts the friendly state at the next boundary using
 the frozen active vector and the same fixed-step integration. Arrival solving
 and the next interval's reachable disk use this predicted state, including its
-remaining fuel. The route preview prefixes the active remainder to the queued
-120-second trajectory. Delta-v cost refers to the queued interval; arrival
-velocity and remaining fuel include both portions. A repeated order keeps its
+remaining fuel. The editing preview prefixes the active remainder to the queued
+120-second trajectory. A separate forecast continues to the next three command
+boundaries, using the active remainder first and repeating the queued vector
+afterward. Its points and boundary positions, velocities, and remaining delta-v
+use the same fixed-step integration, including fuel exhaustion. The SVG overlay
+draws this forecast as cyan dots and labels the relative time at each boundary.
+Delta-v cost refers to the queued interval; arrival velocity and remaining fuel
+include both portions. A repeated order keeps its
 acceleration vector, not its absolute target position.
 
 The browser observes new command-log start ticks and expands a pale ring around

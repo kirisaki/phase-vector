@@ -87,7 +87,9 @@ def main():
                     const url = new URL('./app.js', location.href);
                     const source = await (await fetch(url)).text();
                     const module = source.match(/from ['"]([^'"]+)['"]/)[1];
-                    return JSON.parse((await import(new URL(module, url).href)).state_json());
+                    const wasm = await import(new URL(module, url).href);
+                    window.readPhaseVectorState = () => JSON.parse(wasm.state_json());
+                    return window.readPhaseVectorState();
                 }""")
 
             def route_point(x, y):
@@ -116,6 +118,7 @@ def main():
             original_grid = page.locator('#grid-label').inner_text()
             original_map = page.locator('#tactical-map').bounding_box()
             expect(page.locator('#burn-label')).to_have_text('ORDER / 120 s')
+            expect(page.locator('#forecast-boundaries text')).to_have_text(['+120 s', '+240 s', '+360 s'])
             expect(page.locator('#actual-arrival circle')).to_have_count(0)
             current = read_state()
             own = current['world']['ships'][0]['position']
@@ -331,7 +334,7 @@ def main():
             page.locator('#next-turn').click()
             expect(page.locator('#mode')).to_have_text('PAUSED')
             expect(page.locator('#time')).to_have_text('120.00')
-            assert read_state()['map']['metres_per_unit'] > initial_zoom
+            page.wait_for_function('scale => window.readPhaseVectorState().map.metres_per_unit > scale', arg=initial_zoom)
             page.locator('#zoom-in').click()
             expect(page.locator('[data-view="overview"]')).to_have_text('Overview')
             manual_zoom = read_state()['map']['metres_per_unit']

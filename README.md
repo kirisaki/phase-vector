@@ -11,7 +11,7 @@ and delta-v expenditure.
 **Step 2: physics and WEGO execution.** Two ships move with inertia, bounded
 acceleration, and finite delta-v. Drag the burn handle around the friendly ship
 to plan a constant thrust vector for 120 seconds, then press Play for continuous 120-second orders. Bevy draws
-the authoritative physical state and friendly route preview; the UI and Lua
+the authoritative physical state; an SVG overlay shows the dotted friendly route. The UI and Lua
 use the same validated command API.
 
 This is a physics sandbox. The second ship coasts without an AI. Mission rules,
@@ -167,15 +167,21 @@ The control ring is centered on the friendly ship; manipulating it does not
 change camera focus or zoom. Its **Burn** handle specifies a maneuver relative to inertial coasting:
 direction chooses thrust direction and distance chooses the maneuver amount.
 The ring is a control, not a destination at the map's scale. The center means
-zero thrust. The actual trajectory, arrival time, arrival-velocity arrow, and
-30 seconds of subsequent coasting remain at map scale, without a circular
-arrival marker. An amber arrow shows the queued burn from the ship;
-the cyan velocity arrow shows actual travel direction.
+zero thrust. The actual trajectory, boundary times, and arrival-velocity arrow remain
+at map scale, without a circular arrival marker. An amber arrow shows the queued
+burn from the ship; the cyan velocity arrow shows actual travel direction.
+The planned route uses cyan dots with fixed screen spacing, including during
+dragging and playback. It reaches the next three command boundaries (up to
+360 seconds), with time labels at each boundary. During execution the current
+interval remainder counts as the first; subsequent intervals repeat the queued
+vector. Fuel exhaustion naturally continues as inertial coasting. The gray
+dashed line shows the coasting reference.
 
 While an interval is executing, the preview first follows its unchanged active
-burn to the next boundary, then follows the queued order for a full 120 seconds.
-The arrival label includes both durations. The cost readout covers the queued
-interval; remaining delta-v and arrival velocity also account for the active
+burn to the next boundary, then follows the queued order for two more intervals.
+The burn control and arrival-velocity arrow still target the first queued
+interval. The cost readout covers that queued interval; remaining delta-v and
+arrival velocity also account for the active
 remainder. The status line shows the active thrust separately. Repeated orders
 retain thrust direction and magnitude, not an absolute arrival destination.
 

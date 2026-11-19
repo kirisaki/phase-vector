@@ -1,4 +1,4 @@
-//! Single-interval maneuver previews and inverse endpoint planning in SI units.
+//! Maneuver previews, repeated-order forecasts, and endpoint planning in SI units.
 
 use serde::Serialize;
 
@@ -16,7 +16,52 @@ pub struct Preview {
     pub remaining_dv: f64,
     pub reachable_radius: f64,
     pub points: Vec<Vector2>,
-    pub after_coast: Vector2,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub forecast: Option<Forecast>,
+}
+
+#[derive(Serialize)]
+pub struct Forecast {
+    pub points: Vec<Vector2>,
+    pub boundaries: Vec<ForecastBoundary>,
+}
+
+#[derive(Serialize)]
+pub struct ForecastBoundary {
+    pub seconds_ahead: f64,
+    pub position: Vector2,
+    pub velocity: Vector2,
+    pub remaining_dv: f64,
+}
+
+/// Predict the next three command boundaries, retaining the active first interval.
+pub fn forecast(ship: &Ship, active: Vector2, queued: Vector2, first_ticks: u64) -> Forecast {
+    let mut predicted = ship.clone();
+    let mut points = vec![ship.position];
+    let mut boundaries = Vec::with_capacity(3);
+    let mut elapsed = 0;
+    for turn in 0..3 {
+        let ticks = if turn == 0 {
+            first_ticks
+        } else {
+            INTERVAL_TICKS
+        };
+        let burn = if turn == 0 { active } else { queued };
+        for tick in 1..=ticks {
+            predicted.advance(burn);
+            elapsed += 1;
+            if elapsed % 8 == 0 || tick == ticks {
+                points.push(predicted.position);
+            }
+        }
+        boundaries.push(ForecastBoundary {
+            seconds_ahead: elapsed as f64 * STEP_SECONDS,
+            position: predicted.position,
+            velocity: predicted.velocity,
+            remaining_dv: predicted.remaining_dv,
+        });
+    }
+    Forecast { points, boundaries }
 }
 
 fn displacement(ship: &Ship, acceleration: f64, ticks: u64) -> f64 {
@@ -57,7 +102,7 @@ pub fn preview_ticks(ship: &Ship, acceleration: Vector2, ticks: u64) -> Preview 
         remaining_dv: planned.remaining_dv,
         reachable_radius: displacement(ship, ship.max_acceleration, ticks),
         points,
-        after_coast: planned.position + planned.velocity * 30.0,
+        forecast: None,
     }
 }
 
