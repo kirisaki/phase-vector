@@ -81,7 +81,7 @@ fn no_fuel_or_no_thrust_only_allows_the_coasting_endpoint() {
 }
 
 #[test]
-fn invalid_or_locked_arrival_orders_do_not_modify_the_plan() {
+fn invalid_arrival_orders_do_not_modify_the_plan() {
     let mut session = Session::default();
     session.dispatch(C::PlanBurn(V::new(10.0, 20.0))).unwrap();
     let original = session.world().clone();
@@ -158,4 +158,50 @@ fn executing_preview_keeps_the_committed_endpoint_and_remaining_cost() {
         session.dispatch(C::NextTurn).unwrap();
         assert_eq!(session.world().ships[0].position, remaining.endpoint);
     }
+}
+
+#[test]
+fn a_running_arrival_edit_uses_the_next_boundary_and_keeps_the_current_burn() {
+    let mut s = Session::default();
+    s.dispatch(C::PlanBurn(V::new(10.0, 0.0))).unwrap();
+    s.dispatch(C::Resume).unwrap();
+    for _ in 0..30 {
+        s.pulse();
+    }
+    let next_ship = s.snapshot().planning_ship();
+    let expected = preview(&next_ship, V::new(0.0, 20.0));
+    let original = s.world().clone();
+    s.dispatch(C::PlanArrival(expected.endpoint)).unwrap();
+    let queued = s.snapshot().planned_route(s.snapshot().planned_burn);
+    assert_eq!(s.world(), &original);
+    assert_eq!(s.snapshot().active_burn, V::new(10.0, 0.0));
+    s.dispatch(C::NextTurn).unwrap();
+    assert_eq!(s.world().ships[0], next_ship);
+    s.dispatch(C::NextTurn).unwrap();
+    let actual = &s.world().ships[0];
+    assert_eq!(actual.position, queued.endpoint);
+    assert_eq!(actual.velocity, queued.arrival_velocity);
+    assert_eq!(actual.remaining_dv, queued.remaining_dv);
+}
+
+#[test]
+fn queued_arrival_uses_the_fuel_left_after_the_active_interval() {
+    let mut world = Session::default().world().clone();
+    world.ships[0].remaining_dv = 10.0;
+    let mut s = Session::new(world, 1).unwrap();
+    s.dispatch(C::PlanBurn(V::new(MAX_ACCELERATION, 0.0)))
+        .unwrap();
+    s.dispatch(C::Resume).unwrap();
+    let next_ship = s.snapshot().planning_ship();
+    assert_eq!(next_ship.remaining_dv, 0.0);
+    let route = preview(&next_ship, V::ZERO);
+    assert!(
+        s.dispatch(C::PlanArrival(route.endpoint + V::new(1.0, 0.0)))
+            .is_err()
+    );
+    s.dispatch(C::PlanArrival(route.endpoint)).unwrap();
+    assert_eq!(s.snapshot().planned_burn, V::ZERO);
+    s.dispatch(C::NextTurn).unwrap();
+    s.dispatch(C::NextTurn).unwrap();
+    assert_eq!(s.world().ships[0].position, route.endpoint);
 }

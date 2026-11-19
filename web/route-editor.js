@@ -10,8 +10,25 @@ export function createRouteEditor(onChange) {
   let state, context, target, route, fingerprint, pointer;
   let dragging = false, valid = false, ready = false, dirtyNumeric = false;
   let grabX = 0, grabY = 0;
-  const identity = (value) => JSON.stringify([value.world.tick, value.planned_burn,
-    value.world.ships.find((ship) => ship.id === value.player_id)]);
+  // Keep running gestures stable; rebase their control offset at command boundaries.
+  const identity = (value) => JSON.stringify([value.order_start_seconds, value.planned_burn,
+    value.command_number, value.active_burn]);
+  let lastCommand, pulseStarted = -Infinity;
+  function animatePulse(now) {
+    const pulse = el('command-pulse');
+    const age = (now - pulseStarted) / 900;
+    const active = state && age >= 0 && age < 1;
+    pulse.style.opacity = active ? String((1 - age) * 0.85) : '0';
+    if (active) {
+      const view = projection();
+      const ship = state.world.ships.find((ship) => ship.id === state.player_id);
+      const [x, y] = view.project(ship.position);
+      pulse.setAttribute('cx', x); pulse.setAttribute('cy', y);
+      pulse.setAttribute('r', 12 + age * 42);
+    }
+    requestAnimationFrame(animatePulse);
+  }
+  requestAnimationFrame(animatePulse);
 
   function projection() {
     const box = svg.getBoundingClientRect();
@@ -29,7 +46,7 @@ export function createRouteEditor(onChange) {
     const source = dragging ? context : state;
     const maneuver = source.maneuver;
     const coast = maneuver.coast_endpoint;
-    const ship = source.world.ships.find((ship) => ship.id === source.player_id);
+    const ship = state.world.ships.find((ship) => ship.id === state.player_id);
     const [cx, cy] = view.project(ship.position);
     const available = Math.max(24, Math.min(90, cx - 10, view.width - cx - 10,
       cy - 10, view.height - cy - 10));
@@ -58,20 +75,17 @@ export function createRouteEditor(onChange) {
     const control = controls(view);
     const { cx, cy } = control;
     const [actualX, actualY] = project(arrival);
-    const burn = planning ? state.planned_burn : state.active_burn;
-    const activeScale = control.ship.remaining_dv > 0 && control.ship.max_acceleration > 0
-      ? control.radius / control.ship.max_acceleration : 0;
-    const x = cx + (planning ? (arrival.x - coast.x) / control.metresPerPixel : burn.x * activeScale);
-    const y = cy - (planning ? (arrival.y - coast.y) / control.metresPerPixel : burn.y * activeScale);
+    const x = cx + (arrival.x - coast.x) / control.metresPerPixel;
+    const y = cy - (arrival.y - coast.y) / control.metresPerPixel;
     const path = (points) => points.map((p, i) => `${i ? 'L' : 'M'}${project(p).join(' ')}`).join(' ');
     handle.setAttribute('transform', `translate(${x} ${y})`);
     const area = svg.querySelector('.reach-area');
     area.setAttribute('cx', cx); area.setAttribute('cy', cy);
     area.setAttribute('r', control.radius);
 
-    area.style.display = planning ? '' : 'none';
-    handle.style.display = planning ? '' : 'none';
-    handle.tabIndex = planning ? 0 : -1;
+    area.style.display = '';
+    handle.style.display = '';
+    handle.tabIndex = 0;
     // Leave the ship itself visible at zero thrust, while retaining the hit target.
     handle.querySelector('.handle-dot').style.display = Math.hypot(x - cx, y - cy) > 2 ? '' : 'none';
     el('map-coast-route').setAttribute('d', dragging ? path([context.maneuver.points[0], coast]) : '');
@@ -80,7 +94,7 @@ export function createRouteEditor(onChange) {
     svg.dataset.invalid = String(dragging && !valid);
     handle.querySelector('text').textContent = 'Burn';
     el('actual-arrival').setAttribute('transform', `translate(${actualX} ${actualY})`);
-    el('actual-arrival').querySelector('text').textContent = `+${number.format(state.remaining_seconds)} s`;
+    el('actual-arrival').querySelector('text').textContent = `+${number.format(state.order_start_seconds + 120 - state.time_seconds)} s`;
     const dx = x - cx, dy = y - cy, length = Math.hypot(dx, dy);
     const ux = length > 0 ? dx / length : 0, uy = length > 0 ? dy / length : 0;
     el('burn-vector').setAttribute('d', length > 2
@@ -88,7 +102,7 @@ export function createRouteEditor(onChange) {
     const label = el('burn-label');
     label.setAttribute('x', Math.max(6, cx - control.radius));
     label.setAttribute('y', Math.min(view.height - 6, cy + control.radius + 14));
-    label.textContent = planning ? 'BURN / 120 s' : state.paused ? 'BURN / PAUSED' : control.ship.remaining_dv > 0 && length > 2 ? 'BURN / EXECUTING' : 'COASTING';
+    label.textContent = planning ? 'ORDER / 120 s' : 'NEXT ORDER / 120 s';
     handle.setAttribute('aria-label', 'Drag to set burn. Arrow keys adjust; Shift for fine adjustment; Home to coast.');
     let arrow = '';
     if (candidate) {
@@ -101,22 +115,19 @@ export function createRouteEditor(onChange) {
     }
     el('arrival-arrow').setAttribute('d', arrow);
 
-    el('route-cost-label').textContent = planning ? 'Δv COST / km/s' : 'Δv TO GO / km/s';
+    el('route-cost-label').textContent = 'NEXT Δv / km/s';
     el('route-cost').textContent = candidate ? km(candidate.delta_v) : '—';
     el('route-remaining').textContent = candidate ? km(candidate.remaining_dv) : '—';
     el('route-velocity').textContent = candidate ? `${km(candidate.arrival_velocity.x)}, ${km(candidate.arrival_velocity.y)}` : '—';
     el('route-feedback').dataset.invalid = String(dragging && !valid);
-    el('route-feedback').textContent = error || (planning && dirtyNumeric ? 'Apply edited numeric values before committing.' : '') || (!planning
-      ? `${state.paused ? 'Paused' : 'Executing'} · Thrust ${number.format(burn.x)}, ${number.format(burn.y)} m/s² · Orders locked.`
-      : ((!dragging || valid)
-      ? (cx < 0 || cy < 0 || cx > view.width || cy > view.height
-        ? 'Own ship is off screen. Select Own ship to edit.'
-        : 'Drag Burn; release to set · Commit to execute · Home: coast.')
-      : 'Unreachable: outside the acceleration and delta-v limits.'));
+    el('route-feedback').textContent = error || (dirtyNumeric ? 'Apply edited numeric values to update the next order.' : '') || (
+      !valid && dragging ? 'Unreachable: outside the acceleration and delta-v limits.' :
+      `Drag Burn · Applies ${planning ? 'on Play' : 'at ' + number.format(state.order_start_seconds) + ' s'} · Repeats every 120 s. ` +
+      (planning ? 'Home: coast.' : `Active: ${number.format(state.active_burn.x)}, ${number.format(state.active_burn.y)} m/s².`));
   }
 
   function begin() {
-    if (!ready || !state || state.phase !== 'planning' || dragging) return false;
+    if (!ready || !state || dragging) return false;
     context = state;
     fingerprint = identity(state);
     target = state.maneuver.endpoint;
@@ -127,11 +138,25 @@ export function createRouteEditor(onChange) {
     return true;
   }
 
+  function rebaseGesture(fresh) {
+    if (identity(fresh) === fingerprint) return true;
+    if (fresh.world.tick < context.world.tick || fresh.order_start_seconds < context.order_start_seconds ||
+        JSON.stringify(fresh.planned_burn) !== JSON.stringify(context.planned_burn)) return false;
+    // Keep the chosen direction and fraction of the reachable disk as time advances.
+    const radius = context.maneuver.reachable_radius;
+    const dx = radius > 0 ? (target.x - context.maneuver.coast_endpoint.x) / radius : 0;
+    const dy = radius > 0 ? (target.y - context.maneuver.coast_endpoint.y) / radius : 0;
+    state = fresh; context = fresh; fingerprint = identity(fresh);
+    choose({ x: fresh.maneuver.coast_endpoint.x + dx * fresh.maneuver.reachable_radius,
+      y: fresh.maneuver.coast_endpoint.y + dy * fresh.maneuver.reachable_radius });
+    return true;
+  }
+
   function finish(apply) {
     if (!dragging) return;
     const fresh = JSON.parse(state_json());
     let applied = false, error = '';
-    if (apply && valid && fresh.phase === 'planning' && identity(fresh) === fingerprint) {
+    if (apply && rebaseGesture(fresh) && valid) {
       try { plan_arrival(target.x, target.y); applied = true; }
       catch (failure) { error = String(failure); }
     }
@@ -207,7 +232,14 @@ export function createRouteEditor(onChange) {
     get dragging() { return dragging; },
     sync(value, isReady, hasNumericEdits) {
       state = value; ready = isReady; dirtyNumeric = hasNumericEdits;
-      if (dragging && (state.phase !== 'planning' || identity(state) !== fingerprint)) finish(false);
+      const record = state.command_log.at(-1);
+      const command = record?.start_tick;
+      if (command !== lastCommand) {
+        pulseStarted = command === undefined ? -Infinity : performance.now();
+        lastCommand = command;
+        svg.dataset.commandTick = command === undefined ? '' : String(command);
+      }
+      if (dragging && !rebaseGesture(state)) finish(false);
       render();
     },
   };

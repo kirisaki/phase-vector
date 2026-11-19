@@ -27,7 +27,7 @@
             <div class="zoom-buttons"><button id="zoom-out" type="button" aria-label="Zoom out" disabled>−</button><button id="zoom-in" type="button" aria-label="Zoom in" disabled>+</button></div>
           </div>
           <div class="canvas-wrap"><canvas id="tactical-map" aria-label="Physical positions and velocity vectors of the friendly and passive ships"></canvas><svg id="route-editor" role="group" aria-label="Burn planning on the tactical map" hidden>
-              <circle class="reach-area"/>
+              <circle id="command-pulse"/><circle class="reach-area"/>
               <path id="map-coast-route"/><path id="map-planned-route"/><path id="map-after-route"/>
               <path id="arrival-arrow"/><path id="burn-vector"/><text id="burn-label"/>
               <g id="actual-arrival"><text x="8" y="14">+120 s</text></g>
@@ -36,11 +36,10 @@
           <div class="flight-controls" tabindex="0" aria-label="Flight controls">
             <div class="transport">
               <div class="command-row">
-                <div class="clock"><div class="readout"><span id="mode">PLANNING</span><strong><span id="time">0.00</span> <small>s</small></strong><small>tick <span id="ticks">0</span></small></div><span id="window-time">Next window: 120.00 s</span></div>
-                <div class="buttons"><button id="commit" disabled>Commit 120 s</button></div>
+                <div class="clock"><div class="readout"><span id="mode">PAUSED</span><strong><span id="time">0.00</span> <small>s</small></strong><small>tick <span id="ticks">0</span></small></div><span id="window-time">Next order: now</span></div>
               </div>
               <div class="playback" role="group" aria-label="Playback controls">
-                <button id="toggle" disabled>Resume</button>
+                <button id="toggle" disabled>Play</button>
                 <button id="step" aria-label="Advance up to 10 seconds" disabled>+10 s</button>
                 <div id="speed" class="speed-buttons" role="group" aria-label="Playback speed">
                   <button type="button" data-speed="1" aria-pressed="false" disabled>1×</button>
@@ -48,7 +47,7 @@
                   <button type="button" data-speed="64" aria-pressed="false" disabled>64×</button>
                   <button type="button" data-speed="128" aria-pressed="false" disabled>128×</button>
                 </div>
-                <button id="next-turn" title="Commit the current plan if needed, then advance to the next command opportunity" disabled>Next turn</button>
+                <button id="next-turn" title="Advance to the next 120-second boundary and pause" disabled>Next turn</button>
               </div>
             </div>
             <div class="telemetry" aria-label="Friendly ship telemetry"><div>POSITION / km<strong id="position" class="vector"><span>—, </span><span>—</span></strong></div><div>VELOCITY / km/s<strong id="velocity" class="vector"><span>—, </span><span>—</span></strong></div><div>REMAINING Δv / km/s<strong id="dv">—</strong></div><div>SPENT Δv / km/s<strong id="spent-dv">0.000</strong></div></div>
@@ -69,10 +68,10 @@
           </form>
           <details><summary>Try a command</summary><div class="examples">
             <button type="button" data-example="return game.state().phase, game.state().ship.remaining_dv">Read phase &amp; Δv</button>
-            <button type="button" data-example="game.burn(49.03325, 0); game.command('commit'); game.command('pause')">Commit a burn &amp; pause</button>
+            <button type="button" data-example="game.burn(49.03325, 0); game.command('play'); game.command('pause')">Play a burn &amp; pause</button>
             <button type="button" data-example="game.command('step_forward'); return game.state().time_seconds">Advance 10 seconds</button>
             <button type="button" data-example="answer = 6 * 7; print('Answer:', answer)">Store &amp; print</button>
-          </div><p>Plan orders only at command opportunities. Pausing execution does not unlock orders. UI and Lua use the same API. Reset restores the scenario; reload also clears Lua globals.</p></details>
+          </div><p>Edit orders while running or paused. Changes apply at the next 120-second boundary and repeat until changed. UI and Lua use the same API. Reset restores the scenario; reload also clears Lua globals.</p></details>
         </section>
       </div>
       <p id="error" role="alert" hidden></p>

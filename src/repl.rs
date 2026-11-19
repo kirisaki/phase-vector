@@ -114,6 +114,7 @@ impl Default for Host {
                     snapshot.set(ctx, "ticks", view.world.tick as f64)?;
                     snapshot.set(ctx, "time_seconds", view.time_seconds)?;
                     snapshot.set(ctx, "remaining_seconds", view.remaining_seconds)?;
+                    snapshot.set(ctx, "order_start_seconds", view.order_start_seconds)?;
                     snapshot.set(ctx, "speed", view.speed)?;
                     snapshot.set(ctx, "command_number", view.command_number as f64)?;
                     snapshot.set(ctx, "command_count", view.command_log.len() as f64)?;
@@ -121,6 +122,10 @@ impl Default for Host {
                     plan.set(ctx, "x", view.planned_burn.x)?;
                     plan.set(ctx, "y", view.planned_burn.y)?;
                     snapshot.set(ctx, "planned_burn", plan)?;
+                    let active = Table::new(&ctx);
+                    active.set(ctx, "x", view.active_burn.x)?;
+                    active.set(ctx, "y", view.active_burn.y)?;
+                    snapshot.set(ctx, "active_burn", active)?;
                     let ships = Table::new(&ctx);
                     for (index, ship) in view.world.ships.iter().enumerate() {
                         ships.set(ctx, (index + 1) as i64, ship_table(ctx, ship)?)?;
@@ -284,8 +289,12 @@ mod tests {
         assert!(host.command("step").is_err());
         assert!(host.evaluate("game.command('step')").is_err());
         host.command("pause").unwrap();
-        assert!(host.evaluate("game.burn(0, 0)").is_err());
-        assert!(host.plan_burn(0.0, 0.0).is_err());
+        host.evaluate("game.burn(0, 0)").unwrap();
+        host.plan_burn(0.0, 0.0).unwrap();
+        assert_eq!(
+            host.state.borrow().snapshot().active_burn.x,
+            crate::scenario::MAX_ACCELERATION
+        );
         host.evaluate("game.command('step')").unwrap();
         assert_eq!(host.state.borrow().world().tick, 2);
         assert_eq!(host.evaluate("game.state().ship.vx > 1").unwrap(), "true");
@@ -327,7 +336,6 @@ mod tests {
             .unwrap();
         assert_eq!(host.evaluate("game.state().phase").unwrap(), "planning");
         assert_eq!(host.evaluate("game.state().time_seconds").unwrap(), "120");
-        assert!(host.evaluate("game.command('step')").is_err());
         assert_eq!(host.evaluate("game.state().command_count").unwrap(), "1");
         host.evaluate("game.command('next_turn')").unwrap();
         assert_eq!(host.evaluate("game.state().time_seconds").unwrap(), "240");

@@ -47,32 +47,29 @@ fields to violate constructor invariants.
 
 ## WEGO and playback
 
-Planning is unlimited and never advances physics. One constant friendly thrust
-vector is drafted for the next interval; the passive second ship coasts. Commit
-freezes that vector and starts simultaneous 120-second execution. Commands cannot
-be edited during execution, including while paused. Pause/resume, single physical
-steps while paused, and 1×/32×/64×/128× playback (default 32×) are presentation controls. Reset is
-an explicit diagnostic restart, not an in-mission order change.
+The session begins paused at a command boundary. Play applies the draft and
+starts simultaneous execution. The current vector is frozen for 480 physical
+ticks. Playback continues across boundaries and repeats the latest draft.
+Drafts can be edited while running or paused; they never modify the active
+interval. A changed vector replaces the next order and then repeats until
+changed again. The passive second ship coasts.
+
+`play`, `resume`, and the compatibility command `commit` start or resume playback.
+Repeated calls during execution do not restart the interval or duplicate its
+log record. At a paused boundary, the next Play or step applies the current draft.
 
 The UI's +10 s action (`step_forward`) runs up to 40 fixed ticks while paused,
-clipped to the current interval's end. It stays paused and never enters the next
-execution interval. The diagnostic Lua `step` command still advances one tick.
-
-Next turn (`next_turn`) is available during planning and execution, both running
-and paused. In planning it commits the current draft, records the order, and runs
-all 480 ticks. In execution it finishes only the remaining ticks with the frozen
-orders. Both paths stop at the next planning boundary, without entering another
-interval. Playback speed and normal impact, projectile, and delta-v processing
-are preserved. The UI disables Next turn during a drag or unapplied numeric edits,
-just like Commit; Lua uses the same command API with its already-applied draft.
+clipped to the current interval's end. The Lua `step` command advances one tick.
+Both can start a new interval without unpausing. Next turn (`next_turn`) finishes
+the current interval, or starts one at a boundary, and always stops paused at its
+end. These actions process all physical ticks, including contacts and delta-v.
 
 The browser supplies 60 fixed presentation pulses per second. An integer
-accumulator converts those pulses into whole 0.25-second physical steps; speed
-only changes the number of steps executed. Every speed stops exactly at the
-command boundary. Pausing discards a fraction of one unexecuted playback tick,
-never physical progress. Catch-up pulses or steps cannot spill into planning.
-The next interval defaults to coasting, while position, velocity, delta-v,
-projectiles, and impact history persist.
+accumulator converts these to 0.25-second physical steps. Playback speeds are
+1/32/64/128 (default 32). Fractional time is preserved across command boundaries;
+a single pulse can finish one interval and start another. Pause discards only
+a fraction of an unexecuted playback tick. Position, velocity, delta-v,
+projectiles, impact history, and the queued vector persist across boundaries.
 
 Each committed vector and start tick is recorded. Replaying the log directly
 through the physics core reproduces the world without any presentation clock.
@@ -82,7 +79,7 @@ maneuver timelines, and enemy decisions remain later milestones.
 ## Friendly endpoint planning
 
 The current GUI plans one constant thrust vector by specifying an absolute
-position 120 seconds ahead. This is an early step-4 subset; it does not implement
+position at the end of the next complete 120-second order interval. This is an early step-4 subset; it does not implement
 weapons, enemy forecasts, variable arrival times, or intermediate waypoints.
 
 `maneuver::preview` clones the friendly ship and uses the same kick/drift routine
@@ -96,21 +93,20 @@ endpoint. Isotropic thrust bounds make the reachable endpoints a disk. Its
 radius is the displacement from maximum thrust with the actual fuel budget.
 The solver evaluates this displacement in a local stationary frame and bisects
 acceleration magnitude along the requested offset direction. It rejects targets
-outside the disk (apart from a 1 mm numerical tolerance), non-finite inputs, and
-commands outside planning. A target within 1 mm of the coast endpoint selects
+outside the disk (apart from a 1 mm numerical tolerance) and non-finite inputs. A target within 1 mm of the coast endpoint selects
 zero thrust. Tests compare the preview and execution exactly and require solved
 endpoints to agree with requested positions within 1 cm at the current scale.
 
 `Command::PlanArrival`, the browser, and Lua `game.arrive(x, y)` share this solver.
 During a drag the GUI previews a temporary candidate; releasing the pointer
-applies it immediately without advancing physics. Pointer positions outside the
+queues it immediately without changing the active order or playback. Pointer positions outside the
 reachable disk are projected radially onto its boundary. The command API itself
 still rejects unreachable targets. Escape, pointer cancellation, or focus loss
 leaves the previously applied plan and numeric input unchanged. Numeric thrust
 remains available in a collapsed section and retains its magnitude-clamping
-behavior. Planning edits remain prohibited during paused execution.
+behavior. Running and paused edits share the same command API.
 
-The arrival handle is always available during planning, directly in Overview or
+The arrival handle is available during playback and pause, directly in Overview or
 the selected map view. There is no route mode, confirmation button, or panel
 transition. Dragging, application, and cancellation preserve map focus and hold zoom
 during the gesture. Overview automatically fits both ships as they move; manual
@@ -129,13 +125,27 @@ Candidate trajectories replace the applied preview during a drag. Pointer
 capture supports mouse/touch dragging outside the circle or canvas. Keyboard
 arrows immediately apply adjustments, Shift makes them finer, and Home plans
 coasting. Telemetry and preview metrics remain in the normal flight controls.
-Commit is disabled during an active drag; releasing applies the draft and enables
-Commit. Changing the world or applied order through Lua cancels a stale gesture.
+Play from pause, stepping, and Next turn are disabled during a drag; Pause is
+still available while running. Movement inside an interval does not cancel a
+gesture. At a command boundary the chosen direction and reachable-disk fraction
+are rebased onto the next interval. An external order change cancels a stale
+gesture. Releasing always uses the current boundary state.
 
-During execution, `preview_ticks` uses the active burn and the remaining ticks
-until the command boundary. The remaining trajectory, arrival annotation, burn
-arrow, and remaining delta-v cost stay visible with editing locked. Tests check
-that partial execution preserves the predicted endpoint, including fuel exhaustion.
-A browser test drags the handle, clicks Commit, and compares the final physical
-position, velocity, and cost to the plan. The next interval defaults to coasting;
-it does not discard the velocity acquired during execution.
+`Snapshot::planning_ship` predicts the friendly state at the next boundary using
+the frozen active vector and the same fixed-step integration. Arrival solving
+and the next interval's reachable disk use this predicted state, including its
+remaining fuel. The route preview prefixes the active remainder to the queued
+120-second trajectory. Delta-v cost refers to the queued interval; arrival
+velocity and remaining fuel include both portions. A repeated order keeps its
+acceleration vector, not its absolute target position.
+
+The browser observes new command-log start ticks and expands a pale ring around
+the actual friendly position. The 0.9-second animation uses presentation time,
+so it remains readable at every playback speed. It signals applied orders even
+when the vector is zero or fuel is exhausted; it is not a thrust effect. It does
+not modify simulation time, physics, or command timing.
+
+Tests compare running edits and repeated playback with fixed-step replay,
+including command boundaries, partial fuel exhaustion, and predicted arrivals.
+Browser checks exercise running drags, boundary pulses, pause, stepping, touch,
+and stable canvas dimensions across playback states.

@@ -39,10 +39,13 @@ implement enemy predictions, a variable-time slider, or the shot solver.
 - Continuous or swept collision handling to prevent fast projectiles from
   tunneling. A hit requires the trajectories to intersect at the same time, not
   merely cross the same map location at different times.
-- WEGO execution: commit orders and advance all actors simultaneously for
-  **120 simulated seconds**. Planning time is unlimited.
-- Execution may be paused or played at different speeds. Gameplay orders may
-  change only at command opportunities, not merely because playback is paused.
+- WEGO execution: each applied order advances all actors simultaneously for
+  **120 simulated seconds**. Play continues across boundaries, repeating the
+  last thrust vector until changed; Pause provides unlimited planning time.
+- Draft orders may be edited while running or paused. Changes apply only at the
+  next 120-second command boundary; an active interval's order is immutable.
+- A ring around the friendly ship signals each applied command interval,
+  including coasting. Next turn advances to the next boundary and pauses.
 
 ## Blockade mission
 

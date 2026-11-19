@@ -52,21 +52,9 @@ pub fn preview_arrival(x: f64, y: f64) -> Result<String, JsValue> {
     HOST.with_borrow(|host| {
         let session = host.state.borrow();
         let view = session.snapshot();
-        if view.phase != crate::session::Phase::Planning {
-            return Err(JsValue::from_str("Plan routes only during planning."));
-        }
-        let ship = view
-            .world
-            .ships
-            .iter()
-            .find(|s| s.id == view.player_id)
-            .unwrap();
-        let acceleration =
-            crate::maneuver::solve(ship, Vector2::new(x, y)).map_err(|e| JsValue::from_str(&e))?;
-        Ok(
-            serde_json::to_string(&crate::maneuver::preview(ship, acceleration))
-                .expect("serializable route"),
-        )
+        let acceleration = crate::maneuver::solve(&view.planning_ship(), Vector2::new(x, y))
+            .map_err(|e| JsValue::from_str(&e))?;
+        Ok(serde_json::to_string(&view.planned_route(acceleration)).expect("serializable route"))
     })
 }
 
@@ -159,22 +147,7 @@ pub fn start() {
 }
 
 fn route_preview(view: &crate::session::Snapshot<'_>) -> crate::maneuver::Preview {
-    let ship = view
-        .world
-        .ships
-        .iter()
-        .find(|s| s.id == view.player_id)
-        .unwrap();
-    let burn = if view.phase == crate::session::Phase::Planning {
-        view.planned_burn
-    } else {
-        view.active_burn
-    };
-    crate::maneuver::preview_ticks(
-        ship,
-        burn,
-        (view.remaining_seconds / crate::physics::STEP_SECONDS) as u64,
-    )
+    view.planned_route(view.planned_burn)
 }
 
 fn draw_world(mut gizmos: Gizmos, windows: Query<&Window>, time: Res<Time>) {
@@ -219,18 +192,12 @@ fn draw_world(mut gizmos: Gizmos, windows: Query<&Window>, time: Res<Time>) {
         let on_screen =
             |p: Vector2| p.x.abs() <= half_width + 100.0 && p.y.abs() <= half_height + 100.0;
         if !ROUTE_EDITING.with_borrow(|v| *v) {
-            let ship = view
-                .world
-                .ships
-                .iter()
-                .find(|s| s.id == view.player_id)
-                .unwrap();
             let route = route_preview(&view);
             let project = |p| {
                 let p = frame.project(p);
                 Vec2::new(p.x as f32, p.y as f32)
             };
-            let coast_start = project(ship.position);
+            let coast_start = project(view.planning_ship().position);
             let coast_end = project(route.coast_endpoint);
             for i in 0..32 {
                 gizmos.line_2d(

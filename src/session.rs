@@ -47,7 +47,7 @@ impl Command {
         match name {
             "commit" => Ok(Self::Commit),
             "pause" => Ok(Self::Pause),
-            "resume" => Ok(Self::Resume),
+            "play" | "resume" => Ok(Self::Resume),
             "step" => Ok(Self::Step),
             "step_forward" => Ok(Self::StepForward),
             "next_turn" => Ok(Self::NextTurn),
@@ -90,6 +90,7 @@ pub struct Snapshot<'a> {
     pub active_burn: Vector2,
     pub time_seconds: f64,
     pub remaining_seconds: f64,
+    pub order_start_seconds: f64,
     pub command_number: usize,
     pub command_log: &'a [CommandRecord],
 }
@@ -140,6 +141,7 @@ impl Session {
             } else {
                 (self.interval_end - self.world.tick) as f64 * STEP_SECONDS
             },
+            order_start_seconds: self.interval_end as f64 * STEP_SECONDS,
             command_number: self.command_log.len() + usize::from(self.phase == Phase::Planning),
             command_log: &self.command_log,
         }
@@ -148,17 +150,10 @@ impl Session {
     pub fn dispatch(&mut self, command: Command) -> Result<(), String> {
         match command {
             Command::PlanArrival(target) => {
-                self.require_planning()?;
-                let ship = self
-                    .world
-                    .ships
-                    .iter()
-                    .find(|s| s.id == self.player_id)
-                    .unwrap();
-                self.planned_burn = crate::maneuver::solve(ship, target)?;
+                let ship = self.snapshot().planning_ship();
+                self.planned_burn = crate::maneuver::solve(&ship, target)?;
             }
             Command::PlanBurn(requested) => {
-                self.require_planning()?;
                 if !requested.valid() {
                     return Err("Acceleration must be finite and within bounds.".into());
                 }
@@ -170,38 +165,22 @@ impl Session {
                     .unwrap();
                 self.planned_burn = requested.clamped(ship.max_acceleration);
             }
-            Command::Commit => {
-                self.require_planning()?;
-                let end = self
-                    .world
-                    .tick
-                    .checked_add(INTERVAL_TICKS)
-                    .ok_or("Simulation tick capacity exhausted.")?;
-                self.active_burn = self.planned_burn;
-                self.interval_end = end;
-                self.command_log.push(CommandRecord {
-                    start_tick: self.world.tick,
-                    burn: Burn {
-                        ship_id: self.player_id,
-                        acceleration: self.active_burn,
-                    },
-                });
-                self.phase = Phase::Executing;
+            Command::Commit | Command::Resume => {
+                if self.phase == Phase::Planning {
+                    self.begin_interval()?;
+                }
                 self.paused = false;
-                self.playback_quanta = 0;
             }
             Command::Pause => {
                 self.paused = true;
                 self.playback_quanta = 0;
             }
-            Command::Resume => {
-                self.require_execution()?;
-                self.paused = false;
-            }
             Command::Step | Command::StepForward => {
-                self.require_execution()?;
                 if !self.paused {
                     return Err("Pause execution before stepping.".into());
+                }
+                if self.phase == Phase::Planning {
+                    self.begin_interval()?;
                 }
                 let ticks = if matches!(command, Command::StepForward) {
                     STEP_FORWARD_TICKS
@@ -214,10 +193,12 @@ impl Session {
             }
             Command::NextTurn => {
                 if self.phase == Phase::Planning {
-                    self.dispatch(Command::Commit)?;
+                    self.begin_interval()?;
                 }
-                // Complete every physical tick, including contacts and fuel use.
-                while self.phase == Phase::Executing {
+                self.paused = true;
+                self.playback_quanta = 0;
+                // Complete every physical tick and stop before starting another interval.
+                while self.world.tick < self.interval_end {
                     self.advance_tick();
                 }
             }
@@ -237,11 +218,16 @@ impl Session {
 
     /// Consume one presentation-clock pulse, without changing the physical timestep.
     pub fn pulse(&mut self) {
-        if self.phase != Phase::Executing || self.paused {
+        if self.paused {
             return;
         }
         self.playback_quanta += self.speed;
-        while self.playback_quanta >= PULSES_PER_TICK && self.phase == Phase::Executing {
+        while self.playback_quanta >= PULSES_PER_TICK {
+            if self.phase == Phase::Planning && self.begin_interval().is_err() {
+                self.paused = true;
+                self.playback_quanta = 0;
+                return;
+            }
             self.playback_quanta -= PULSES_PER_TICK;
             self.advance_tick();
         }
@@ -256,26 +242,68 @@ impl Session {
             .expect("frozen valid orders and prevalidated tick capacity");
         if self.world.tick == self.interval_end {
             self.phase = Phase::Planning;
-            self.paused = true;
-            self.planned_burn = Vector2::ZERO;
             self.active_burn = Vector2::ZERO;
-            self.playback_quanta = 0;
         }
     }
 
-    fn require_planning(&self) -> Result<(), String> {
-        if self.phase == Phase::Planning {
-            Ok(())
-        } else {
-            Err("Orders can only change during planning, even when execution is paused.".into())
-        }
+    fn begin_interval(&mut self) -> Result<(), String> {
+        let end = self
+            .world
+            .tick
+            .checked_add(INTERVAL_TICKS)
+            .ok_or("Simulation tick capacity exhausted.")?;
+        self.active_burn = self.planned_burn;
+        self.interval_end = end;
+        self.command_log.push(CommandRecord {
+            start_tick: self.world.tick,
+            burn: Burn {
+                ship_id: self.player_id,
+                acceleration: self.active_burn,
+            },
+        });
+        self.phase = Phase::Executing;
+        Ok(())
     }
+}
 
-    fn require_execution(&self) -> Result<(), String> {
+impl Snapshot<'_> {
+    /// Predict the next command boundary without changing the current orders.
+    pub fn planning_ship(&self) -> crate::physics::Ship {
+        let mut ship = self
+            .world
+            .ships
+            .iter()
+            .find(|s| s.id == self.player_id)
+            .unwrap()
+            .clone();
         if self.phase == Phase::Executing {
-            Ok(())
-        } else {
-            Err("Commit orders before resuming or stepping execution.".into())
+            for _ in 0..(self.remaining_seconds / STEP_SECONDS) as u64 {
+                ship.advance(self.active_burn);
+            }
         }
+        ship
+    }
+
+    /// Preview the queued interval, including the frozen remainder as a route prefix.
+    pub fn planned_route(&self, acceleration: Vector2) -> crate::maneuver::Preview {
+        let mut route = crate::maneuver::preview(&self.planning_ship(), acceleration);
+        if self.phase == Phase::Executing {
+            let ship = self
+                .world
+                .ships
+                .iter()
+                .find(|s| s.id == self.player_id)
+                .unwrap();
+            let mut prefix = crate::maneuver::preview_ticks(
+                ship,
+                self.active_burn,
+                (self.remaining_seconds / STEP_SECONDS) as u64,
+            )
+            .points;
+            prefix.pop();
+            prefix.append(&mut route.points);
+            route.points = prefix;
+        }
+        route
     }
 }

@@ -10,7 +10,7 @@ and delta-v expenditure.
 
 **Step 2: physics and WEGO execution.** Two ships move with inertia, bounded
 acceleration, and finite delta-v. Drag the burn handle around the friendly ship
-to plan a constant thrust vector for 120 seconds, then commit the interval. Bevy draws
+to plan a constant thrust vector for 120 seconds, then press Play for continuous 120-second orders. Bevy draws
 the authoritative physical state and friendly route preview; the UI and Lua
 use the same validated command API.
 
@@ -117,29 +117,38 @@ share the status area; longer messages can be scrolled inside it.
 
 | Control | Behavior |
 | --- | --- |
-| Ship-centered Burn handle | Always available during planning; drag directly without switching modes or changing the camera |
-| Drag / release | Preview the burn, delta-v cost, remaining delta-v, and arrival velocity; release to update the plan immediately, without advancing time |
+| Ship-centered Burn handle | Available while running or paused; drag directly without switching modes or changing the camera |
+| Drag / release | Preview the burn, delta-v cost, remaining delta-v, and arrival velocity; release to queue the next interval; the current interval keeps its active order |
 | Drag outside the ring | Clamp the handle to the reachable circle in the cursor's direction |
 | Arrow keys / Shift + arrows | Adjust and immediately update the burn; Shift makes finer adjustments; Home plans coasting |
 | Escape during a drag | Discard the current gesture and retain the previously applied plan |
 | Numeric thrust → Acceleration X/Y + Apply | Optional expanded inputs in m/s²; magnitude is clamped to 49.03325 (5 G) |
 | Overview / Own ship / Contact | Overview automatically fits both ships; Own ship and Contact follow one ship at a fixed zoom |
 | Map − / + | Set a manual zoom; select Overview again to resume automatic fitting |
-| Commit 120 s | Freeze orders and execute both ships simultaneously |
-| Resume / Pause | Control playback during execution; orders remain locked |
-| Next turn | During planning, commit the current plan and run the full 120 seconds; during execution, finish only the remaining ticks, then return to planning |
+| Play / Pause | Start or stop playback; the applied thrust vector repeats every 120 seconds until changed |
+| Next turn | Execute to the next 120-second boundary and pause, preserving the queued order |
 | +10 s | Advance 10 simulated seconds while paused, stopping at the next planning boundary if sooner |
-| Playback speed buttons | Select 1×, 32×, 64×, or 128× (default 32×) beside Resume / Pause and Step; the active speed is highlighted and follows Lua changes |
+| Playback speed buttons | Select 1×, 32×, 64×, or 128× (default 32×) beside Play / Pause and Step; the active speed is highlighted and follows Lua changes |
 | Show / Hide Lua console | Toggle the initially hidden REPL; input, output, and Lua globals are retained. Close or Escape returns focus to the toggle |
 | Run Lua | Evaluate input; Ctrl+Enter or Command+Enter also submits |
 | Example buttons | Fill the console input without executing it |
 | Reload page | Start a new simulation and Lua session |
 
-Planning has no time limit. Every committed interval ends at exactly 120 simulated
-seconds and returns to planning. The next draft defaults to coasting. Position,
-velocity, and remaining delta-v persist. Edited input fields must be applied
-before the UI permits committing. Planning commands are rejected during execution,
-including while paused. UI coordinates use km with positive Y pointing upward;
+The initial state is paused, with unlimited planning time. Play starts the first
+interval and continues automatically across subsequent 120-second boundaries.
+The last applied thrust direction and magnitude repeat; they do not reset to
+coasting. A new map or numeric order can be queued while running or paused and
+takes effect at the next boundary. The active interval remains unchanged.
+At a paused boundary, Play or stepping applies the latest order immediately.
+Position, velocity, delta-v, and projectiles persist. Unapplied numeric edits
+block Play, stepping, and Next turn, but never prevent pausing playback.
+
+A pale ring expands from the friendly ship whenever a new interval's order is
+applied, including a zero-thrust order. This marks the **120-second command
+cycle**, not engine thrust. Its 0.9-second fade uses real time for readability at
+all playback speeds. The countdown shows when the next order will apply.
+
+UI coordinates use km with positive Y pointing upward;
 velocity and delta-v use
 km/s. The grid spacing changes with zoom and is labeled on the map. Symbols and
 velocity-direction arrows are enlarged for readability; collision radii remain
@@ -160,14 +169,15 @@ direction chooses thrust direction and distance chooses the maneuver amount.
 The ring is a control, not a destination at the map's scale. The center means
 zero thrust. The actual trajectory, arrival time, arrival-velocity arrow, and
 30 seconds of subsequent coasting remain at map scale, without a circular
-arrival marker. An amber arrow shows the planned or executing burn from the ship;
+arrival marker. An amber arrow shows the queued burn from the ship;
 the cyan velocity arrow shows actual travel direction.
 
-Commit retains the burn arrow and the remaining route preview during execution,
-including while paused. The preview ends at the current command boundary, not
-120 seconds from each displayed frame. The cost readout shows the remaining
-burn cost during execution. The next command interval still defaults to coasting;
-position, velocity, and spent delta-v persist.
+While an interval is executing, the preview first follows its unchanged active
+burn to the next boundary, then follows the queued order for a full 120 seconds.
+The arrival label includes both durations. The cost readout covers the queued
+interval; remaining delta-v and arrival velocity also account for the active
+remainder. The status line shows the active thrust separately. Repeated orders
+retain thrust direction and magnitude, not an absolute arrival destination.
 
 Thrust changes velocity; it does not turn the ship instantly toward the handle.
 The current trial uses a 75 km/s initial speed, 5 G (49.03325 m/s²) maximum
@@ -183,36 +193,39 @@ Times are fixed in this version; there are no waypoints or multi-burn schedules.
 Releasing a graphical drag replaces the current draft, including any unapplied
 numeric input. Escape, interrupted touch, or loss of window focus cancels only
 the current gesture and preserves the previous draft and numeric input. The
-telemetry and preview metrics remain visible throughout; Commit is disabled only
-while dragging or while numeric edits remain unapplied. Next turn has the same
-planning-input guards. Commit starts playback; Next turn executes to the next
-command boundary immediately;
-releasing the handle does not. Explicit arrival commands from Lua still reject
-unreachable endpoints instead of clamping them.
+telemetry and preview metrics remain visible throughout. Play from pause, stepping,
+and Next turn are disabled during a drag; Pause remains available while running.
+A drag that crosses a command boundary keeps its direction and fraction of the
+reachable disk, rebased onto the next interval. External order changes through
+Lua cancel a stale drag, retaining the last applied plan. Releasing the handle queues an order
+without changing playback. Explicit Lua arrival commands reject unreachable
+endpoints instead of clamping them.
 
 ```lua
 answer = 6 * 7; print("Answer:", answer)
 return game.state().phase
 return game.state().ship.remaining_dv
 game.burn(49.03325, 0)
-game.command("commit")
+game.command("play")
 game.command("pause")
 game.command("step"); return game.state().time_seconds
 game.command("step_forward") -- Same 10-second advance as the UI
 game.speed(64)
-game.command("resume")
+game.command("play")
 game.command("next_turn")
 game.command("reset")
 ```
 
 Bare expressions also work. `game.state()` returns a detached snapshot with
-`phase`, `paused`, `ticks`, `time_seconds`, `remaining_seconds`, `speed`,
-`command_number`, `command_count`, `planned_burn`, and `ships`. `ship` aliases the
+`phase`, `paused`, `ticks`, `time_seconds`, `remaining_seconds`, `order_start_seconds`, `speed`,
+`command_number`, `command_count`, `planned_burn`, `active_burn`, and `ships`. `ship` aliases the
 friendly ship snapshot. Ship fields include `id`, `x`, `y`, `vx`, `vy`,
 `remaining_dv`, `spent_dv`, and `max_acceleration`. Projectile and impact counts
 are also exposed. Lua continues to use m and m/s, and `game.burn` takes m/s².
 `game.arrive(x, y)` accepts an absolute position in metres at the end of the next
-120-second interval, using the same solver and planning-only validation as the GUI.
+120-second interval. During execution, that means the interval after the current
+one. The solver starts from the predicted boundary state, including fuel used
+by the active burn, and shares validation with the GUI.
 Unreachable endpoints return an error without changing the existing plan.
 `game.state().scale` exposes `light_speed_mps`, `railgun_speed_mps`,
 `reference_range_m`, and `reference_flight_seconds`. Changing these Lua tables
@@ -222,7 +235,10 @@ tick zero with full delta-v and 32× playback while retaining Lua globals; there
 in the normal controls.
 `game.command("step")` retains the diagnostic single-tick (0.25 s) advance;
 `game.command("step_forward")` matches the UI's +10 s button. Both require paused
-execution and process all physical ticks without crossing a planning boundary.
+playback and process all physical ticks without crossing a command boundary.
+They can start the next interval while staying paused. `play`, `resume`, and
+`commit` are equivalent playback commands; repeated calls do not restart an
+active interval or change its orders.
 Invalid commands,
 syntax errors, and runtime errors appear in the console. One evaluation has a
 20,000-fuel budget to interrupt accidental infinite loops. Effects performed
@@ -245,7 +261,7 @@ fuel exhaustion, braking, fast and moving-target contacts, temporal misses,
 contact ordering, projectile flight across command intervals, metre-scale misses at
 astronomical distances, camera-relative precision, deterministic replay, and
 WEGO boundaries at every playback speed,
-paused command locks, projectile persistence, reset, and Lua error recovery.
+queued order timing, projectile persistence, reset, and Lua error recovery.
 Endpoint-planning tests cover prediction/execution agreement, partial fuel
 exhaustion, unreachable targets, and shared Lua validation.
 Bevy is a browser-target dependency; native tests need no display server.
@@ -262,10 +278,11 @@ python scripts/browser_smoke.py
 
 The smoke test opens Chromium and fulfills browser requests from `dist/` at a
 virtual HTTPS `/phase-vector/` URL. It checks engine startup, a visible scene
-change after commands, delta-v consumption, exact interval boundaries, locked
+change after commands, delta-v consumption, exact interval boundaries, queued
 orders, and identical results from playback and manual stepping. A pointer-authored
-plan is executed through the actual Commit button and its final position, velocity,
-and delta-v are compared with the preview; the executing burn stays visible. It also checks
+plan is executed through the actual Play button and its final position, velocity,
+and delta-v are compared with the preview; running edits preserve the active burn.
+Continuous playback, repeated orders, and the interval pulse are also checked. The test also checks
 Lua persistence, validation, error recovery, direct map dragging and release-to-apply,
 radial clamping outside the reachable circle, automatic zoom and manual override,
 gesture cancellation, keyboard

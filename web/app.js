@@ -82,7 +82,7 @@ function refresh() {
     ready = true;
     element('engine-status').textContent = 'ENGINE ONLINE';
     document.body.dataset.ready = 'true';
-    log('Lua ready. Inspect game.state(), plan with game.burn(ax, ay), then commit.', 'hint');
+    log('Lua ready. Inspect game.state(), plan with game.burn(ax, ay), then press Play. Orders repeat every 120 seconds.', 'hint');
   }
   const planning = state.phase === 'planning';
   const plan = JSON.stringify(state.planned_burn);
@@ -93,17 +93,16 @@ function refresh() {
     lastPlan = plan;
   }
   routeEditor.sync(state, ready, dirtyPlan);
-  element('mode').textContent = planning ? 'PLANNING' : state.paused ? 'PAUSED' : 'EXECUTING';
+  element('mode').textContent = state.paused ? 'PAUSED' : 'EXECUTING';
   element('ticks').textContent = state.world.tick;
   element('time').textContent = state.time_seconds.toFixed(2);
   element('command-number').textContent = `COMMAND ${String(state.command_number).padStart(2, '0')}`;
-  element('window-time').textContent = `${planning ? 'Next window' : 'Remaining'}: ${state.remaining_seconds.toFixed(2)} s`;
-  element('toggle').textContent = state.paused ? 'Resume' : 'Pause';
-  element('toggle').disabled = !ready || planning;
-  element('step').disabled = !ready || planning || !state.paused;
-  element('next-turn').disabled = !ready || (planning && (dirtyPlan || routeEditor.dragging));
-  element('commit').disabled = !ready || !planning || dirtyPlan || routeEditor.dragging;
-  element('burn-fields').disabled = !ready || !planning;
+  element('window-time').textContent = `Next order: ${planning ? 'now' : state.remaining_seconds.toFixed(2) + ' s'}`;
+  element('toggle').textContent = state.paused ? 'Play' : 'Pause';
+  element('toggle').disabled = !ready || (state.paused && (dirtyPlan || routeEditor.dragging));
+  element('step').disabled = !ready || !state.paused || dirtyPlan || routeEditor.dragging;
+  element('next-turn').disabled = !ready || dirtyPlan || routeEditor.dragging;
+  element('burn-fields').disabled = !ready;
   for (const button of speedButtons) {
     button.disabled = !ready;
     button.setAttribute('aria-pressed', String(Number(button.dataset.speed) === state.speed));
@@ -139,8 +138,7 @@ function invoke(action) {
   refresh();
 }
 
-element('commit').addEventListener('click', () => invoke(() => command('commit')));
-element('toggle').addEventListener('click', () => invoke(() => command(JSON.parse(state_json()).paused ? 'resume' : 'pause')));
+element('toggle').addEventListener('click', () => invoke(() => command(JSON.parse(state_json()).paused ? 'play' : 'pause')));
 element('step').addEventListener('click', () => invoke(() => command('step_forward')));
 element('next-turn').addEventListener('click', () => invoke(() => command('next_turn')));
 for (const button of speedButtons) {
