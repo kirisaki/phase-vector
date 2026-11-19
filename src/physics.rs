@@ -277,20 +277,25 @@ pub fn swept_contact(
 ) -> Option<f64> {
     let relative = a0 - b0;
     let drift = (a1 - a0) - (b1 - b0);
-    let c = relative.dot(relative) - radius * radius;
-    if c <= 0.0 {
+    if relative.length() <= radius {
         return Some(0.0);
     }
-    let a = drift.dot(drift);
-    let b = relative.dot(drift);
-    if a == 0.0 || b >= 0.0 {
+    let length = drift.length();
+    if length == 0.0 {
         return None;
     }
-    let discriminant = b * b - a * c;
-    if discriminant < 0.0 {
+    let direction = drift * (1.0 / length);
+    let approach = -relative.dot(direction);
+    if approach <= 0.0 {
         return None;
     }
-    // This form avoids subtracting nearly equal positive numbers at entry.
-    let fraction = c / (-b + discriminant.sqrt());
+    // A closest-approach calculation avoids subtracting astronomical squared
+    // distances in the quadratic discriminant, which can erase small radii.
+    let miss_distance = (relative.x * direction.y - relative.y * direction.x).abs();
+    if miss_distance > radius {
+        return None;
+    }
+    let half_chord = ((radius - miss_distance) * (radius + miss_distance)).sqrt();
+    let fraction = (approach - half_chord) / length;
     (0.0..=1.0).contains(&fraction).then_some(fraction)
 }

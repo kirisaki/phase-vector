@@ -217,3 +217,35 @@ fn identical_initial_conditions_and_orders_reproduce_the_entire_world() {
         assert_eq!(a, b);
     }
 }
+
+#[test]
+fn astronomical_contacts_preserve_metres_instead_of_rounding_misses_into_hits() {
+    let speed = 0.9 * 299_792_458.0;
+    let range = speed * 360.0;
+    // The old discriminant loses radius-sized differences at these distances.
+    for offset in [0.0, 100_000_000_000.0] {
+        let origin = V::new(offset, offset);
+        let end = origin + V::new(range, 0.0);
+        for (miss, hit) in [(499.0, true), (500.0, true), (501.0, false), (600.0, false)] {
+            let target = origin + V::new(range / 2.0, miss);
+            assert_eq!(
+                swept_contact(origin, end, target, target, 500.0).is_some(),
+                hit
+            );
+        }
+    }
+    // A moving ship crosses the near-c projectile during a single tick.
+    let travel = speed * STEP_SECONDS;
+    let target = V::new(range, 0.0);
+    let start = target - V::new(travel / 2.0, 0.0);
+    assert!(
+        swept_contact(
+            start,
+            start + V::new(travel, 0.0),
+            target + V::new(0.0, -37_500.0),
+            target + V::new(0.0, 37_500.0),
+            500.0
+        )
+        .is_some()
+    );
+}
