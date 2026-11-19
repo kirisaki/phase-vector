@@ -5,7 +5,9 @@
 Use metres, seconds, m/s, and m/s². The fixed step is 0.25 seconds; a 120-second
 command interval consists of exactly 480 integer ticks. Time is derived from the
 tick index rather than accumulated floating-point time. Positions, velocities,
-and delta-v use `f64`; conversion to Bevy's `f32` occurs only when drawing.
+and delta-v use `f64`; the renderer subtracts a camera origin and rescales in `f64` before converting
+to Bevy's `f32`. Current scenario values are documented in
+[the combat-scale revision](combat-scale.md).
 
 There is no gravity or drag. Each ship receives an acceleration vector whose
 magnitude is capped by its acceleration limit. Delta-v consumption is the
@@ -20,8 +22,9 @@ linear, and contacts are continuous along those segments.
 
 ## Contacts
 
-Ships and projectiles are circles. Solve the relative-motion quadratic for the
-earliest time of contact in each tick. This catches fast projectiles and moving
+Ships and projectiles are circles. Solve the relative-motion closest approach and chord entry for the
+earliest time of contact in each tick, avoiding a cancellation-prone quadratic
+discriminant at astronomical distances. This catches fast projectiles and moving
 targets, and rejects paths that cross at different times. Tangency, starting
 overlap, and contact exactly at the tick end count as contact. The projectile's
 owner is excluded. A projectile is consumed by its earliest contact; ties use
@@ -48,8 +51,17 @@ Planning is unlimited and never advances physics. One constant friendly thrust
 vector is drafted for the next interval; the passive second ship coasts. Commit
 freezes that vector and starts simultaneous 120-second execution. Commands cannot
 be edited during execution, including while paused. Pause/resume, single physical
-steps while paused, and 1×/4×/16×/64× playback are presentation controls. Reset is
+steps while paused, and 1×/32×/64×/128× playback (default 32×) are presentation controls. Reset is
 an explicit diagnostic restart, not an in-mission order change.
+
+The UI's +10 s action (`step_forward`) runs up to 40 fixed ticks while paused,
+clipped to the current interval's end. It stays paused and never enters the next
+execution interval. The diagnostic Lua `step` command still advances one tick.
+
+Next turn (`next_turn`) is available during execution, both running and paused.
+It runs every remaining fixed physics tick with the frozen orders and stops at
+the next planning boundary. It preserves the selected playback speed and the
+normal impact, projectile, and delta-v processing; it never commits a new turn.
 
 The browser supplies 60 fixed presentation pulses per second. An integer
 accumulator converts those pulses into whole 0.25-second physical steps; speed

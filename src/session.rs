@@ -2,12 +2,15 @@
 
 use serde::Serialize;
 
-use crate::physics::{Burn, STEP_SECONDS, Ship, Vector2, World};
+use crate::physics::{Burn, STEP_SECONDS, Vector2, World};
 
 pub const INTERVAL_TICKS: u64 = 480;
 pub const INTERVAL_SECONDS: f64 = INTERVAL_TICKS as f64 * STEP_SECONDS;
 // The browser calls pulse at 60 Hz. Physics advances at 4 Hz at normal speed.
 pub const PULSES_PER_TICK: u32 = 15;
+pub const DEFAULT_SPEED: u32 = 32;
+// Ten simulated seconds at the fixed 0.25-second physics timestep.
+const STEP_FORWARD_TICKS: u64 = 40;
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize)]
 #[serde(rename_all = "lowercase")]
@@ -32,6 +35,8 @@ pub enum Command {
     Pause,
     Resume,
     Step,
+    StepForward,
+    NextTurn,
     SetSpeed(f64),
     Reset,
 }
@@ -43,6 +48,8 @@ impl Command {
             "pause" => Ok(Self::Pause),
             "resume" => Ok(Self::Resume),
             "step" => Ok(Self::Step),
+            "step_forward" => Ok(Self::StepForward),
+            "next_turn" => Ok(Self::NextTurn),
             "reset" => Ok(Self::Reset),
             _ => Err(format!("Unknown command: {name}")),
         }
@@ -73,6 +80,7 @@ pub struct Session {
 #[derive(Serialize)]
 pub struct Snapshot<'a> {
     pub world: &'a World,
+    pub scale: crate::scenario::Scale,
     pub player_id: u32,
     pub phase: Phase,
     pub paused: bool,
@@ -87,27 +95,7 @@ pub struct Snapshot<'a> {
 
 impl Default for Session {
     fn default() -> Self {
-        let ships = vec![
-            Ship::new(
-                1,
-                Vector2::new(-600.0, -150.0),
-                Vector2::new(1.0, 0.0),
-                12.0,
-                0.02,
-                20.0,
-            )
-            .unwrap(),
-            Ship::new(
-                2,
-                Vector2::new(200.0, 180.0),
-                Vector2::new(-0.3, 0.0),
-                12.0,
-                0.02,
-                20.0,
-            )
-            .unwrap(),
-        ];
-        Self::new(World::new(ships).unwrap(), 1).unwrap()
+        Self::new(crate::scenario::initial_world(), 1).unwrap()
     }
 }
 
@@ -125,7 +113,7 @@ impl Session {
             paused: true,
             planned_burn: Vector2::ZERO,
             active_burn: Vector2::ZERO,
-            speed: 1,
+            speed: DEFAULT_SPEED,
             playback_quanta: 0,
             command_log: Vec::new(),
         })
@@ -138,6 +126,7 @@ impl Session {
     pub fn snapshot(&self) -> Snapshot<'_> {
         Snapshot {
             world: &self.world,
+            scale: crate::scenario::SCALE,
             player_id: self.player_id,
             phase: self.phase,
             paused: self.paused,
@@ -198,16 +187,30 @@ impl Session {
                 self.require_execution()?;
                 self.paused = false;
             }
-            Command::Step => {
+            Command::Step | Command::StepForward => {
                 self.require_execution()?;
                 if !self.paused {
                     return Err("Pause execution before stepping.".into());
                 }
-                self.advance_tick();
+                let ticks = if matches!(command, Command::StepForward) {
+                    STEP_FORWARD_TICKS
+                } else {
+                    1
+                };
+                for _ in 0..ticks.min(self.interval_end - self.world.tick) {
+                    self.advance_tick();
+                }
+            }
+            Command::NextTurn => {
+                self.require_execution()?;
+                // Complete every physical tick, including contacts and fuel use.
+                while self.phase == Phase::Executing {
+                    self.advance_tick();
+                }
             }
             Command::SetSpeed(speed) => {
-                if ![1.0, 4.0, 16.0, 64.0].contains(&speed) {
-                    return Err("Playback speed must be 1, 4, 16, or 64.".into());
+                if ![1.0, 32.0, 64.0, 128.0].contains(&speed) {
+                    return Err("Playback speed must be 1, 32, 64, or 128.".into());
                 }
                 self.speed = speed as u32;
             }

@@ -62,7 +62,8 @@ milestone is implemented.
 - Player maneuver planning.
 - A shot is specified by a future position and arrival time. Solve for launch
   time and direction using fixed muzzle speed and the firing ship's velocity at
-  launch. Explicitly identify unreachable requests.
+  launch. Near-c muzzle velocities require relativistic frame conversion.
+  Explicitly identify unreachable requests.
 - Recalculate pending shots when the friendly maneuver plan changes.
 - Preserve unlaunched reservations and in-flight projectiles across command
   intervals. A launched projectile retains its ballistic trajectory.
@@ -83,9 +84,14 @@ milestone is implemented.
 
 ## Initial tuning targets
 
-- Projectile flight times of roughly **240–480 simulated seconds**.
+- Railgun reference muzzle speed **0.90c**, a provisional interpretation of the
+  requested near-light-speed weapon. See [combat scale](combat-scale.md).
+- Projectile flight times of roughly **240–480 simulated seconds**, implying
+  roughly 64.8–129.5 million km for stationary reference shots.
 - Around **10 command opportunities** per mission.
-- Enemy reaction lead time adjustable independently of projectile flight time.
+- Enemy reaction lead time adjustable independently of projectile flight time,
+  subject to light propagation and the observation rules. At 0.90c, seeing a
+  launch flash leaves at most 10% of the stationary reference flight as warning.
 - Tune parameters against measurable mission outcomes rather than a scripted
   success path.
 

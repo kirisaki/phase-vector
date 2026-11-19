@@ -20,7 +20,13 @@
       <div class="workspace">
         <section class="map-panel" aria-labelledby="map-title">
           <div class="panel-heading"><h2 id="map-title">Tactical display</h2><span id="engine-status" role="status">Starting engine…</span></div>
-          <div class="canvas-wrap"><canvas id="tactical-map" aria-label="Physical positions and velocity vectors of the friendly and passive ships"></canvas><div class="map-caption">GRID / 100 m <span id="command-number">COMMAND 01</span></div></div>
+          <div class="map-tools" role="group" aria-label="Map view">
+            <button type="button" data-view="overview" aria-pressed="true" disabled>Overview</button>
+            <button type="button" data-view="friendly" aria-pressed="false" disabled>Own ship</button>
+            <button type="button" data-view="contact" aria-pressed="false" disabled>Contact</button>
+            <div class="zoom-buttons"><button id="zoom-out" type="button" aria-label="Zoom out" disabled>−</button><button id="zoom-in" type="button" aria-label="Zoom in" disabled>+</button></div>
+          </div>
+          <div class="canvas-wrap"><canvas id="tactical-map" aria-label="Physical positions and velocity vectors of the friendly and passive ships"></canvas><div class="map-caption"><div class="map-scale"><span id="grid-label">GRID / km</span><span id="range-label">RANGE / —</span><span id="railgun-label">RAILGUN / —</span></div><span id="command-number">COMMAND 01</span></div></div>
           <div class="flight-controls" tabindex="0" aria-label="Flight controls">
             <div class="transport">
               <div class="command-row">
@@ -29,19 +35,20 @@
               </div>
               <div class="playback" role="group" aria-label="Playback controls">
                 <button id="toggle" disabled>Resume</button>
-                <button id="step" aria-label="Advance 0.25 seconds" disabled>+0.25 s</button>
+                <button id="step" aria-label="Advance up to 10 seconds" disabled>+10 s</button>
                 <div id="speed" class="speed-buttons" role="group" aria-label="Playback speed">
-                  <button type="button" data-speed="1" aria-pressed="true" disabled>1×</button>
-                  <button type="button" data-speed="4" aria-pressed="false" disabled>4×</button>
-                  <button type="button" data-speed="16" aria-pressed="false" disabled>16×</button>
+                  <button type="button" data-speed="1" aria-pressed="false" disabled>1×</button>
+                  <button type="button" data-speed="32" aria-pressed="true" disabled>32×</button>
                   <button type="button" data-speed="64" aria-pressed="false" disabled>64×</button>
+                  <button type="button" data-speed="128" aria-pressed="false" disabled>128×</button>
                 </div>
+                <button id="next-turn" title="Finish the current interval and return to planning" disabled>Next turn</button>
               </div>
             </div>
-            <div class="telemetry" aria-label="Friendly ship telemetry"><div>POSITION / m<strong id="position">−600.00, −150.00</strong></div><div>VELOCITY / m/s<strong id="velocity">1.000, 0.000</strong></div><div>REMAINING Δv / m/s<strong id="dv">20.000</strong></div><div>SPENT Δv / m/s<strong id="spent-dv">0.000</strong></div></div>
-            <form id="burn-form"><fieldset id="burn-fields" disabled><legend>Constant acceleration for the next 120 s</legend><div class="burn-inputs"><label for="burn-x">ax / m/s²<input id="burn-x" type="number" value="0" step="any" required></label><label for="burn-y">ay / m/s²<input id="burn-y" type="number" value="0" step="any" required></label><button id="apply-burn" type="submit">Apply burn</button></div></fieldset><p id="plan-feedback" role="status">Coasting planned. Acceleration magnitude is limited to 0.020 m/s².</p></form>
+            <div class="telemetry" aria-label="Friendly ship telemetry"><div>POSITION / km<strong id="position">—</strong></div><div>VELOCITY / km/s<strong id="velocity">—</strong></div><div>REMAINING Δv / km/s<strong id="dv">—</strong></div><div>SPENT Δv / km/s<strong id="spent-dv">0.000</strong></div></div>
+            <form id="burn-form"><fieldset id="burn-fields" disabled><legend>Constant acceleration for the next 120 s</legend><div class="burn-inputs"><label for="burn-x">ax / m/s²<input id="burn-x" type="number" value="0" step="any" required></label><label for="burn-y">ay / m/s²<input id="burn-y" type="number" value="0" step="any" required></label><button id="apply-burn" type="submit">Apply burn</button></div></fieldset><p id="plan-feedback" role="status">Coasting planned. Acceleration magnitude is limited to 1000 m/s².</p></form>
           </div>
-          <p class="legend"><span class="cyan">△</span> Friendly <span class="amber">⊕</span> Passive ship · Arrows: velocity × 50 s · Circles: hit radius</p>
+          <p class="legend"><span class="cyan">△</span> Friendly <span class="amber">⊕</span> Passive ship · Symbols enlarged · Arrows: velocity direction · Radius rings visible when zoomed in</p>
         </section>
         <section id="console-panel" class="console-panel" aria-labelledby="console-title" tabindex="-1" hidden>
           <div class="panel-heading"><h2 id="console-title">Lua console</h2><button id="console-close" type="button" aria-label="Close Lua console">Close</button></div>
@@ -53,8 +60,8 @@
           </form>
           <details><summary>Try a command</summary><div class="examples">
             <button type="button" data-example="return game.state().phase, game.state().ship.remaining_dv">Read phase &amp; Δv</button>
-            <button type="button" data-example="game.burn(0.02, 0); game.command('commit'); game.command('pause')">Commit a burn &amp; pause</button>
-            <button type="button" data-example="game.command('step'); return game.state().time_seconds">Step execution</button>
+            <button type="button" data-example="game.burn(1000, 0); game.command('commit'); game.command('pause')">Commit a burn &amp; pause</button>
+            <button type="button" data-example="game.command('step_forward'); return game.state().time_seconds">Advance 10 seconds</button>
             <button type="button" data-example="answer = 6 * 7; print('Answer:', answer)">Store &amp; print</button>
           </div><p>Plan orders only at command opportunities. Pausing execution does not unlock orders. UI and Lua use the same API. Reset restores the scenario; reload also clears Lua globals.</p></details>
         </section>

@@ -1,9 +1,13 @@
-import init, { start, command, plan_burn, set_speed, run_lua, state_json, rendered_frames } from './pkg/phase_vector.js';
+import init, { start, command, plan_burn, set_speed, set_map_view, zoom_map, run_lua, state_json, rendered_frames } from './pkg/phase_vector.js';
 
 const element = (id) => document.getElementById(id);
 const output = element('console-output');
 const input = element('lua-input');
 const speedButtons = document.querySelectorAll('[data-speed]');
+const viewButtons = document.querySelectorAll('[data-view]');
+const kmFormat = new Intl.NumberFormat('en-US', { maximumFractionDigits: 3 });
+const km = (metres) => kmFormat.format(metres / 1000);
+
 let ready = false;
 let dirtyPlan = false;
 let lastPlan = '';
@@ -85,23 +89,36 @@ function refresh() {
   element('toggle').textContent = state.paused ? 'Resume' : 'Pause';
   element('toggle').disabled = !ready || planning;
   element('step').disabled = !ready || planning || !state.paused;
+  element('next-turn').disabled = !ready || planning;
   element('commit').disabled = !ready || !planning || dirtyPlan;
   element('burn-fields').disabled = !ready || !planning;
   for (const button of speedButtons) {
     button.disabled = !ready;
     button.setAttribute('aria-pressed', String(Number(button.dataset.speed) === state.speed));
   }
+  for (const button of viewButtons) {
+    button.disabled = !ready;
+    button.setAttribute('aria-pressed', String(button.dataset.view === state.map.focus));
+  }
+  element('zoom-in').disabled = !ready || !state.map.can_zoom_in;
+  element('zoom-out').disabled = !ready || !state.map.can_zoom_out;
+  element('grid-label').textContent = `GRID / ${km(state.map.grid_metres)} km`;
+  const other = state.world.ships.find((ship) => ship.id !== state.player_id);
+  const own = state.world.ships.find((ship) => ship.id === state.player_id);
+  const range = Math.hypot(other.position.x - own.position.x, other.position.y - own.position.y);
+  element('range-label').textContent = `RANGE / ${km(range)} km`;
+  element('railgun-label').textContent = `RAILGUN / ${(state.scale.railgun_speed_mps / state.scale.light_speed_mps).toFixed(2)}c · reference flight ${state.scale.reference_flight_seconds} s`;
   element('run').disabled = !ready;
   input.disabled = !ready;
   const ship = state.world.ships.find((ship) => ship.id === state.player_id);
-  element('position').textContent = `${ship.position.x.toFixed(2)}, ${ship.position.y.toFixed(2)}`;
-  element('velocity').textContent = `${ship.velocity.x.toFixed(3)}, ${ship.velocity.y.toFixed(3)}`;
-  element('dv').textContent = ship.remaining_dv.toFixed(3);
-  element('spent-dv').textContent = ship.spent_dv.toFixed(3);
+  element('position').textContent = `${km(ship.position.x)}, ${km(ship.position.y)}`;
+  element('velocity').textContent = `${(ship.velocity.x / 1000).toFixed(3)}, ${(ship.velocity.y / 1000).toFixed(3)}`;
+  element('dv').textContent = (ship.remaining_dv / 1000).toFixed(3);
+  element('spent-dv').textContent = (ship.spent_dv / 1000).toFixed(3);
   element('plan-feedback').textContent = !planning
     ? 'Orders are locked until this 120-second interval completes, including while paused.'
     : dirtyPlan ? 'Apply edited values before committing.'
-    : `Planned a = (${state.planned_burn.x.toFixed(5)}, ${state.planned_burn.y.toFixed(5)}) m/s². Magnitude limit: ${ship.max_acceleration.toFixed(3)} m/s².`;
+    : `Planned a = (${state.planned_burn.x.toFixed(2)}, ${state.planned_burn.y.toFixed(2)}) m/s². Magnitude limit: ${ship.max_acceleration.toFixed(0)} m/s².`;
 }
 
 function invoke(action) {
@@ -112,10 +129,16 @@ function invoke(action) {
 
 element('commit').addEventListener('click', () => invoke(() => command('commit')));
 element('toggle').addEventListener('click', () => invoke(() => command(JSON.parse(state_json()).paused ? 'resume' : 'pause')));
-element('step').addEventListener('click', () => invoke(() => command('step')));
+element('step').addEventListener('click', () => invoke(() => command('step_forward')));
+element('next-turn').addEventListener('click', () => invoke(() => command('next_turn')));
 for (const button of speedButtons) {
   button.addEventListener('click', () => invoke(() => set_speed(Number(button.dataset.speed))));
 }
+for (const button of viewButtons) {
+  button.addEventListener('click', () => invoke(() => set_map_view(button.dataset.view)));
+}
+element('zoom-in').addEventListener('click', () => invoke(() => zoom_map(0.5)));
+element('zoom-out').addEventListener('click', () => invoke(() => zoom_map(2)));
 for (const id of ['burn-x', 'burn-y']) {
   element(id).addEventListener('input', () => { dirtyPlan = true; refresh(); });
 }

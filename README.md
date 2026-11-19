@@ -19,8 +19,9 @@ Projectile contacts are implemented and tested in the physics core; firing UI
 and hit consequences are not implemented yet.
 
 See the [PoC specification](docs/poc-spec.md),
-[stack decisions](docs/step-1-stack.md), and
-[physics and time model](docs/step-2-physics.md).
+[stack decisions](docs/step-1-stack.md),
+[physics and time model](docs/step-2-physics.md), and
+[near-light-speed combat scale](docs/combat-scale.md).
 
 ## Build and run locally
 
@@ -108,11 +109,14 @@ is requested. The layout follows visual-viewport changes and device safe areas.
 
 | Control | Behavior |
 | --- | --- |
-| Acceleration X/Y + Apply | Draft a constant vector in m/s² for the next interval; magnitude is clamped to 0.02 |
+| Acceleration X/Y + Apply | Draft a constant vector in m/s² for the next interval; magnitude is clamped to 1000 |
+| Overview / Own ship / Contact | Select the engagement view or follow a ship; each preset resets the zoom |
+| Map − / + | Zoom out / in without changing simulation state |
 | Commit 120 s | Freeze orders and execute both ships simultaneously |
 | Resume / Pause | Control playback during execution; orders remain locked |
-| +0.25 s | Advance one physical tick during paused execution |
-| Playback speed buttons | Select 1×, 4×, 16×, or 64× beside Resume / Pause and Step; the active speed is highlighted and follows Lua changes |
+| Next turn | Complete all remaining physical ticks of the committed interval, including while paused, then return to planning |
+| +10 s | Advance 10 simulated seconds while paused, stopping at the next planning boundary if sooner |
+| Playback speed buttons | Select 1×, 32×, 64×, or 128× (default 32×) beside Resume / Pause and Step; the active speed is highlighted and follows Lua changes |
 | Show / Hide Lua console | Toggle the initially hidden REPL; input, output, and Lua globals are retained. Close or Escape returns focus to the toggle |
 | Run Lua | Evaluate input; Ctrl+Enter or Command+Enter also submits |
 | Example buttons | Fill the console input without executing it |
@@ -122,19 +126,24 @@ Planning has no time limit. Every committed interval ends at exactly 120 simulat
 seconds and returns to planning. The next draft defaults to coasting. Position,
 velocity, and remaining delta-v persist. Edited input fields must be applied
 before the UI permits committing. Planning commands are rejected during execution,
-including while paused. Coordinates use metres with positive Y pointing upward.
-The grid spacing is 100 m; velocity arrows show 50 seconds of displacement.
+including while paused. UI coordinates use km with positive Y pointing upward;
+velocity and delta-v use
+km/s. The grid spacing changes with zoom and is labeled on the map. Symbols and
+velocity-direction arrows are enlarged for readability; collision radii remain
+physical and are visible as rings at close zoom.
 
 ```lua
 answer = 6 * 7; print("Answer:", answer)
 return game.state().phase
 return game.state().ship.remaining_dv
-game.burn(0.02, 0)
+game.burn(1000, 0)
 game.command("commit")
 game.command("pause")
 game.command("step"); return game.state().time_seconds
+game.command("step_forward") -- Same 10-second advance as the UI
 game.speed(64)
 game.command("resume")
+game.command("next_turn")
 game.command("reset")
 ```
 
@@ -143,10 +152,16 @@ Bare expressions also work. `game.state()` returns a detached snapshot with
 `command_number`, `command_count`, `planned_burn`, and `ships`. `ship` aliases the
 friendly ship snapshot. Ship fields include `id`, `x`, `y`, `vx`, `vy`,
 `remaining_dv`, `spent_dv`, and `max_acceleration`. Projectile and impact counts
-are also exposed. Changing these Lua tables does not modify the Rust state.
+are also exposed. Lua continues to use m and m/s, and `game.burn` takes m/s².
+`game.state().scale` exposes `light_speed_mps`, `railgun_speed_mps`,
+`reference_range_m`, and `reference_flight_seconds`. Changing these Lua tables
+does not modify the Rust state.
 `game.command("reset")` is a developer REPL command that restores planning at
-tick zero with full delta-v while retaining Lua globals; there is no reset button
+tick zero with full delta-v and 32× playback while retaining Lua globals; there is no reset button
 in the normal controls.
+`game.command("step")` retains the diagnostic single-tick (0.25 s) advance;
+`game.command("step_forward")` matches the UI's +10 s button. Both require paused
+execution and process all physical ticks without crossing a planning boundary.
 Invalid commands,
 syntax errors, and runtime errors appear in the console. One evaluation has a
 20,000-fuel budget to interrupt accidental infinite loops. Effects performed
@@ -166,7 +181,9 @@ python3 scripts/build_web.py
 
 Native Rust tests cover inertial motion, acceleration magnitude limits, partial
 fuel exhaustion, braking, fast and moving-target contacts, temporal misses,
-contact ordering, deterministic replay, WEGO boundaries at every playback speed,
+contact ordering, near-c flight across command intervals, metre-scale misses at
+astronomical distances, camera-relative precision, deterministic replay, and
+WEGO boundaries at every playback speed,
 paused command locks, projectile persistence, reset, and Lua error recovery.
 Bevy is a browser-target dependency; native tests need no display server.
 
@@ -230,9 +247,15 @@ not require a game server or custom domain.
   these discrete segments; sub-tick thrust cutoff and curved paths are not modeled.
 - Replay is deterministic for the same initial state, commands, and build/runtime.
   Bit-identical results across browsers or CPU architectures are not claimed.
+- The current scale assumes a future 0.90c railgun and a 360 s reference flight,
+  placing the ships about 97.1 million km apart. Ships start at 0.10c/0.05c,
+  with 1,000 m/s² acceleration, 1,200 km/s delta-v, and 0.5 km collision radii.
+  Ship acceleration still uses a Newtonian approximation; relativistic thrust
+  and proper-time effects are not modeled. Firing and light-delayed observations
+  are not implemented yet.
 - Step 2 supports one constant burn per interval. There is no mission deadline,
-  enemy evasion, firing UI, victory condition, or observation model yet. The fixed
-  map can be left after many intervals; telemetry continues to show the state.
+  enemy evasion, firing UI, victory condition, or observation model yet. Use the local
+  map views to inspect maneuvers at the new astronomical engagement scale.
 - Projectiles have no expiry or map culling. Contacts consume projectiles and
   record events; ship disablement will be defined by step-3 mission rules.
 - First-load size and performance are not final. Browser errors are shown in the

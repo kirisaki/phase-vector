@@ -22,11 +22,18 @@ main { flex: 1; min-height: 0; min-width: 0; padding: 8px; position: relative; o
 .panel-heading { flex: 0 0 36px; display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 0 12px; border-bottom: 1px solid var(--line); font-size: 10px; }
 h2 { font-size: 11px; font-weight: 500; letter-spacing: .04em; text-transform: uppercase; margin: 0; }
 #engine-status { color: var(--cyan); }
+.map-tools { display: flex; align-items: center; gap: 4px; flex: 0 0 auto; padding: 4px 8px; border-bottom: 1px solid var(--line); }
+.map-tools button { min-height: 30px; padding: 4px 7px; font-size: 11px; }
+.map-tools button[aria-pressed="true"] { color: var(--cyan); border-color: var(--cyan); background: #173b40; }
+.zoom-buttons { display: flex; gap: 4px; margin-left: auto; }
+.zoom-buttons button { min-width: 30px; font-size: 16px; padding: 2px 5px; }
+.map-scale { display: flex; flex-direction: column; gap: 4px; min-width: 0; }
+.map-scale span { text-align: left; }
 .canvas-wrap { position: relative; flex: 1; min-height: 0; min-width: 0; overflow: hidden; }
 /* Bevy sets inline minimum dimensions; allow the canvas to fit compact viewports. */
 canvas { display: block; width: 100%; height: 100%; min-width: 0 !important; min-height: 0 !important; outline: none; }
 .map-caption { position: absolute; top: 12px; left: 12px; right: 12px; display: flex; justify-content: space-between; gap: 10px; color: var(--muted); font-size: 9px; pointer-events: none; }
-.map-caption span { text-align: right; }
+.map-caption > span { text-align: right; }
 .flight-controls { flex: 0 1 auto; min-height: 0; display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); grid-template-areas: 'transport transport' 'telemetry burn'; overflow: auto; overscroll-behavior: contain; border-top: 1px solid var(--line); }
 .transport { grid-area: transport; padding: 8px 12px; display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 10px 20px; border-bottom: 1px solid var(--line); }
 .command-row { display: flex; align-items: center; justify-content: space-between; gap: 8px; flex: 1 1 360px; min-width: 0; }
@@ -66,7 +73,7 @@ summary { cursor: pointer; }
 .examples button { font-size: 10px; padding: 6px 8px; }
 details p { color: var(--muted); line-height: 1.7; font-size: 11px; margin-bottom: 0; }
 #error { position: absolute; z-index: 3; inset: 12px 12px auto; max-height: calc(100% - 24px); overflow: auto; color: #ffad92; background: #211915; border: 1px solid #774839; margin: 0; padding: 12px; line-height: 1.6; }
-.playback { display: flex; align-items: center; gap: 6px; flex: 0 1 320px; min-width: 0; }
+.playback { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; flex: 0 1 440px; min-width: 0; }
 .playback > button { padding-inline: 7px; white-space: nowrap; }
 #toggle { min-width: 66px; }
 .speed-buttons { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); flex: 1; min-width: 136px; }
@@ -93,6 +100,7 @@ legend { color: var(--muted); font-size: 11px; margin-bottom: 8px; }
   .flight-controls { grid-template-columns: minmax(0, 1fr); grid-template-areas: 'transport' 'telemetry' 'burn'; }
   .transport { gap: 6px; padding: 6px 10px; }
   .command-row, .playback { flex-basis: 100%; }
+  .speed-buttons { order: 1; flex-basis: 100%; }
   .buttons { flex-shrink: 0; gap: 5px; }
   .buttons button { padding: 6px 4px; }
 
@@ -125,11 +133,13 @@ legend { color: var(--muted); font-size: 11px; margin-bottom: 8px; }
 .short-viewport textarea { height: 60px; }
 .short-viewport details { display: none; }
 .short-viewport .console-panel .panel-heading { flex-basis: 36px; }
-.short-viewport .map-panel { display: grid; grid-template-columns: minmax(0, 1fr) minmax(280px, 340px); grid-template-rows: 30px minmax(0, 1fr); }
+.short-viewport .map-panel { display: grid; grid-template-columns: minmax(0, 1fr) minmax(280px, 340px); grid-template-rows: 30px 39px minmax(0, 1fr); }
 .short-viewport .map-panel > .panel-heading { grid-column: 1 / -1; }
-.short-viewport .canvas-wrap { grid-column: 1; grid-row: 2; }
-.short-viewport .flight-controls { grid-column: 2; grid-row: 2; border-top: 0; border-left: 1px solid var(--line); grid-template-columns: minmax(0, 1fr); grid-template-areas: 'transport' 'telemetry' 'burn'; align-content: start; }
+.short-viewport .map-tools { grid-column: 1; grid-row: 2; }
+.short-viewport .canvas-wrap { grid-column: 1; grid-row: 3; }
+.short-viewport .flight-controls { grid-column: 2; grid-row: 2 / 4; border-top: 0; border-left: 1px solid var(--line); grid-template-columns: minmax(0, 1fr); grid-template-areas: 'transport' 'telemetry' 'burn'; align-content: start; }
 .short-viewport .command-row, .short-viewport .playback { flex-basis: 100%; }
+.short-viewport .speed-buttons { order: 1; flex-basis: 100%; }
 .short-viewport .buttons { flex-shrink: 0; gap: 4px; }
 .short-viewport .buttons button { padding: 4px; }
 .short-viewport .telemetry { grid-template-columns: repeat(2, minmax(0, 1fr)); padding: 4px 10px; gap: 5px; }

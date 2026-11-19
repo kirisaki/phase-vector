@@ -82,6 +82,16 @@ impl Default for Host {
                     let state = read_state.borrow();
                     let view = state.snapshot();
                     let snapshot = Table::new(&ctx);
+                    let scale = Table::new(&ctx);
+                    scale.set(ctx, "light_speed_mps", view.scale.light_speed_mps)?;
+                    scale.set(ctx, "railgun_speed_mps", view.scale.railgun_speed_mps)?;
+                    scale.set(ctx, "reference_range_m", view.scale.reference_range_m)?;
+                    scale.set(
+                        ctx,
+                        "reference_flight_seconds",
+                        view.scale.reference_flight_seconds,
+                    )?;
+                    snapshot.set(ctx, "scale", scale)?;
                     snapshot.set(ctx, "paused", view.paused)?;
                     snapshot.set(ctx, "phase", view.phase.label())?;
                     snapshot.set(ctx, "ticks", view.world.tick as f64)?;
@@ -241,7 +251,8 @@ mod tests {
     #[test]
     fn ui_and_lua_share_state_and_validation() {
         let mut host = Host::default();
-        host.plan_burn(0.02, 0.0).unwrap();
+        host.plan_burn(crate::scenario::MAX_ACCELERATION, 0.0)
+            .unwrap();
         host.command("commit").unwrap();
         host.command("pause").unwrap();
         host.command("step").unwrap();
@@ -266,7 +277,10 @@ mod tests {
         host.evaluate("game.state().ship.remaining_dv = 999")
             .unwrap();
         assert_eq!(host.state.borrow().world().tick, 0);
-        assert_eq!(host.state.borrow().world().ships[0].remaining_dv, 20.0);
+        assert_eq!(
+            host.state.borrow().world().ships[0].remaining_dv,
+            crate::scenario::INITIAL_DELTA_V
+        );
         assert!(host.evaluate("function (").is_err());
         assert!(host.evaluate("error('probe error')").is_err());
         assert!(
@@ -283,7 +297,7 @@ mod tests {
         assert!(host.evaluate("game.burn(0/0, 0)").is_err());
         assert!(host.evaluate("game.speed(1.5)").is_err());
         host.evaluate(
-            "game.burn(0.02, 0); game.speed(64); game.command('commit'); game.command('pause')",
+            "game.burn(1000, 0); game.speed(64); game.command('commit'); game.command('pause')",
         )
         .unwrap();
         host.evaluate("for i=1,480 do game.command('step') end")
@@ -292,5 +306,10 @@ mod tests {
         assert_eq!(host.evaluate("game.state().time_seconds").unwrap(), "120");
         assert!(host.evaluate("game.command('step')").is_err());
         assert_eq!(host.evaluate("game.state().command_count").unwrap(), "1");
+        assert!(host.evaluate("game.command('next_turn')").is_err());
+        host.evaluate("game.command('commit'); game.command('next_turn')")
+            .unwrap();
+        assert_eq!(host.evaluate("game.state().time_seconds").unwrap(), "240");
+        assert_eq!(host.evaluate("game.state().phase").unwrap(), "planning");
     }
 }
