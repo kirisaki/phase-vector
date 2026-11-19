@@ -4,7 +4,9 @@
 import argparse
 import mimetypes
 from pathlib import Path
-from urllib.parse import unquote, urlparse
+import subprocess
+import sys
+from urllib.parse import unquote, urljoin, urlparse
 
 from playwright.sync_api import sync_playwright, expect
 
@@ -15,7 +17,10 @@ def main():
     parser = argparse.ArgumentParser()
     parser.add_argument('--url', help='Test an actual deployment instead of the local dist directory')
     parser.add_argument('--executable-path', help='Use an existing Chromium executable')
+    parser.add_argument('--rebuild', action='store_true', help='Rebuild while Vite is serving; requires --url')
     args = parser.parse_args()
+    if args.rebuild and not args.url:
+        parser.error('--rebuild requires the running Vite server URL')
     artifacts = ROOT / 'artifacts'
     artifacts.mkdir(exist_ok=True)
     errors = []
@@ -27,6 +32,19 @@ def main():
             args=['--no-sandbox', '--use-angle=swiftshader', '--enable-unsafe-swiftshader'],
         )
         page = browser.new_page(viewport={'width': 1360, 'height': 1000}, device_scale_factor=1, has_touch=True)
+        if args.rebuild:
+            # Prime Vite's module graph, then exercise imports throughout a rebuild.
+            page.goto(args.url)
+            expect(page.locator('body')).to_have_attribute('data-ready', 'true', timeout=90000)
+            with subprocess.Popen([sys.executable, str(ROOT / 'scripts/build_web.py')], cwd=ROOT) as build:
+                while build.poll() is None:
+                    for module in ['app.js', 'route-editor.js']:
+                        response = page.request.get(urljoin(args.url, module))
+                        assert response.ok, f'{module} failed during rebuild: {response.status}'
+                    page.wait_for_timeout(100)
+                assert build.returncode == 0, 'Web rebuild failed'
+            # Let Vite's automatic navigation settle before the fresh interaction run.
+            page.wait_for_timeout(1000)
         page.on('pageerror', lambda error: errors.append(str(error)))
         page.on('requestfailed', lambda request: failed_requests.append(f'{request.url}: {request.failure}'))
 

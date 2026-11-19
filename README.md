@@ -66,7 +66,10 @@ HTML and JavaScript changes reload the page, resetting the simulation and Lua
 session. The dev server binds only to loopback; stop it with Ctrl+C.
 
 Rust changes are not hot-swapped. Run `npm run build:wasm` in another terminal,
-wait for it to finish, then reload the page. This requires the Rust toolchain and
+wait for it to finish, then reload the page. The build prepares the whole site
+in a temporary directory before replacing output files. It keeps `dist/pkg/`
+and its imported paths available while Vite serves the previous build.
+This requires the Rust toolchain and
 matching wasm-bindgen CLI described above. Vite is only a local development tool;
 the release build and GitHub Pages pipeline continue using `scripts/build_web.py`.
 See the [Vite server documentation](https://vite.dev/config/server-options) for
@@ -268,7 +271,14 @@ radial clamping outside the reachable circle, automatic zoom and manual override
 gesture cancellation, keyboard
 editing, and touch dragging in narrow viewports. Screenshots and errors are
 written to ignored `artifacts/`. `--executable-path` can select an existing
-Chromium installation. To exercise the real hosted site:
+Chromium installation. With Vite running, verify module resolution during a WASM
+rebuild and then run the same browser interactions against the development server:
+
+```sh
+python scripts/browser_smoke.py --url http://127.0.0.1:5173/ --rebuild
+```
+
+This requires the build tools on `PATH`. To exercise the real hosted site:
 
 ```sh
 python scripts/browser_smoke.py --url https://kirisaki.github.io/phase-vector/
