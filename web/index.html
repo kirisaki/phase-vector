@@ -21,12 +21,18 @@
         <section class="map-panel" aria-labelledby="map-title">
           <div class="panel-heading"><h2 id="map-title">Tactical display</h2><span id="engine-status" role="status">Starting engine…</span></div>
           <div class="map-tools" role="group" aria-label="Map view">
-            <button type="button" data-view="overview" aria-pressed="true" disabled>Overview</button>
+            <button type="button" data-view="overview" title="Fit both ships automatically; select again to resume auto zoom" aria-pressed="true" disabled>Overview</button>
             <button type="button" data-view="friendly" aria-pressed="false" disabled>Own ship</button>
             <button type="button" data-view="contact" aria-pressed="false" disabled>Contact</button>
             <div class="zoom-buttons"><button id="zoom-out" type="button" aria-label="Zoom out" disabled>−</button><button id="zoom-in" type="button" aria-label="Zoom in" disabled>+</button></div>
           </div>
-          <div class="canvas-wrap"><canvas id="tactical-map" aria-label="Physical positions and velocity vectors of the friendly and passive ships"></canvas><div class="map-caption"><div class="map-scale"><span id="grid-label">GRID / km</span><span id="range-label">RANGE / —</span><span id="railgun-label">RAILGUN / —</span></div><span id="command-number">COMMAND 01</span></div></div>
+          <div class="canvas-wrap"><canvas id="tactical-map" aria-label="Physical positions and velocity vectors of the friendly and passive ships"></canvas><svg id="route-editor" role="group" aria-label="Burn planning on the tactical map" hidden>
+              <circle class="reach-area"/>
+              <path id="map-coast-route"/><path id="map-planned-route"/><path id="map-after-route"/>
+              <path id="arrival-arrow"/><path id="burn-vector"/><text id="burn-label"/>
+              <g id="actual-arrival"><text x="8" y="14">+120 s</text></g>
+              <g id="arrival-handle" role="button" tabindex="0" aria-label="Edit burn direction"><circle class="handle-hit" r="22"/><circle class="handle-dot" r="7"/><text x="12" y="-12">+120 s</text></g>
+            </svg><div class="map-caption"><div class="map-scale"><span id="grid-label">GRID / km</span><span id="range-label">RANGE / —</span><span id="railgun-label">RAILGUN / —</span></div><span id="command-number">COMMAND 01</span></div></div>
           <div class="flight-controls" tabindex="0" aria-label="Flight controls">
             <div class="transport">
               <div class="command-row">
@@ -42,13 +48,16 @@
                   <button type="button" data-speed="64" aria-pressed="false" disabled>64×</button>
                   <button type="button" data-speed="128" aria-pressed="false" disabled>128×</button>
                 </div>
-                <button id="next-turn" title="Finish the current interval and return to planning" disabled>Next turn</button>
+                <button id="next-turn" title="Commit the current plan if needed, then advance to the next command opportunity" disabled>Next turn</button>
               </div>
             </div>
-            <div class="telemetry" aria-label="Friendly ship telemetry"><div>POSITION / km<strong id="position">—</strong></div><div>VELOCITY / km/s<strong id="velocity">—</strong></div><div>REMAINING Δv / km/s<strong id="dv">—</strong></div><div>SPENT Δv / km/s<strong id="spent-dv">0.000</strong></div></div>
-            <form id="burn-form"><fieldset id="burn-fields" disabled><legend>Constant acceleration for the next 120 s</legend><div class="burn-inputs"><label for="burn-x">ax / m/s²<input id="burn-x" type="number" value="0" step="any" required></label><label for="burn-y">ay / m/s²<input id="burn-y" type="number" value="0" step="any" required></label><button id="apply-burn" type="submit">Apply burn</button></div></fieldset><p id="plan-feedback" role="status">Coasting planned. Acceleration magnitude is limited to 49.03325 m/s² (5 G).</p></form>
+            <div class="telemetry" aria-label="Friendly ship telemetry"><div>POSITION / km<strong id="position" class="vector"><span>—, </span><span>—</span></strong></div><div>VELOCITY / km/s<strong id="velocity" class="vector"><span>—, </span><span>—</span></strong></div><div>REMAINING Δv / km/s<strong id="dv">—</strong></div><div>SPENT Δv / km/s<strong id="spent-dv">0.000</strong></div></div>
+
+            <form id="burn-form"><div class="route-stats"><div><span id="route-cost-label">Δv COST / km/s</span><strong id="route-cost">—</strong></div><div><span>REMAINING / km/s</span><strong id="route-remaining">—</strong></div><div><span>ARRIVAL VELOCITY / km/s</span><strong id="route-velocity">—</strong></div></div>
+              <p id="route-feedback" role="status"></p>
+              <details id="numeric-burn"><summary>Numeric thrust</summary><fieldset id="burn-fields" disabled><legend>Constant acceleration for the next 120 s</legend><div class="burn-inputs"><label for="burn-x">ax / m/s²<input id="burn-x" type="number" value="0" step="any" required></label><label for="burn-y">ay / m/s²<input id="burn-y" type="number" value="0" step="any" required></label><button id="apply-burn" type="submit">Apply burn</button></div></fieldset></details></form>
           </div>
-          <p class="legend"><span class="cyan">△</span> Friendly <span class="amber">⊕</span> Passive ship · Symbols enlarged · Arrows: velocity direction · Radius rings visible when zoomed in</p>
+          <p class="legend"><span class="cyan">△</span> Friendly <span class="amber">⊕</span> Passive ship · Cyan: planned route · Dashed: coast · Symbols enlarged · Cyan arrows: velocity · Amber arrow: burn · Radius rings visible when zoomed in</p>
         </section>
         <section id="console-panel" class="console-panel" aria-labelledby="console-title" tabindex="-1" hidden>
           <div class="panel-heading"><h2 id="console-title">Lua console</h2><button id="console-close" type="button" aria-label="Close Lua console">Close</button></div>
@@ -68,5 +77,6 @@
       </div>
       <p id="error" role="alert" hidden></p>
     </main>
+
   </body>
 </html>

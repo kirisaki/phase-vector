@@ -1,4 +1,5 @@
 import init, { start, command, plan_burn, set_speed, set_map_view, zoom_map, run_lua, state_json, rendered_frames } from './pkg/phase_vector.js';
+import { createRouteEditor } from './route-editor.js';
 
 const element = (id) => document.getElementById(id);
 const output = element('console-output');
@@ -11,6 +12,10 @@ const km = (metres) => kmFormat.format(metres / 1000);
 let ready = false;
 let dirtyPlan = false;
 let lastPlan = '';
+const routeEditor = createRouteEditor((applied) => {
+  if (applied) { dirtyPlan = false; lastPlan = ''; }
+  refresh();
+});
 
 const narrowScreen = matchMedia('(max-width: 900px)');
 
@@ -65,6 +70,12 @@ function log(text, className) {
   output.scrollTop = output.scrollHeight;
 }
 
+function setVector(id, x, y) {
+  const values = element(id).children;
+  values[0].textContent = `${x}, `;
+  values[1].textContent = y;
+}
+
 function refresh() {
   const state = JSON.parse(state_json());
   if (!ready && rendered_frames() > 2) {
@@ -81,6 +92,7 @@ function refresh() {
     dirtyPlan = false;
     lastPlan = plan;
   }
+  routeEditor.sync(state, ready, dirtyPlan);
   element('mode').textContent = planning ? 'PLANNING' : state.paused ? 'PAUSED' : 'EXECUTING';
   element('ticks').textContent = state.world.tick;
   element('time').textContent = state.time_seconds.toFixed(2);
@@ -89,8 +101,8 @@ function refresh() {
   element('toggle').textContent = state.paused ? 'Resume' : 'Pause';
   element('toggle').disabled = !ready || planning;
   element('step').disabled = !ready || planning || !state.paused;
-  element('next-turn').disabled = !ready || planning;
-  element('commit').disabled = !ready || !planning || dirtyPlan;
+  element('next-turn').disabled = !ready || (planning && (dirtyPlan || routeEditor.dragging));
+  element('commit').disabled = !ready || !planning || dirtyPlan || routeEditor.dragging;
   element('burn-fields').disabled = !ready || !planning;
   for (const button of speedButtons) {
     button.disabled = !ready;
@@ -99,6 +111,9 @@ function refresh() {
   for (const button of viewButtons) {
     button.disabled = !ready;
     button.setAttribute('aria-pressed', String(button.dataset.view === state.map.focus));
+    if (button.dataset.view === 'overview') {
+      button.textContent = state.map.auto_zoom ? 'Overview · Auto' : 'Overview';
+    }
   }
   element('zoom-in').disabled = !ready || !state.map.can_zoom_in;
   element('zoom-out').disabled = !ready || !state.map.can_zoom_out;
@@ -111,14 +126,11 @@ function refresh() {
   element('run').disabled = !ready;
   input.disabled = !ready;
   const ship = state.world.ships.find((ship) => ship.id === state.player_id);
-  element('position').textContent = `${km(ship.position.x)}, ${km(ship.position.y)}`;
-  element('velocity').textContent = `${(ship.velocity.x / 1000).toFixed(3)}, ${(ship.velocity.y / 1000).toFixed(3)}`;
+  setVector('position', km(ship.position.x), km(ship.position.y));
+  setVector('velocity', (ship.velocity.x / 1000).toFixed(3), (ship.velocity.y / 1000).toFixed(3));
   element('dv').textContent = (ship.remaining_dv / 1000).toFixed(3);
   element('spent-dv').textContent = (ship.spent_dv / 1000).toFixed(3);
-  element('plan-feedback').textContent = !planning
-    ? 'Orders are locked until this 120-second interval completes, including while paused.'
-    : dirtyPlan ? 'Apply edited values before committing.'
-    : `Planned a = (${state.planned_burn.x.toFixed(2)}, ${state.planned_burn.y.toFixed(2)}) m/s². Magnitude limit: ${ship.max_acceleration.toFixed(0)} m/s².`;
+
 }
 
 function invoke(action) {
@@ -135,7 +147,10 @@ for (const button of speedButtons) {
   button.addEventListener('click', () => invoke(() => set_speed(Number(button.dataset.speed))));
 }
 for (const button of viewButtons) {
-  button.addEventListener('click', () => invoke(() => set_map_view(button.dataset.view)));
+  button.addEventListener('click', () => invoke(() => {
+    const box = element('tactical-map').getBoundingClientRect();
+    set_map_view(button.dataset.view, box.width / Math.max(box.height, 1));
+  }));
 }
 element('zoom-in').addEventListener('click', () => invoke(() => zoom_map(0.5)));
 element('zoom-out').addEventListener('click', () => invoke(() => zoom_map(2)));

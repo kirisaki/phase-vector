@@ -12,6 +12,11 @@ The current implementation includes step-2 physics and WEGO, connected to the
 browser and Lua. Mission behavior below remains planned until its corresponding
 milestone is implemented.
 
+An early subset of step 4 now provides friendly 120-second endpoint planning,
+route and arrival-velocity previews, and direct map manipulation with a ship-centered
+burn control. This does not
+implement enemy predictions, a variable-time slider, or the shot solver.
+
 ## Scope and implementation approach
 
 - Prefer Rust and Bevy, subject to a minimal browser and embedded Lua feasibility
@@ -62,7 +67,7 @@ milestone is implemented.
 - Player maneuver planning.
 - A shot is specified by a future position and arrival time. Solve for launch
   time and direction using fixed muzzle speed and the firing ship's velocity at
-  launch. Near-c muzzle velocities require relativistic frame conversion.
+  launch in the shared mission frame.
   Explicitly identify unreachable requests.
 - Recalculate pending shots when the friendly maneuver plan changes.
 - Preserve unlaunched reservations and in-flight projectiles across command
@@ -84,14 +89,16 @@ milestone is implemented.
 
 ## Initial tuning targets
 
-- Railgun reference muzzle speed **0.90c**, a provisional interpretation of the
-  requested near-light-speed weapon. See [combat scale](combat-scale.md).
-- Projectile flight times of roughly **240–480 simulated seconds**, implying
-  roughly 64.8–129.5 million km for stationary reference shots.
+- Current trial: **240,000 km** initial separation and **660 km/s** reference
+  muzzle speed, giving a stationary-target flight time of about **363.636 s**.
+  This supersedes the earlier near-light-speed trial. See [combat scale](combat-scale.md).
+- Friendly/contact initial speeds: **75 / 37.5 km/s**; acceleration limit **5 G**
+  (49.03325 m/s²) and initial delta-v **60 km/s** for each ship.
+- Projectile flight-time tuning band: roughly **240–480 simulated seconds**.
 - Around **10 command opportunities** per mission.
 - Enemy reaction lead time adjustable independently of projectile flight time,
-  subject to light propagation and the observation rules. At 0.90c, seeing a
-  launch flash leaves at most 10% of the stationary reference flight as warning.
+  subject to light propagation and the observation rules. Light crosses the
+  initial range in about 0.801 s; no sensor or reaction policy is implemented yet.
 - Tune parameters against measurable mission outcomes rather than a scripted
   success path.
 

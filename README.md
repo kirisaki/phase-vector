@@ -9,19 +9,21 @@ and delta-v expenditure.
 ## Status
 
 **Step 2: physics and WEGO execution.** Two ships move with inertia, bounded
-acceleration, and finite delta-v. Plan a constant thrust vector, then commit a
-120-second interval. Bevy draws the authoritative physical state; the UI and Lua
+acceleration, and finite delta-v. Drag the burn handle around the friendly ship
+to plan a constant thrust vector for 120 seconds, then commit the interval. Bevy draws
+the authoritative physical state and friendly route preview; the UI and Lua
 use the same validated command API.
 
 This is a physics sandbox. The second ship coasts without an AI. Mission rules,
-weapons, observations, scoring, and gameplay predictions remain steps 3–6.
+weapons, observations, scoring, and enemy predictions remain steps 3–6. The
+friendly endpoint editor is an early, limited subset of step 4.
 Projectile contacts are implemented and tested in the physics core; firing UI
 and hit consequences are not implemented yet.
 
 See the [PoC specification](docs/poc-spec.md),
 [stack decisions](docs/step-1-stack.md),
 [physics and time model](docs/step-2-physics.md), and
-[near-light-speed combat scale](docs/combat-scale.md).
+[provisional combat scale](docs/combat-scale.md).
 
 ## Build and run locally
 
@@ -106,15 +108,23 @@ scrollable by touch, wheel, or keyboard. Very short viewports (such as when the
 software keyboard is open) also allow scrolling within the flight controls so
 inputs remain reachable. Browser chrome stays visible; no fullscreen permission
 is requested. The layout follows visual-viewport changes and device safe areas.
+Clock, telemetry, and status rows reserve their space so planning, playback,
+pause/resume, and changing digits do not resize the map. Numeric-edit warnings
+share the status area; longer messages can be scrolled inside it.
 
 | Control | Behavior |
 | --- | --- |
-| Acceleration X/Y + Apply | Draft a constant vector in m/s² for the next interval; magnitude is clamped to 1000 |
-| Overview / Own ship / Contact | Select the engagement view or follow a ship; each preset resets the zoom |
-| Map − / + | Zoom out / in without changing simulation state |
+| Ship-centered Burn handle | Always available during planning; drag directly without switching modes or changing the camera |
+| Drag / release | Preview the burn, delta-v cost, remaining delta-v, and arrival velocity; release to update the plan immediately, without advancing time |
+| Drag outside the ring | Clamp the handle to the reachable circle in the cursor's direction |
+| Arrow keys / Shift + arrows | Adjust and immediately update the burn; Shift makes finer adjustments; Home plans coasting |
+| Escape during a drag | Discard the current gesture and retain the previously applied plan |
+| Numeric thrust → Acceleration X/Y + Apply | Optional expanded inputs in m/s²; magnitude is clamped to 49.03325 (5 G) |
+| Overview / Own ship / Contact | Overview automatically fits both ships; Own ship and Contact follow one ship at a fixed zoom |
+| Map − / + | Set a manual zoom; select Overview again to resume automatic fitting |
 | Commit 120 s | Freeze orders and execute both ships simultaneously |
 | Resume / Pause | Control playback during execution; orders remain locked |
-| Next turn | Complete all remaining physical ticks of the committed interval, including while paused, then return to planning |
+| Next turn | During planning, commit the current plan and run the full 120 seconds; during execution, finish only the remaining ticks, then return to planning |
 | +10 s | Advance 10 simulated seconds while paused, stopping at the next planning boundary if sooner |
 | Playback speed buttons | Select 1×, 32×, 64×, or 128× (default 32×) beside Resume / Pause and Step; the active speed is highlighted and follows Lua changes |
 | Show / Hide Lua console | Toggle the initially hidden REPL; input, output, and Lua globals are retained. Close or Escape returns focus to the toggle |
@@ -132,11 +142,56 @@ km/s. The grid spacing changes with zoom and is labeled on the map. Symbols and
 velocity-direction arrows are enlarged for readability; collision radii remain
 physical and are visible as rings at close zoom.
 
+Overview automatically adjusts zoom as the ships move, using the actual viewport
+aspect ratio and keeping space around both ships. `Overview · Auto` indicates
+that this is enabled. Zoom changes ease over real frame time, independently of
+playback speed; a large jump or resize zooms out immediately if needed to keep
+both ships visible. Manual −/+ zoom suspends automatic fitting until Overview is
+selected again. Own ship and Contact keep their selected scale while following
+the ship. Automatic zoom pauses during a burn drag so the control stays stable.
+Camera changes never alter simulation state or commands.
+
+The control ring is centered on the friendly ship; manipulating it does not
+change camera focus or zoom. Its **Burn** handle specifies a maneuver relative to inertial coasting:
+direction chooses thrust direction and distance chooses the maneuver amount.
+The ring is a control, not a destination at the map's scale. The center means
+zero thrust. The actual trajectory, arrival time, arrival-velocity arrow, and
+30 seconds of subsequent coasting remain at map scale, without a circular
+arrival marker. An amber arrow shows the planned or executing burn from the ship;
+the cyan velocity arrow shows actual travel direction.
+
+Commit retains the burn arrow and the remaining route preview during execution,
+including while paused. The preview ends at the current command boundary, not
+120 seconds from each displayed frame. The cost readout shows the remaining
+burn cost during execution. The next command interval still defaults to coasting;
+position, velocity, and spent delta-v persist.
+
+Thrust changes velocity; it does not turn the ship instantly toward the handle.
+The current trial uses a 75 km/s initial speed, 5 G (49.03325 m/s²) maximum
+acceleration, and a 60 km/s delta-v budget. A full 120-second lateral burn adds
+5.88399 km/s, changes heading by about 4.486°, and displaces the ship 353.775 km
+sideways relative to coasting. The budget supports about 10.2 full-thrust
+intervals. Overview spans the 240,000 km initial engagement, so the physical
+route displacement is much smaller than the enlarged burn control.
+View and zoom buttons remain available to inspect the actual trajectory.
+
+Orders specify pass-through positions, not automatic braking or station keeping.
+Times are fixed in this version; there are no waypoints or multi-burn schedules.
+Releasing a graphical drag replaces the current draft, including any unapplied
+numeric input. Escape, interrupted touch, or loss of window focus cancels only
+the current gesture and preserves the previous draft and numeric input. The
+telemetry and preview metrics remain visible throughout; Commit is disabled only
+while dragging or while numeric edits remain unapplied. Next turn has the same
+planning-input guards. Commit starts playback; Next turn executes to the next
+command boundary immediately;
+releasing the handle does not. Explicit arrival commands from Lua still reject
+unreachable endpoints instead of clamping them.
+
 ```lua
 answer = 6 * 7; print("Answer:", answer)
 return game.state().phase
 return game.state().ship.remaining_dv
-game.burn(1000, 0)
+game.burn(49.03325, 0)
 game.command("commit")
 game.command("pause")
 game.command("step"); return game.state().time_seconds
@@ -153,6 +208,9 @@ Bare expressions also work. `game.state()` returns a detached snapshot with
 friendly ship snapshot. Ship fields include `id`, `x`, `y`, `vx`, `vy`,
 `remaining_dv`, `spent_dv`, and `max_acceleration`. Projectile and impact counts
 are also exposed. Lua continues to use m and m/s, and `game.burn` takes m/s².
+`game.arrive(x, y)` accepts an absolute position in metres at the end of the next
+120-second interval, using the same solver and planning-only validation as the GUI.
+Unreachable endpoints return an error without changing the existing plan.
 `game.state().scale` exposes `light_speed_mps`, `railgun_speed_mps`,
 `reference_range_m`, and `reference_flight_seconds`. Changing these Lua tables
 does not modify the Rust state.
@@ -181,10 +239,12 @@ python3 scripts/build_web.py
 
 Native Rust tests cover inertial motion, acceleration magnitude limits, partial
 fuel exhaustion, braking, fast and moving-target contacts, temporal misses,
-contact ordering, near-c flight across command intervals, metre-scale misses at
+contact ordering, projectile flight across command intervals, metre-scale misses at
 astronomical distances, camera-relative precision, deterministic replay, and
 WEGO boundaries at every playback speed,
 paused command locks, projectile persistence, reset, and Lua error recovery.
+Endpoint-planning tests cover prediction/execution agreement, partial fuel
+exhaustion, unreachable targets, and shared Lua validation.
 Bevy is a browser-target dependency; native tests need no display server.
 
 For real browser interaction checks:
@@ -200,8 +260,13 @@ python scripts/browser_smoke.py
 The smoke test opens Chromium and fulfills browser requests from `dist/` at a
 virtual HTTPS `/phase-vector/` URL. It checks engine startup, a visible scene
 change after commands, delta-v consumption, exact interval boundaries, locked
-orders, and identical results from playback and manual stepping. It also checks
-Lua persistence, validation, error recovery, and a narrow viewport. Screenshots and errors are
+orders, and identical results from playback and manual stepping. A pointer-authored
+plan is executed through the actual Commit button and its final position, velocity,
+and delta-v are compared with the preview; the executing burn stays visible. It also checks
+Lua persistence, validation, error recovery, direct map dragging and release-to-apply,
+radial clamping outside the reachable circle, automatic zoom and manual override,
+gesture cancellation, keyboard
+editing, and touch dragging in narrow viewports. Screenshots and errors are
 written to ignored `artifacts/`. `--executable-path` can select an existing
 Chromium installation. To exercise the real hosted site:
 
@@ -247,15 +312,15 @@ not require a game server or custom domain.
   these discrete segments; sub-tick thrust cutoff and curved paths are not modeled.
 - Replay is deterministic for the same initial state, commands, and build/runtime.
   Bit-identical results across browsers or CPU architectures are not claimed.
-- The current scale assumes a future 0.90c railgun and a 360 s reference flight,
-  placing the ships about 97.1 million km apart. Ships start at 0.10c/0.05c,
-  with 1,000 m/s² acceleration, 1,200 km/s delta-v, and 0.5 km collision radii.
-  Ship acceleration still uses a Newtonian approximation; relativistic thrust
-  and proper-time effects are not modeled. Firing and light-delayed observations
-  are not implemented yet.
+- The current trial uses a 660 km/s railgun reference and 240,000 km initial
+  separation, giving a stationary-target flight time of about 363.636 seconds.
+  Ships start at 75 / 37.5 km/s with 5 G maximum acceleration (using standard
+  gravity), 60 km/s delta-v each, and the retained 0.5 km collision radii.
+  Ship motion uses a Newtonian approximation. Firing and light-delayed
+  observations are not implemented yet.
 - Step 2 supports one constant burn per interval. There is no mission deadline,
   enemy evasion, firing UI, victory condition, or observation model yet. Use the local
-  map views to inspect maneuvers at the new astronomical engagement scale.
+  map views to inspect maneuvers at the current engagement scale.
 - Projectiles have no expiry or map culling. Contacts consume projectiles and
   record events; ship disablement will be defined by step-3 mission rules.
 - First-load size and performance are not final. Browser errors are shown in the

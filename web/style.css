@@ -22,7 +22,7 @@ main { flex: 1; min-height: 0; min-width: 0; padding: 8px; position: relative; o
 .panel-heading { flex: 0 0 36px; display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 0 12px; border-bottom: 1px solid var(--line); font-size: 10px; }
 h2 { font-size: 11px; font-weight: 500; letter-spacing: .04em; text-transform: uppercase; margin: 0; }
 #engine-status { color: var(--cyan); }
-.map-tools { display: flex; align-items: center; gap: 4px; flex: 0 0 auto; padding: 4px 8px; border-bottom: 1px solid var(--line); }
+.map-tools { display: flex; flex-wrap: wrap; align-items: center; gap: 4px; flex: 0 0 auto; padding: 4px 8px; border-bottom: 1px solid var(--line); }
 .map-tools button { min-height: 30px; padding: 4px 7px; font-size: 11px; }
 .map-tools button[aria-pressed="true"] { color: var(--cyan); border-color: var(--cyan); background: #173b40; }
 .zoom-buttons { display: flex; gap: 4px; margin-left: auto; }
@@ -39,7 +39,9 @@ canvas { display: block; width: 100%; height: 100%; min-width: 0 !important; min
 .command-row { display: flex; align-items: center; justify-content: space-between; gap: 8px; flex: 1 1 360px; min-width: 0; }
 .clock { min-width: 0; }
 #window-time { display: block; margin-top: 4px; color: var(--muted); font: 9px ui-monospace, monospace; }
-.readout { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; font-size: 10px; }
+.readout { display: grid; grid-template-columns: 9ch max-content; gap: 0 6px; align-items: center; font-size: 10px; font-variant-numeric: tabular-nums; }
+.readout > small { grid-column: 1 / -1; }
+.readout strong, #window-time { white-space: nowrap; }
 #mode { color: var(--cyan); }
 .readout strong { font-size: 15px; font-weight: 500; }
 small { color: var(--muted); font-size: 10px; }
@@ -84,7 +86,7 @@ details p { color: var(--muted); line-height: 1.7; font-size: 11px; margin-botto
 .speed-buttons button[aria-pressed="true"] { position: relative; border-color: var(--cyan); color: var(--cyan); background: #173b40; font-weight: 700; }
 input { min-width: 0; color: #d8e4eb; background: #071017; border: 1px solid #354b59; border-radius: 3px; padding: 6px; min-height: 36px; font-size: 16px; }
 .telemetry { grid-area: telemetry; display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 8px; padding: 10px 12px 4px; color: var(--muted); font: 9px ui-monospace, monospace; }
-.telemetry strong { display: block; margin-top: 5px; color: #d8e4eb; font-size: 12px; font-weight: 500; overflow-wrap: anywhere; }
+.telemetry strong { display: block; margin-top: 5px; color: #d8e4eb; font-size: 12px; font-weight: 500; line-height: 1.2; white-space: nowrap; overflow-x: auto; }
 #burn-form { grid-area: burn; border-left: 1px solid var(--line); }
 fieldset { padding: 0; margin: 0; border: 0; min-width: 0; }
 fieldset:disabled { opacity: .55; }
@@ -92,7 +94,8 @@ legend { color: var(--muted); font-size: 11px; margin-bottom: 8px; }
 .burn-inputs { display: flex; align-items: end; gap: 8px; }
 .burn-inputs label { flex: 1; min-width: 0; margin: 0; }
 .burn-inputs input { display: block; width: 100%; margin-top: 4px; font-family: ui-monospace, monospace; }
-#plan-feedback { color: var(--muted); font-size: 10px; line-height: 1.5; margin: 6px 0 0; }
+/* Reserve vector rows so changing digits cannot resize the tactical map. */
+.telemetry .vector span { display: block; white-space: nowrap; overflow-x: auto; }
 @container tactical (max-width: 850px) {
   .telemetry { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 }
@@ -131,9 +134,9 @@ legend { color: var(--muted); font-size: 11px; margin-bottom: 8px; }
 .short-viewport .workspace.console-open .map-panel { visibility: hidden; }
 .short-viewport .console-panel { position: absolute; inset: 0; z-index: 2; }
 .short-viewport textarea { height: 60px; }
-.short-viewport details { display: none; }
+.short-viewport .console-panel details { display: none; }
 .short-viewport .console-panel .panel-heading { flex-basis: 36px; }
-.short-viewport .map-panel { display: grid; grid-template-columns: minmax(0, 1fr) minmax(280px, 340px); grid-template-rows: 30px 39px minmax(0, 1fr); }
+.short-viewport .map-panel { display: grid; grid-template-columns: minmax(0, 1fr) minmax(280px, 340px); grid-template-rows: 30px auto minmax(0, 1fr); }
 .short-viewport .map-panel > .panel-heading { grid-column: 1 / -1; }
 .short-viewport .map-tools { grid-column: 1; grid-row: 2; }
 .short-viewport .canvas-wrap { grid-column: 1; grid-row: 3; }
@@ -151,3 +154,40 @@ legend { color: var(--muted); font-size: 11px; margin-bottom: 8px; }
   .short-viewport .flight-controls { flex: 1; border-left: 0; }
   .short-viewport .canvas-wrap { flex: 0 0 60px; }
 }
+
+#numeric-burn { max-height: none; padding: 8px 0 0; border: 0; overflow: visible; }
+#numeric-burn summary { color: var(--muted); font-size: 11px; }
+#numeric-burn fieldset { margin-top: 8px; }
+/* Route handles share the Bevy map's world projection. */
+#route-editor { position: absolute; inset: 0; width: 100%; height: 100%; pointer-events: none; touch-action: none; overflow: hidden; }
+#arrival-handle { pointer-events: all; cursor: grab; }
+#arrival-handle text { fill: var(--cyan); font: 10px ui-monospace, monospace; pointer-events: none; }
+.handle-hit { fill: transparent; }
+.handle-dot { fill: var(--cyan); stroke: #071319; stroke-width: 2; }
+#arrival-handle:focus-visible { outline: none; }
+#arrival-handle:focus-visible .handle-dot { stroke: white; stroke-width: 3; }
+.reach-area { pointer-events: all; cursor: crosshair; fill: #12403c30; stroke: #3e817c; }
+#map-coast-route { fill: none; stroke: #8a9eab; stroke-dasharray: 5 5; }
+#map-planned-route, #arrival-arrow { fill: none; stroke: var(--cyan); stroke-width: 2; }
+#map-after-route { fill: none; stroke: var(--cyan); stroke-dasharray: 3 4; }
+#route-editor[data-invalid="true"] .handle-dot { fill: #ffad92; }
+#route-editor[data-invalid="true"] #arrival-handle text { fill: #ffad92; }
+.route-stats { display: grid; grid-template-columns: 1fr 1fr 2fr; gap: 8px; padding: 0; font: 9px ui-monospace, monospace; color: var(--muted); }
+.route-stats > div { min-width: 0; }
+.route-stats > div > span { display: block; height: 2.4em; line-height: 1.2; }
+.route-stats strong { display: block; height: 1.2em; margin-top: 4px; color: #d8e4eb; white-space: nowrap; overflow-x: auto; line-height: 1.2; font-size: 11px; font-variant-numeric: tabular-nums; }
+/* Keep two status lines in every phase, including empty/loading states. */
+#route-feedback { height: 24px; overflow: auto; overscroll-behavior: contain; margin: 5px 0; font-size: 10px; line-height: 12px; color: var(--cyan); }
+#route-feedback[data-invalid="true"] { color: #ffad92; }
+
+@media (max-width: 480px) {
+  .map-tools button { font-size: 10px; padding-inline: 5px; }
+}
+#burn-label, #actual-arrival text { fill: #a3b6c2; font: 9px ui-monospace, monospace; pointer-events: none; }
+#actual-arrival { pointer-events: none; }
+#arrival-handle { outline: none; }
+
+@media (max-width: 480px) { body[data-ready="true"] #railgun-label { display: none; } }
+
+#burn-vector { fill: none; stroke: var(--amber); stroke-width: 2; pointer-events: none; }
+#burn-label { fill: var(--amber); }
