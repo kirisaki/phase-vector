@@ -107,7 +107,7 @@ function refresh() {
   const own = state.world.ships.find((ship) => ship.id === state.player_id);
   const range = Math.hypot(other.position.x - own.position.x, other.position.y - own.position.y);
   element('range-label').textContent = `RANGE / ${km(range)} km`;
-  element('railgun-label').textContent = `RAILGUN / ${(state.scale.railgun_speed_mps / state.scale.light_speed_mps).toFixed(2)}c · reference flight ${state.scale.reference_flight_seconds} s`;
+  element('railgun-label').textContent = `RAILGUN / ${km(state.scale.railgun_speed_mps)} km/s · reference flight ${state.scale.reference_flight_seconds.toFixed(1)} s`;
   element('run').disabled = !ready;
   input.disabled = !ready;
   const ship = state.world.ships.find((ship) => ship.id === state.player_id);

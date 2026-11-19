@@ -1,18 +1,19 @@
-//! Shared SI-scale assumptions for the near-light-speed railgun sandbox.
+//! Shared SI-scale assumptions for the provisional railgun sandbox.
 
 use serde::Serialize;
 
 use crate::physics::{Ship, Vector2, World};
 
 pub const LIGHT_SPEED: f64 = 299_792_458.0;
-pub const RAILGUN_SPEED: f64 = 0.9 * LIGHT_SPEED;
-pub const REFERENCE_FLIGHT_SECONDS: f64 = 360.0;
-pub const INITIAL_SEPARATION: f64 = RAILGUN_SPEED * REFERENCE_FLIGHT_SECONDS;
+pub const RAILGUN_SPEED: f64 = 660_000.0;
+pub const INITIAL_SEPARATION: f64 = 240_000_000.0;
+pub const REFERENCE_FLIGHT_SECONDS: f64 = INITIAL_SEPARATION / RAILGUN_SPEED;
 pub const SHIP_RADIUS: f64 = 500.0;
-pub const MAX_ACCELERATION: f64 = 1_000.0;
-pub const INITIAL_DELTA_V: f64 = 1_200_000.0;
-pub const FRIENDLY_SPEED: f64 = 0.1 * LIGHT_SPEED;
-pub const CONTACT_SPEED: f64 = 0.05 * LIGHT_SPEED;
+pub const STANDARD_GRAVITY: f64 = 9.80665;
+pub const MAX_ACCELERATION: f64 = 5.0 * STANDARD_GRAVITY;
+pub const INITIAL_DELTA_V: f64 = 60_000.0;
+pub const FRIENDLY_SPEED: f64 = 75_000.0;
+pub const CONTACT_SPEED: f64 = 37_500.0;
 
 #[derive(Clone, Copy, Serialize)]
 pub struct Scale {

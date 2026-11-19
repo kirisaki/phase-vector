@@ -46,7 +46,7 @@
               </div>
             </div>
             <div class="telemetry" aria-label="Friendly ship telemetry"><div>POSITION / km<strong id="position">—</strong></div><div>VELOCITY / km/s<strong id="velocity">—</strong></div><div>REMAINING Δv / km/s<strong id="dv">—</strong></div><div>SPENT Δv / km/s<strong id="spent-dv">0.000</strong></div></div>
-            <form id="burn-form"><fieldset id="burn-fields" disabled><legend>Constant acceleration for the next 120 s</legend><div class="burn-inputs"><label for="burn-x">ax / m/s²<input id="burn-x" type="number" value="0" step="any" required></label><label for="burn-y">ay / m/s²<input id="burn-y" type="number" value="0" step="any" required></label><button id="apply-burn" type="submit">Apply burn</button></div></fieldset><p id="plan-feedback" role="status">Coasting planned. Acceleration magnitude is limited to 1000 m/s².</p></form>
+            <form id="burn-form"><fieldset id="burn-fields" disabled><legend>Constant acceleration for the next 120 s</legend><div class="burn-inputs"><label for="burn-x">ax / m/s²<input id="burn-x" type="number" value="0" step="any" required></label><label for="burn-y">ay / m/s²<input id="burn-y" type="number" value="0" step="any" required></label><button id="apply-burn" type="submit">Apply burn</button></div></fieldset><p id="plan-feedback" role="status">Coasting planned. Acceleration magnitude is limited to 49.03325 m/s² (5 G).</p></form>
           </div>
           <p class="legend"><span class="cyan">△</span> Friendly <span class="amber">⊕</span> Passive ship · Symbols enlarged · Arrows: velocity direction · Radius rings visible when zoomed in</p>
         </section>
@@ -60,7 +60,7 @@
           </form>
           <details><summary>Try a command</summary><div class="examples">
             <button type="button" data-example="return game.state().phase, game.state().ship.remaining_dv">Read phase &amp; Δv</button>
-            <button type="button" data-example="game.burn(1000, 0); game.command('commit'); game.command('pause')">Commit a burn &amp; pause</button>
+            <button type="button" data-example="game.burn(49.03325, 0); game.command('commit'); game.command('pause')">Commit a burn &amp; pause</button>
             <button type="button" data-example="game.command('step_forward'); return game.state().time_seconds">Advance 10 seconds</button>
             <button type="button" data-example="answer = 6 * 7; print('Answer:', answer)">Store &amp; print</button>
           </div><p>Plan orders only at command opportunities. Pausing execution does not unlock orders. UI and Lua use the same API. Reset restores the scenario; reload also clears Lua globals.</p></details>
