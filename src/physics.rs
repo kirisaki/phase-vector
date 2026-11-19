@@ -109,7 +109,7 @@ impl Ship {
         })
     }
 
-    fn advance(&mut self, acceleration: Vector2) {
+    pub(crate) fn advance(&mut self, acceleration: Vector2) {
         let requested = acceleration.clamped(self.max_acceleration) * STEP_SECONDS;
         let magnitude = requested.length();
         let consumed = magnitude.min(self.remaining_dv);

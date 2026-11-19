@@ -47,7 +47,7 @@ fn every_speed_stops_at_exactly_120_seconds_without_overrun() {
         assert_eq!(s.world().tick, INTERVAL_TICKS);
         // Both actors drift through the same time interval.
         assert_eq!(s.world().ships[0].position.x, -INITIAL_SEPARATION / 2.0);
-        // Decimal near-c speeds accumulate small floating-point rounding errors.
+        // Allow accumulated floating-point rounding in scenario velocities.
         assert!((s.world().ships[0].position.y - FRIENDLY_SPEED * 120.0).abs() < 0.001);
         assert_eq!(s.world().ships[1].position.x, INITIAL_SEPARATION / 2.0);
         assert!((s.world().ships[1].position.y + CONTACT_SPEED * 120.0).abs() < 0.001);
@@ -57,7 +57,7 @@ fn every_speed_stops_at_exactly_120_seconds_without_overrun() {
 #[test]
 fn pausing_does_not_open_a_command_opportunity() {
     let mut s = Session::default();
-    s.dispatch(C::PlanBurn(V::new(50.0, 0.0))).unwrap();
+    s.dispatch(C::PlanBurn(V::new(20.0, 0.0))).unwrap();
     s.dispatch(C::Commit).unwrap();
     assert!(s.dispatch(C::Step).is_err());
     s.dispatch(C::Pause).unwrap();
@@ -71,7 +71,7 @@ fn pausing_does_not_open_a_command_opportunity() {
     s.dispatch(C::Step).unwrap();
     assert_eq!(s.world().tick, 1);
     assert_eq!(s.snapshot().time_seconds, 0.25);
-    assert_eq!(s.snapshot().active_burn, V::new(50.0, 0.0));
+    assert_eq!(s.snapshot().active_burn, V::new(20.0, 0.0));
 }
 
 #[test]
@@ -216,15 +216,16 @@ fn next_turn_preserves_physics_and_stops_at_the_next_planning_boundary() {
     }
     assert_eq!(reference.world().impacts.len(), 1);
     assert_eq!(reference.world().projectiles.len(), 1);
-    for paused in [false, true] {
+    for (committed, paused) in [(false, false), (true, false), (true, true)] {
         let mut skipped = initial.clone();
-        assert!(skipped.dispatch(C::NextTurn).is_err());
         skipped
             .dispatch(C::PlanBurn(V::new(MAX_ACCELERATION, 0.0)))
             .unwrap();
-        skipped.dispatch(C::Commit).unwrap();
-        for _ in 0..10 {
-            skipped.pulse();
+        if committed {
+            skipped.dispatch(C::Commit).unwrap();
+            for _ in 0..10 {
+                skipped.pulse();
+            }
         }
         if paused {
             skipped.dispatch(C::Pause).unwrap();
@@ -240,14 +241,18 @@ fn next_turn_preserves_physics_and_stops_at_the_next_planning_boundary() {
         assert_eq!(skipped.snapshot().speed, 32);
         assert_eq!(skipped.snapshot().planned_burn, V::ZERO);
         assert_eq!(skipped.snapshot().command_number, 2);
-        assert!(skipped.dispatch(C::NextTurn).is_err());
         for _ in 0..100 {
             skipped.pulse();
         }
         assert_eq!(skipped.world(), reference.world());
-        skipped.dispatch(C::Commit).unwrap();
+        let previous = skipped.world().ships[0].clone();
         skipped.dispatch(C::NextTurn).unwrap();
         assert_eq!(skipped.world().tick, INTERVAL_TICKS * 2);
+        assert_eq!(skipped.world().ships[0].velocity, previous.velocity);
+        assert_eq!(skipped.world().ships[0].remaining_dv, previous.remaining_dv);
+        assert_eq!(skipped.snapshot().command_log.len(), 2);
+        assert_eq!(skipped.snapshot().command_log[1].burn.acceleration, V::ZERO);
+        assert_eq!(skipped.snapshot().phase, Phase::Planning);
     }
 }
 

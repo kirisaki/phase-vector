@@ -58,6 +58,23 @@ impl Default for Host {
             )
             .expect("static table key");
             let speed_state = state.clone();
+            let arrival_state = state.clone();
+            game.set(
+                ctx,
+                "arrive",
+                Callback::from_fn(&ctx, move |ctx, _, mut stack| {
+                    let (x, y): (f64, f64) = stack.consume(ctx)?;
+                    arrival_state
+                        .borrow_mut()
+                        .dispatch(Command::PlanArrival(Vector2::new(x, y)))
+                        .map_err(|error| {
+                            piccolo::Error::from_value(Value::String(ctx.intern(error.as_bytes())))
+                        })?;
+                    stack.replace(ctx, true);
+                    Ok(CallbackReturn::Return)
+                }),
+            )
+            .expect("static table key");
             game.set(
                 ctx,
                 "speed",
@@ -159,6 +176,12 @@ impl Host {
 
     pub fn set_speed(&mut self, speed: f64) -> Result<(), String> {
         self.state.borrow_mut().dispatch(Command::SetSpeed(speed))
+    }
+
+    pub fn plan_arrival(&mut self, x: f64, y: f64) -> Result<(), String> {
+        self.state
+            .borrow_mut()
+            .dispatch(Command::PlanArrival(Vector2::new(x, y)))
     }
 
     pub fn evaluate(&mut self, source: &str) -> Result<String, String> {
@@ -306,10 +329,9 @@ mod tests {
         assert_eq!(host.evaluate("game.state().time_seconds").unwrap(), "120");
         assert!(host.evaluate("game.command('step')").is_err());
         assert_eq!(host.evaluate("game.state().command_count").unwrap(), "1");
-        assert!(host.evaluate("game.command('next_turn')").is_err());
-        host.evaluate("game.command('commit'); game.command('next_turn')")
-            .unwrap();
+        host.evaluate("game.command('next_turn')").unwrap();
         assert_eq!(host.evaluate("game.state().time_seconds").unwrap(), "240");
         assert_eq!(host.evaluate("game.state().phase").unwrap(), "planning");
+        assert_eq!(host.evaluate("game.state().command_count").unwrap(), "2");
     }
 }

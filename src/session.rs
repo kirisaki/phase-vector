@@ -31,6 +31,7 @@ impl Phase {
 #[derive(Clone, Copy, Debug)]
 pub enum Command {
     PlanBurn(Vector2),
+    PlanArrival(Vector2),
     Commit,
     Pause,
     Resume,
@@ -146,6 +147,16 @@ impl Session {
 
     pub fn dispatch(&mut self, command: Command) -> Result<(), String> {
         match command {
+            Command::PlanArrival(target) => {
+                self.require_planning()?;
+                let ship = self
+                    .world
+                    .ships
+                    .iter()
+                    .find(|s| s.id == self.player_id)
+                    .unwrap();
+                self.planned_burn = crate::maneuver::solve(ship, target)?;
+            }
             Command::PlanBurn(requested) => {
                 self.require_planning()?;
                 if !requested.valid() {
@@ -202,7 +213,9 @@ impl Session {
                 }
             }
             Command::NextTurn => {
-                self.require_execution()?;
+                if self.phase == Phase::Planning {
+                    self.dispatch(Command::Commit)?;
+                }
                 // Complete every physical tick, including contacts and fuel use.
                 while self.phase == Phase::Executing {
                     self.advance_tick();
