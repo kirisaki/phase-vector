@@ -12,6 +12,7 @@ export function drawMissionMap(svg, state, { aim, solution, fixedTarget, done })
   el('mission-goal').setAttribute('r', Math.max(3, m.goal_radius / view.metresPerPixel));
   el('goal-label').setAttribute('x', gx + 8); el('goal-label').setAttribute('y', gy + 4);
   el('enemy-prediction').setAttribute('d', path(m.prediction));
+  el('prediction-label').textContent = `Observed velocity · +${state.timing.forecast_seconds} s`;
   const [px, py] = project(m.prediction[1]);
   el('prediction-label').setAttribute('text-anchor', px > view.width - 180 ? 'end' : 'start');
   el('prediction-label').setAttribute('x', px + (px > view.width - 180 ? -8 : 8));

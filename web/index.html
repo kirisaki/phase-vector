@@ -30,10 +30,10 @@
               <circle id="command-pulse"/><circle class="reach-area"/>
               <path id="map-coast-route"/><path id="map-planned-route"/><g id="forecast-boundaries"/>
               <path id="arrival-arrow"/><path id="burn-vector"/><text id="burn-label"/>
-              <g id="arrival-handle" role="button" tabindex="0" aria-label="Edit burn direction"><circle class="handle-hit" r="22"/><circle class="handle-dot" r="7"/><text x="12" y="-12">+120 s</text></g>
+              <g id="arrival-handle" role="button" tabindex="0" aria-label="Edit burn direction"><circle class="handle-hit" r="22"/><circle class="handle-dot" r="7"/><text x="12" y="-12">Burn</text></g>
             </svg><svg id="mission-overlay" role="group" aria-label="Blockade target and observed enemy prediction" hidden>
               <circle id="mission-goal"/><text id="goal-label">EXIT</text>
-              <path id="enemy-prediction"/><text id="prediction-label">Observed velocity · +360 s</text>
+              <path id="enemy-prediction"/><text id="prediction-label">Observed velocity forecast</text>
               <g id="shot-trails"/><path id="queued-shot-line"/><path id="aim-line"/>
               <g id="aim-handle" role="button" tabindex="0" aria-label="Drag shot target. Arrow keys adjust; Home tracks observed lead."><circle r="22" class="handle-hit"/><path d="M-12 0H12M0 -12V12"/><circle r="7"/><text x="14" y="-12">Aim</text></g>
             </svg><div class="map-caption"><div class="map-scale"><span id="grid-label">GRID / km</span><span id="range-label">RANGE / —</span><span id="railgun-label">RAILGUN / —</span></div><span id="command-number">COMMAND 01</span></div></div>
@@ -51,7 +51,7 @@
                   <button type="button" data-speed="64" aria-pressed="false" disabled>64×</button>
                   <button type="button" data-speed="128" aria-pressed="false" disabled>128×</button>
                 </div>
-                <button id="next-turn" title="Advance to the next 120-second boundary and pause" disabled>Next turn</button>
+                <button id="next-turn" title="Advance to the next command boundary and pause" disabled>Next turn</button>
               </div>
             </div>
             <section id="mission-controls" aria-label="Blockade mission" hidden>
@@ -63,7 +63,7 @@
 
             <form id="burn-form"><div class="route-stats"><div><span id="route-cost-label">Δv COST / km/s</span><strong id="route-cost">—</strong></div><div><span>REMAINING / km/s</span><strong id="route-remaining">—</strong></div><div><span>ARRIVAL VELOCITY / km/s</span><strong id="route-velocity">—</strong></div></div>
               <p id="route-feedback" role="status"></p>
-              <details id="numeric-burn"><summary>Numeric thrust</summary><fieldset id="burn-fields" disabled><legend>Constant acceleration for the next 120 s</legend><div class="burn-inputs"><label for="burn-x">ax / m/s²<input id="burn-x" type="number" value="0" step="any" required></label><label for="burn-y">ay / m/s²<input id="burn-y" type="number" value="0" step="any" required></label><button id="apply-burn" type="submit">Apply burn</button></div></fieldset></details></form>
+              <details id="numeric-burn"><summary>Numeric thrust</summary><fieldset id="burn-fields" disabled><legend>Constant acceleration for the next interval</legend><div class="burn-inputs"><label for="burn-x">ax / m/s²<input id="burn-x" type="number" value="0" step="any" required></label><label for="burn-y">ay / m/s²<input id="burn-y" type="number" value="0" step="any" required></label><button id="apply-burn" type="submit">Apply burn</button></div></fieldset></details></form>
           </div>
           <p class="legend"><span class="cyan">△</span> Friendly <span class="amber">⊕</span> Observed enemy · Cyan dots: friendly route · Amber dots: observed prediction · White: gun · Symbols enlarged · Cyan arrows: velocity · Amber arrow: burn · Radius rings visible when zoomed in</p>
         </section>
@@ -79,10 +79,10 @@
             <button type="button" data-example="return game.state().mission.ai_reason">Inspect enemy decision</button>
             <button type="button" data-example="game.fire(game.aim())">Queue observed lead shot</button>
             <button type="button" data-example="return game.state().phase, game.state().ship.remaining_dv">Read phase &amp; Δv</button>
-            <button type="button" data-example="game.burn(49.03325, 0); game.command('play'); game.command('pause')">Play a burn &amp; pause</button>
+            <button type="button" data-example="game.burn(game.state().ship.max_acceleration, 0); game.command('play'); game.command('pause')">Play a burn &amp; pause</button>
             <button type="button" data-example="game.command('step_forward'); return game.state().time_seconds">Advance 10 seconds</button>
             <button type="button" data-example="answer = 6 * 7; print('Answer:', answer)">Store &amp; print</button>
-          </div><p>Edit orders while running or paused. Changes apply at the next 120-second boundary and repeat until changed. UI and Lua use the same API. Reset restores the scenario; reload also clears Lua globals.</p></details>
+          </div><p>Edit orders while running or paused. Changes apply at the next command boundary and repeat until changed. UI and Lua use the same API. Reset restores the scenario; reload also clears Lua globals.</p></details>
         </section>
       </div>
       <p id="error" role="alert" hidden></p>

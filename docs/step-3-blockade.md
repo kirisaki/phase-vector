@@ -29,6 +29,8 @@ the frozen physical state is at the end of that tick.
 | Relative muzzle speed / projectile radius | 660 km/s / 1 m |
 | Reload | 120 s; no ammunition-count limit |
 | Sensor samples / processing latency | Every 1 s / 1 s plus rounded-up light travel time |
+| Stale projectile track retention | 300 s from its last sample |
+| Enemy decision cadence | Every 1 s |
 | Enemy threat lookahead | 120 s, independent of projectile flight time |
 | Safety corridor | 75 km plus physical contact radii |
 | Evasion commitment | 120 s |

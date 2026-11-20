@@ -260,6 +260,11 @@ are also exposed. Lua continues to use m and m/s, and `game.burn` takes m/s².
 one. The solver starts from the predicted boundary state, including fuel used
 by the active burn, and shares validation with the GUI.
 Unreachable endpoints return an error without changing the existing plan.
+`game.state().timing` exposes the shared `step_seconds`, `interval_ticks`,
+`interval_seconds`, `step_forward_ticks`, `step_forward_seconds`,
+`forecast_intervals`, and `forecast_seconds`. The browser uses the same values
+for tick conversion and labels. These are read-only snapshots, not parameter
+setters.
 `game.state().scale` exposes `light_speed_mps`, `railgun_speed_mps`,
 `reference_range_m`, and `reference_flight_seconds`. Changing these Lua tables
 does not modify the Rust state.
@@ -434,6 +439,30 @@ Write README files, design documents, and code comments in English. Reports may
 be in Japanese. Use Conventional Commits, keep the implementation small, separate
 simulation from presentation, and share the command API between UI and Lua.
 Commit `Cargo.lock`; do not commit credentials or generated output.
+
+Shared numerical settings have distinct owners:
+
+| Values | Source |
+| --- | --- |
+| SI conversions, light speed, standard gravity | `src/units.rs` |
+| Physics tick rate, playback clock, command/step duration, forecast horizon | `src/timing.rs` |
+| Ship speeds, range, acceleration, delta-v, collision radii, muzzle speed | `src/scenario.rs` |
+| Goal, deadline, reload, sensor processing | `mission::Config::default()` |
+| Sensor sampling/retention and AI decision cadence | Named constants in `observation.rs` and `ai.rs` |
+| Independent threat horizon, safety corridor, evasion/recovery duration | `ai::Policy::default()` |
+
+Whole-second durations become ticks through `timing::seconds_to_ticks`; the
+playback clock must be an integer multiple of the physics frequency. Equal
+numbers with different meanings remain separate: a 120 s reload or threat
+horizon does not inherit the 120 s command interval. Solver tolerances stay
+local with quantity-specific names and units.
+
+Tests import these settings for setup and execution boundaries. Browser tests
+read `state_json().timing`, and Lua exposes the same table. Independent analytic
+expectations and selected trial regression anchors in `tests/scale.rs` remain
+literal so an incorrect shared constant cannot silently make a test pass.
+Small collision fixtures, numerical tolerances in assertions, and pixel sizes
+also keep their own values; they are not scenario tuning.
 
 `session::Snapshot` is authoritative state for commands and Lua diagnostics.
 `presentation::State` explicitly selects the normal UI's serialized fields,

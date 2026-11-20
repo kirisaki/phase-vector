@@ -85,8 +85,12 @@ function refresh() {
     ready = true;
     element('engine-status').textContent = 'ENGINE ONLINE';
     document.body.dataset.ready = 'true';
-    log('Lua ready. Inspect game.state(), plan with game.burn(ax, ay), then press Play. Orders repeat every 120 seconds.', 'hint');
+    log(`Lua ready. Inspect game.state(), plan with game.burn(ax, ay), then press Play. Orders repeat every ${state.timing.interval_seconds} seconds.`, 'hint');
   }
+  element('step').textContent = `+${state.timing.step_forward_seconds} s`;
+  element('step').setAttribute('aria-label', `Advance up to ${state.timing.step_forward_seconds} seconds`);
+  element('next-turn').title = `Advance to the next ${state.timing.interval_seconds}-second boundary and pause`;
+  element('burn-fields').querySelector('legend').textContent = `Constant acceleration for the next ${state.timing.interval_seconds} s`;
   const planning = state.phase === 'planning';
   const plan = JSON.stringify(state.planned_burn);
   if (lastPlan !== plan) {

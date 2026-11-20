@@ -111,6 +111,11 @@ def main():
                 page.mouse.move(point['x'], point['y'])
                 page.mouse.down()
 
+            current = read_state()
+            timing = current['timing']
+            interval_ticks = timing['interval_ticks']
+            interval_seconds = timing['interval_seconds']
+            max_acceleration = current['world']['ships'][0]['max_acceleration']
             expect(page.locator('[data-view="overview"]')).to_have_text('Overview · Auto')
             expect(page.locator('#burn-x')).to_be_hidden()
             expect(page.locator('#route-editor')).to_be_visible()
@@ -118,8 +123,8 @@ def main():
             expect(page.locator('#toggle')).to_be_enabled()
             original_grid = page.locator('#grid-label').inner_text()
             original_map = page.locator('#tactical-map').bounding_box()
-            expect(page.locator('#burn-label')).to_have_text('ORDER / 120 s')
-            expect(page.locator('#forecast-boundaries text')).to_have_text(['+120 s', '+240 s', '+360 s'])
+            expect(page.locator('#burn-label')).to_have_text(f'ORDER / {interval_seconds:g} s')
+            expect(page.locator('#forecast-boundaries text')).to_have_text([f'+{i * interval_seconds:g} s' for i in range(1, timing['forecast_intervals'] + 1)])
             expect(page.locator('#actual-arrival circle')).to_have_count(0)
             current = read_state()
             own = current['world']['ships'][0]['position']
@@ -212,7 +217,7 @@ def main():
             expect(page.locator('#route-editor')).to_have_attribute('data-command-tick', '0')
             page.wait_for_function("Number(document.querySelector('#command-pulse').style.opacity) > 0")
             expect(page.locator('#arrival-handle')).to_be_visible()
-            expect(page.locator('#burn-label')).to_have_text('NEXT ORDER / 120 s')
+            expect(page.locator('#burn-label')).to_have_text(f'NEXT ORDER / {interval_seconds:g} s')
             active = read_state()['active_burn']
             start_drag()
             destination = route_point(160, 230)
@@ -234,7 +239,7 @@ def main():
             assert first['velocity'] == planned['maneuver']['arrival_velocity']
             # The second interval applies the edited vector and emits another ring.
             page.locator('#toggle').click()
-            expect(page.locator('#route-editor')).to_have_attribute('data-command-tick', '480')
+            expect(page.locator('#route-editor')).to_have_attribute('data-command-tick', str(interval_ticks))
             page.wait_for_function("Number(document.querySelector('#command-pulse').style.opacity) > 0")
             assert read_state()['active_burn'] == queued['planned_burn']
             page.screenshot(path=str(artifacts / 'command-pulse.png'))
@@ -258,13 +263,13 @@ def main():
             expect(page.locator('#toggle')).to_have_text('Play')
             page.locator('#numeric-burn summary').click()
             numeric_map_box = page.locator('#tactical-map').bounding_box()
-            page.locator('#burn-x').fill('49.03325')
+            page.locator('#burn-x').fill(str(max_acceleration))
             expect(page.locator('#route-feedback')).to_contain_text('Apply edited numeric values')
             assert page.locator('#tactical-map').bounding_box() == numeric_map_box
             expect(page.locator('#toggle')).to_be_disabled()
             expect(page.locator('#next-turn')).to_be_disabled()
             page.locator('#apply-burn').click()
-            lua('math.abs(game.state().planned_burn.x - 49.03325) < 1e-9', 'true')
+            lua('math.abs(game.state().planned_burn.x - game.state().ship.max_acceleration) < 1e-9', 'true')
             expect(page.locator('#railgun-label')).to_contain_text('660 km/s · reference flight 363.6 s')
             page.locator('[data-view="friendly"]').click()
             expect(page.locator('#grid-label')).to_have_text('GRID / 10,000 km')
@@ -275,7 +280,7 @@ def main():
             # Continue over several boundaries without another Play click.
             page.locator('[data-speed="128"]').click()
             page.locator('#toggle').click()
-            page.wait_for_function("Number(document.querySelector('#ticks').textContent) >= 1000")
+            page.wait_for_function("Number(document.querySelector('#ticks').textContent) >= window.readPhaseVectorState().timing.interval_ticks * 2 + window.readPhaseVectorState().timing.step_forward_ticks")
             expect(page.locator('#mode')).to_have_text('EXECUTING')
             page.locator('#toggle').click()
             state = read_state()
@@ -286,18 +291,18 @@ def main():
             assert read_state()['world']['tick'] == paused_tick
             assert page.locator('#tactical-map').screenshot() != before
             # Replay the exact elapsed ticks through Lua and compare the world.
-            lua("game.command('reset'); game.burn(49.03325, 0)")
+            lua("game.command('reset'); game.burn(game.state().ship.max_acceleration, 0)")
             for start in range(0, paused_tick, 400):
                 lua(f"for i=1,{min(400, paused_tick - start)} do game.command('step') end")
             assert read_state()['world'] == state['world']
             # Step clips at a boundary; Next turn pauses and preserves the order.
-            lua("game.command('reset'); game.burn(49.03325, 0); for i=1,479 do game.command('step') end")
+            lua("game.command('reset'); game.burn(game.state().ship.max_acceleration, 0); for i=1,game.state().timing.interval_ticks-1 do game.command('step') end")
             page.locator('#step').click()
-            expect(page.locator('#time')).to_have_text('120.00')
+            expect(page.locator('#time')).to_have_text(f'{interval_seconds:.2f}')
             expect(page.locator('#mode')).to_have_text('PAUSED')
             expect(page.locator('#dv')).to_have_text('54.116')
             page.locator('#next-turn').click()
-            expect(page.locator('#time')).to_have_text('240.00')
+            expect(page.locator('#time')).to_have_text(f'{2 * interval_seconds:.2f}')
             expect(page.locator('#dv')).to_have_text('48.232')
             lua('game.state().command_count', '2')
             # Holding a drag across a command boundary keeps the gesture usable.
@@ -307,7 +312,7 @@ def main():
             start_drag()
             destination = route_point(230, 150)
             page.mouse.move(destination['x'], destination['y'], steps=5)
-            expect(page.locator('#route-editor')).to_have_attribute('data-command-tick', '1440', timeout=10000)
+            expect(page.locator('#route-editor')).to_have_attribute('data-command-tick', str(3 * interval_ticks), timeout=10000)
             assert page.locator('#map-planned-route').get_attribute('d')
             page.mouse.up()
             page.locator('#toggle').click()
@@ -334,7 +339,7 @@ def main():
             initial_zoom = read_state()['map']['metres_per_unit']
             page.locator('#next-turn').click()
             expect(page.locator('#mode')).to_have_text('PAUSED')
-            expect(page.locator('#time')).to_have_text('120.00')
+            expect(page.locator('#time')).to_have_text(f'{interval_seconds:.2f}')
             page.wait_for_function('scale => window.readPhaseVectorState().map.metres_per_unit > scale', arg=initial_zoom)
             page.locator('#zoom-in').click()
             expect(page.locator('[data-view="overview"]')).to_have_text('Overview')

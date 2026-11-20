@@ -67,6 +67,7 @@ def main():
                 }''')
 
             current = state()
+            timing = current['timing']
             assert current['mission']['outcome'] == 'running'
             assert 'remaining_dv' not in current['world']['ships'][1]
             assert 'decision' not in current['mission'] and 'ai_reason' not in current['mission']
@@ -138,13 +139,13 @@ def main():
             expect(page.locator('#queue-shot')).to_be_enabled()
             projectile = state()['world']['projectiles'][0]
             page.locator('#queue-shot').click()
-            assert state()['mission']['queued']['launch_tick'] == 480
+            assert state()['mission']['queued']['launch_tick'] == timing['interval_ticks']
             assert len(state()['mission']['shots']) == 1
             page.locator('#toggle').click()
             next_turn()
             assert state()['mission']['queued'] is not None
             page.locator('#step').click()
-            expect(page.locator('#ticks')).to_have_text('520')
+            expect(page.locator('#ticks')).to_have_text(str(timing['interval_ticks'] + timing['step_forward_ticks']))
             assert len(state()['mission']['shots']) == 2
             assert state()['world']['projectiles'][0]['velocity'] == projectile['velocity']
             # Retry through Lua is the same command API; responsive/touch controls remain usable.

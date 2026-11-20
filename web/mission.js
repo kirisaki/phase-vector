@@ -42,7 +42,7 @@ export function createMissionControls(onChange) {
     el('track-aim').disabled = done || dragging;
     el('cancel-shot').disabled = !m.queued || done;
     el('retry').disabled = !done;
-    const queued = m.queued ? `Queued at ${decimal(m.queued.launch_tick * 0.25)} s. ` : '';
+    const queued = m.queued ? `Queued at ${decimal(m.queued.launch_tick * state.timing.step_seconds)} s. ` : '';
     el('gun-feedback').textContent = error || failure || (done ? 'Retry restores the initial scenario.' :
       blocked ? 'Apply numeric edits or finish the burn gesture before queuing a shot.' :
       tooLate ? 'No command boundary remains before the deadline.' :

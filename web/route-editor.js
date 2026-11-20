@@ -107,7 +107,7 @@ export function createRouteEditor(onChange) {
     const label = el('burn-label');
     label.setAttribute('x', Math.max(6, cx - control.radius));
     label.setAttribute('y', Math.min(view.height - 6, cy + control.radius + 14));
-    label.textContent = planning ? 'ORDER / 120 s' : 'NEXT ORDER / 120 s';
+    label.textContent = `${planning ? 'ORDER' : 'NEXT ORDER'} / ${number.format(state.timing.interval_seconds)} s`;
     handle.setAttribute('aria-label', 'Drag to set burn. Arrow keys adjust; Shift for fine adjustment; Home to coast.');
     let arrow = '';
     if (candidate) {
@@ -127,7 +127,7 @@ export function createRouteEditor(onChange) {
     el('route-feedback').dataset.invalid = String(dragging && !valid);
     el('route-feedback').textContent = (finished() ? 'Mission complete. Retry to plan another blockade.' : '') || error || (dirtyNumeric ? 'Apply edited numeric values to update the next order.' : '') || (
       !valid && dragging ? 'Unreachable: outside the acceleration and delta-v limits.' :
-      `Drag Burn · Applies ${planning ? 'on Play' : 'at ' + number.format(state.order_start_seconds) + ' s'} · Repeats every 120 s. ` +
+      `Drag Burn · Applies ${planning ? 'on Play' : 'at ' + number.format(state.order_start_seconds) + ' s'} · Repeats every ${number.format(state.timing.interval_seconds)} s. ` +
       (planning ? 'Home: coast.' : `Active: ${number.format(state.active_burn.x)}, ${number.format(state.active_burn.y)} m/s².`));
   }
 
