@@ -19,12 +19,14 @@
     <main>
       <div class="workspace">
         <section class="map-panel" aria-labelledby="map-title">
-          <div class="panel-heading"><h2 id="map-title">Tactical display</h2><span id="engine-status" role="status">Starting engine…</span></div>
-          <div class="map-tools" role="group" aria-label="Map view">
-            <button type="button" data-view="overview" title="Fit both ships automatically; select again to resume auto zoom" aria-pressed="true" disabled>Overview</button>
-            <button type="button" data-view="friendly" aria-pressed="false" disabled>Own ship</button>
-            <button type="button" data-view="contact" aria-pressed="false" disabled>Contact</button>
-            <div class="zoom-buttons"><button id="zoom-out" type="button" aria-label="Zoom out" disabled>−</button><button id="zoom-in" type="button" aria-label="Zoom in" disabled>+</button></div>
+          <div class="map-toolbar">
+            <div class="panel-heading"><h2 id="map-title">Tactical display</h2><span id="engine-status" role="status">Starting engine…</span></div>
+            <div class="map-tools" role="group" aria-label="Map view">
+              <button type="button" data-view="overview" title="Fit both ships automatically; select again to resume auto zoom" aria-pressed="true" disabled>Overview</button>
+              <button type="button" data-view="friendly" aria-pressed="false" disabled>Own ship</button>
+              <button type="button" data-view="contact" aria-pressed="false" disabled>Contact</button>
+              <div class="zoom-buttons"><button id="zoom-out" type="button" aria-label="Zoom out" disabled>−</button><button id="zoom-in" type="button" aria-label="Zoom in" disabled>+</button></div>
+            </div>
           </div>
           <div class="canvas-wrap"><canvas id="tactical-map" aria-label="Friendly ship and observed enemy positions with velocity vectors"></canvas><svg id="route-editor" role="group" aria-label="Burn planning on the tactical map" hidden>
               <circle id="command-pulse"/><circle class="reach-area"/>
@@ -59,7 +61,7 @@
             </div>
             <div id="game-controls" role="group" aria-label="Mission status and game controls" hidden>
               <div class="mission-readout"><strong id="mission-status" role="status">Prevent breakthrough</strong><span id="mission-metrics"></span></div>
-              <button id="retry" type="button" title="Restart the mission after victory or defeat" disabled>Retry</button>
+              <div class="retry-action"><button id="retry" type="button" title="Restart the mission after victory or defeat" disabled>Retry</button></div>
             </div>
             <section id="mission-controls" aria-label="Blockade mission" hidden>
               <div class="gun-buttons"><button id="queue-shot" disabled>Queue shot</button><button id="track-aim" title="Aim at the observed constant-velocity intercept" disabled>Track lead</button><button id="cancel-shot" disabled>Clear queue</button></div>

@@ -115,6 +115,11 @@ scrollable by touch, wheel, or keyboard. Compact viewports also allow scrolling
 within the flight controls so inputs remain reachable while the map keeps a
 minimum visible height. Browser chrome stays visible; no fullscreen permission
 is requested. The layout follows visual-viewport changes and device safe areas.
+On wide desktop panels, the display heading and view selectors share a toolbar.
+Playback, weapon buttons, and Retry share a row, with Retry in its own section.
+Mission status and the shot queue sit below it to preserve map height. Medium
+panels combine only the heading and weapon/queue rows. Narrow panels retain the stacked layout; short
+landscape screens retain the side controls.
 Clock, telemetry, and status rows reserve their space so planning, playback,
 pause/resume, and changing digits do not resize the map. Numeric-edit warnings
 share the status area; longer messages can be scrolled inside it.
@@ -125,7 +130,7 @@ share the status area; longer messages can be scrolled inside it.
 | Track lead | Follow the constant-velocity intercept from the last received enemy observation; this is a prediction, not a guaranteed hit |
 | Queue shot | Add one shot at the earliest free reload slot, starting from the next editable command boundary; aim movement does not change existing reservations |
 | Cancel / Clear queue | Remove one numbered reservation / all editable reservations; shots committed to the current interval and flying rounds stay unchanged |
-| Retry (mission status, below playback) | Available after victory or defeat; restore the complete initial scenario |
+| Retry (game controls) | Available after victory or defeat; restore the complete initial scenario |
 | Ship-centered Burn handle | Available while running or paused; drag directly without switching modes or changing the camera |
 | Drag / release | Preview the burn, delta-v cost, remaining delta-v, and arrival velocity; release to queue the next interval; the current interval keeps its active order |
 | Drag outside the ring | Clamp the handle to the reachable circle in the cursor's direction |
