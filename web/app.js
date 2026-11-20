@@ -1,6 +1,7 @@
 import init, { start, command, plan_burn, set_speed, set_map_view, zoom_map, run_lua, state_json, rendered_frames } from './pkg/phase_vector.js';
 import { createRouteEditor } from './route-editor.js';
 import { createMissionControls } from './mission.js';
+import { createMapNavigation } from './map-navigation.js';
 
 const element = (id) => document.getElementById(id);
 const output = element('console-output');
@@ -19,6 +20,11 @@ const routeEditor = createRouteEditor((applied) => {
 });
 
 const missionControls = createMissionControls(() => refresh());
+const mapNavigation = createMapNavigation({
+  onChange: () => refresh(),
+  onError: (error) => invoke(() => { throw error; }),
+  cancelEditors: () => { routeEditor.cancel(); missionControls.cancel(); },
+});
 
 const narrowScreen = matchMedia('(max-width: 900px)');
 
@@ -102,6 +108,7 @@ function refresh() {
     lastPlan = plan;
   }
   const finished = state.mission && state.mission.outcome !== 'running';
+  mapNavigation.sync(state, ready);
   routeEditor.sync(state, ready, dirtyPlan);
   missionControls.sync(state, ready, dirtyPlan || routeEditor.dragging);
   element('mode').textContent = finished ? 'COMPLETE' : state.paused ? 'PAUSED' : 'EXECUTING';
@@ -120,14 +127,14 @@ function refresh() {
     button.setAttribute('aria-pressed', String(Number(button.dataset.speed) === state.speed));
   }
   for (const button of viewButtons) {
-    button.disabled = !ready;
+    button.disabled = !ready || mapNavigation.active;
     button.setAttribute('aria-pressed', String(button.dataset.view === state.map.focus));
     if (button.dataset.view === 'overview') {
       button.textContent = state.map.auto_zoom ? 'Overview · Auto' : 'Overview';
     }
   }
-  element('zoom-in').disabled = !ready || !state.map.can_zoom_in;
-  element('zoom-out').disabled = !ready || !state.map.can_zoom_out;
+  element('zoom-in').disabled = !ready || mapNavigation.active || !state.map.can_zoom_in;
+  element('zoom-out').disabled = !ready || mapNavigation.active || !state.map.can_zoom_out;
   element('grid-label').textContent = `GRID / ${km(state.map.grid_metres)} km`;
   const other = state.world.ships.find((ship) => ship.id !== state.player_id);
   const own = state.world.ships.find((ship) => ship.id === state.player_id);

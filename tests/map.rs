@@ -101,3 +101,73 @@ fn smoothing_uses_elapsed_time_instead_of_frame_count() {
             < 1e-12
     );
 }
+
+#[test]
+fn navigation_keeps_the_world_anchor_under_the_gesture_even_at_zoom_limits() {
+    let world = initial_world();
+    let anchor = V::new(120_000_000.0, -45_000_000.0);
+    let offset = V::new(250.0, -120.0);
+    for requested in [1e-30, 100_000.0, 1e30] {
+        let mut map = MapView::default();
+        map.navigate(anchor, offset, requested).unwrap();
+        let frame = map.frame(&world, 1);
+        assert!((frame.project(anchor) - offset).length() < 1e-7);
+        assert!(!frame.auto_zoom);
+        assert_eq!(serde_json::to_value(frame.focus).unwrap(), "free");
+        assert_eq!(frame.metres_per_unit, requested.clamp(1.0, 200_000_000.0));
+    }
+}
+
+#[test]
+fn panning_freezes_the_center_until_a_view_preset_is_selected() {
+    let mut world = initial_world();
+    let mut map = MapView::default();
+    map.update_auto_zoom(&world, 1, 1.0, 0.0);
+    let before = map.frame(&world, 1);
+    let drag = V::new(100.0, -50.0);
+    map.navigate(before.center, drag, before.metres_per_unit)
+        .unwrap();
+    let free = map.frame(&world, 1);
+    assert_eq!(free.center, before.center - drag * before.metres_per_unit);
+    for ship in &mut world.ships {
+        ship.position = ship.position + V::new(90_000_000.0, 50_000_000.0);
+    }
+    map.update_auto_zoom(&world, 1, 0.4, 10.0);
+    assert_eq!(map.frame(&world, 1).center, free.center);
+    assert_eq!(map.frame(&world, 1).metres_per_unit, free.metres_per_unit);
+    map.zoom(0.5).unwrap();
+    assert_eq!(map.frame(&world, 1).center, free.center);
+    for (name, expected) in [
+        ("friendly", world.ships[0].position),
+        ("contact", world.ships[1].position),
+    ] {
+        map.focus(name).unwrap();
+        assert_eq!(map.frame(&world, 1).center, expected);
+    }
+    map.focus("overview").unwrap();
+    map.update_auto_zoom(&world, 1, 0.4, 0.0);
+    assert!(map.frame(&world, 1).auto_zoom);
+    assert_eq!(
+        map.frame(&world, 1).center,
+        (world.ships[0].position + world.ships[1].position) * 0.5
+    );
+}
+
+#[test]
+fn invalid_navigation_does_not_modify_camera_or_simulation() {
+    let world = initial_world();
+    let mut map = MapView::default();
+    let before = serde_json::to_value(map.frame(&world, 1)).unwrap();
+    for (anchor, offset, scale) in [
+        (V::new(f64::NAN, 0.0), V::ZERO, 1.0),
+        (V::ZERO, V::new(0.0, f64::INFINITY), 1.0),
+        (V::ZERO, V::ZERO, -1.0),
+        (V::ZERO, V::ZERO, 0.0),
+        (V::ZERO, V::ZERO, f64::INFINITY),
+        (V::ZERO, V::new(1e12, 0.0), 1e30),
+    ] {
+        assert!(map.navigate(anchor, offset, scale).is_err());
+        assert_eq!(serde_json::to_value(map.frame(&world, 1)).unwrap(), before);
+    }
+    assert_eq!(world, initial_world());
+}

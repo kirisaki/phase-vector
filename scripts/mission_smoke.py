@@ -5,6 +5,7 @@ import mimetypes
 from pathlib import Path
 from urllib.parse import unquote, urlparse
 from playwright.sync_api import sync_playwright, expect
+from map_navigation_checks import check_map_navigation
 
 ROOT = Path(__file__).resolve().parents[1]
 
@@ -66,6 +67,7 @@ def main():
                     return {x: p.x, y: p.y};
                 }''')
 
+            check_map_navigation(page, artifacts)
             current = state()
             timing = current['timing']
             reload_ticks = round(current['mission']['reload_seconds'] / timing['step_seconds'])

@@ -18,6 +18,7 @@ pub enum Focus {
     Overview,
     Friendly,
     Contact,
+    Free,
 }
 
 #[derive(Clone, Copy)]
@@ -26,6 +27,7 @@ pub struct MapView {
     metres_per_unit: f64,
     auto_zoom: bool,
     fit_pending: bool,
+    manual_center: Vector2,
 }
 
 #[derive(Serialize)]
@@ -46,6 +48,7 @@ impl Default for MapView {
             metres_per_unit: INITIAL_SEPARATION / 1300.0,
             auto_zoom: true,
             fit_pending: true,
+            manual_center: Vector2::ZERO,
         }
     }
 }
@@ -74,6 +77,34 @@ impl MapView {
         }
         self.metres_per_unit =
             (self.metres_per_unit * factor).clamp(MIN_METRES_PER_UNIT, MAX_METRES_PER_UNIT);
+        self.auto_zoom = false;
+        self.fit_pending = false;
+        Ok(())
+    }
+
+    /// Keep a world anchor under a screen point expressed in local render units.
+    /// Clamp scale before calculating the center so zoom limits do not move the anchor.
+    pub fn navigate(
+        &mut self,
+        anchor: Vector2,
+        screen_offset: Vector2,
+        metres_per_unit: f64,
+    ) -> Result<(), String> {
+        if !anchor.valid()
+            || !screen_offset.valid()
+            || !metres_per_unit.is_finite()
+            || metres_per_unit <= 0.0
+        {
+            return Err("Map coordinates and scale must be finite and within bounds.".into());
+        }
+        let scale = metres_per_unit.clamp(MIN_METRES_PER_UNIT, MAX_METRES_PER_UNIT);
+        let center = anchor - screen_offset * scale;
+        if !center.valid() {
+            return Err("Map center is outside the supported coordinates.".into());
+        }
+        self.manual_center = center;
+        self.metres_per_unit = scale;
+        self.focus = Focus::Free;
         self.auto_zoom = false;
         self.fit_pending = false;
         Ok(())
@@ -122,6 +153,7 @@ impl MapView {
             Focus::Overview => friendly + (contact - friendly) * 0.5,
             Focus::Friendly => friendly,
             Focus::Contact => contact,
+            Focus::Free => self.manual_center,
         };
         // Keep the grid near 100 render units, with readable 1/2/5 decade spacing.
         let target = self.metres_per_unit * 100.0;

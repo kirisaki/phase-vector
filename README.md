@@ -139,6 +139,8 @@ share the status area; longer messages can be scrolled inside it.
 | Numeric thrust → Acceleration X/Y + Apply | Optional expanded inputs in m/s²; magnitude is clamped to 49.03325 (5 G) |
 | Overview / Own ship / Contact | Overview automatically fits both ships; Own ship and Contact follow one ship at a fixed zoom |
 | Map − / + | Set a manual zoom; select Overview again to resume automatic fitting |
+| Drag empty map space | Pan with the mouse or one finger; keep this world position in view |
+| Two-finger pinch | Zoom around the midpoint and pan; cancels any uncommitted handle drag |
 | Play / Pause | Start or stop playback; the applied thrust vector repeats every 120 seconds until changed |
 | Commit | Confirm orders and play at the selected speed to the next 120-second boundary, then pause |
 | Skip | Immediately simulate to the next 120-second boundary and pause, preserving the queued order |
@@ -213,10 +215,21 @@ selected again. Own ship and Contact keep their selected scale while following
 the ship. Automatic zoom pauses during a burn drag so the control stays stable.
 Camera changes never alter simulation state or commands.
 
+Dragging empty map space or pinching switches to a fixed world-centered camera,
+including during playback. A pinch keeps the world position under the gesture's
+midpoint anchored. One finger on the burn ring or an aiming handle still edits
+that order; adding a second finger discards the current drag draft and navigates
+the map instead. Previously applied orders remain intact. Select Overview to
+restore automatic fitting, or Own ship / Contact to resume following a ship.
+Retry retains the camera settings. Pinch handling is limited to the map;
+trackpad gestures and mouse-wheel zoom are not implemented.
+
 The control ring is centered on the friendly ship; manipulating it does not
 change camera focus or zoom. Its **Burn** handle specifies a maneuver relative to inertial coasting:
 direction chooses thrust direction and distance chooses the maneuver amount.
-The ring is a control, not a destination at the map's scale. The center means
+The ring is a control, not a destination at the map's scale. Its size depends
+only on the viewport: panning near an edge clips it instead of shrinking it or
+changing the thrust-to-pixel ratio. The center means
 zero thrust. The actual trajectory, boundary times, and arrival-velocity arrow remain
 at map scale, without a circular arrival marker. An amber arrow shows the queued
 burn from the ship; the cyan velocity arrow shows actual travel direction.
@@ -393,7 +406,9 @@ python scripts/browser_smoke.py --url http://127.0.0.1:5173/ --rebuild
 The mission smoke test uses the default game and checks observed prediction,
 mouse/touch target dragging, queue/cancel, running reservations, 30-second salvo timing, frozen active shots,
 ballistic persistence, no-attack defeat, seven-shot non-hit timeout victory,
-terminal locks, retry, and desktop/phone layouts. It also accepts `--url` and
+terminal locks, retry, desktop/phone layouts, mouse panning, anchored touch
+pinching, and cancellation of editor drafts when a second finger takes over.
+It also accepts `--url` and
 `--executable-path`.
 
 This requires the build tools on `PATH`. To exercise the real hosted site:

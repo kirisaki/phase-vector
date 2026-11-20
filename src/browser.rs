@@ -139,6 +139,24 @@ pub fn zoom_map(factor: f64) -> Result<(), JsValue> {
 }
 
 #[wasm_bindgen]
+pub fn navigate_map(
+    anchor_x: f64,
+    anchor_y: f64,
+    offset_x: f64,
+    offset_y: f64,
+    scale: f64,
+) -> Result<(), JsValue> {
+    MAP.with_borrow_mut(|map| {
+        map.navigate(
+            Vector2::new(anchor_x, anchor_y),
+            Vector2::new(offset_x, offset_y),
+            scale,
+        )
+        .map_err(|e| JsValue::from_str(&e))
+    })
+}
+
+#[wasm_bindgen]
 pub fn rendered_frames() -> u32 {
     FRAMES.with_borrow(|frames| *frames)
 }

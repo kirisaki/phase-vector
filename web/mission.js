@@ -126,7 +126,7 @@ export function createMissionControls(onChange) {
     target = { x: source.x + delta[0] * step, y: source.y + delta[1] * step }; error = ''; render();
   });
   new ResizeObserver(() => { if (state) render(); }).observe(svg.parentElement);
-  return { get dragging() { return dragging; }, sync(value, isReady, isBlocked) {
+  return { get dragging() { return dragging; }, cancel() { finish(false); }, sync(value, isReady, isBlocked) {
     const reset = value.world.tick < lastTick || Boolean(state?.mission) !== Boolean(value.mission);
     state = value; ready = isReady; blocked = isBlocked;
     if (dragging && (reset || finished())) finish(false);

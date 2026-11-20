@@ -42,10 +42,9 @@ export function createRouteEditor(onChange) {
     const coast = maneuver.coast_endpoint;
     const ship = state.world.ships.find((ship) => ship.id === state.player_id);
     const [cx, cy] = view.project(ship.position);
-    const available = Math.max(24, Math.min(90, cx - 10, view.width - cx - 10,
-      cy - 10, view.height - cy - 10));
-    // A ship-centered burn control, not a destination at the map scale.
-    const radius = available;
+    // Size the control for the viewport, never its distance from an edge.
+    // Panning clips the circle instead of changing the thrust-to-pixel ratio.
+    const radius = Math.max(24, Math.min(90, view.width / 2 - 10, view.height / 2 - 10));
     const metresPerPixel = Math.max(maneuver.reachable_radius, 1) / radius;
     return { coast, cx, cy, radius: maneuver.reachable_radius > 0 ? radius : 0,
       metresPerPixel, ship };
@@ -237,6 +236,7 @@ export function createRouteEditor(onChange) {
   new ResizeObserver(() => render()).observe(svg.parentElement);
   return {
     get dragging() { return dragging; },
+    cancel() { finish(false); },
     sync(value, isReady, hasNumericEdits) {
       state = value; ready = isReady; dirtyNumeric = hasNumericEdits;
       const record = state.command_log.at(-1);
