@@ -157,6 +157,10 @@ pub struct World {
 }
 
 impl World {
+    pub(crate) fn next_projectile_id(&self) -> u64 {
+        self.next_projectile_id
+    }
+
     pub fn new(ships: Vec<Ship>) -> Result<Self, String> {
         for (index, ship) in ships.iter().enumerate() {
             if ships[..index].iter().any(|other| other.id == ship.id) {

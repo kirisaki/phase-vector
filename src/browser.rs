@@ -101,41 +101,10 @@ pub fn state_json() -> String {
     HOST.with_borrow(|host| {
         let session = host.state.borrow();
         let snapshot = session.snapshot();
-        let visible = snapshot.presentation_world();
-        let mut value = serde_json::to_value(&snapshot).expect("serializable session");
-        value["world"] = serde_json::to_value(&visible).expect("serializable visible world");
-        value["mission"] = serde_json::Value::Null;
-        if let Some(mission) = snapshot.mission {
-            for ship in value["world"]["ships"].as_array_mut().expect("ship array") {
-                if ship["id"] == mission.config.enemy_id {
-                    let fields = ship.as_object_mut().expect("ship object");
-                    fields.remove("remaining_dv");
-                    fields.remove("spent_dv");
-                }
-            }
-            let contact = &mission.sensors.contact;
-            let position = contact.position_at(snapshot.world.tick);
-            let seconds = crate::physics::STEP_SECONDS;
-            let queued_solution = mission.queued.as_ref().and_then(|order|
-                crate::mission::solve_shot(&snapshot.planning_ship(), order.target, order.launch_tick).ok());
-            value["mission"] = serde_json::json!({
-                "outcome": mission.outcome, "ended_seconds": mission.ended_seconds,
-                "goal": mission.config.goal, "goal_radius": mission.config.goal_radius,
-                "deadline_seconds": mission.config.deadline_tick as f64 * seconds,
-                "ready_seconds": mission.ready_tick as f64 * seconds,
-                "shots": mission.shots, "queued": mission.queued,
-                "queued_solution": queued_solution, "aim": session.aim().ok(),
-                "contact": contact, "contact_age": (snapshot.world.tick - contact.sampled_tick) as f64 * seconds,
-                "prediction": [position, position + contact.velocity * 360.0],
-            });
-        }
-        value["maneuver"] =
-            serde_json::to_value(route_preview(&snapshot)).expect("serializable route");
-        value["map"] = MAP.with_borrow(|map| {
-            serde_json::to_value(map.frame(&visible, snapshot.player_id))
-                .expect("serializable map")
-        });
-        serde_json::to_string(&value).expect("serializable browser state")
+        MAP.with_borrow(|map| {
+            serde_json::to_string(&crate::presentation::State::new(&snapshot, map))
+                .expect("serializable browser state")
+        })
     })
 }
 
@@ -203,10 +172,6 @@ pub fn start() {
         .run();
 }
 
-fn route_preview(view: &crate::session::Snapshot<'_>) -> crate::maneuver::Preview {
-    view.planned_route(view.planned_burn)
-}
-
 fn draw_world(mut gizmos: Gizmos, windows: Query<&Window>, time: Res<Time>) {
     let grid = Color::srgb(0.08, 0.15, 0.19);
     let cyan = Color::srgb(0.3, 0.88, 0.85);
@@ -250,12 +215,13 @@ fn draw_world(mut gizmos: Gizmos, windows: Query<&Window>, time: Res<Time>) {
         let on_screen =
             |p: Vector2| p.x.abs() <= half_width + 100.0 && p.y.abs() <= half_height + 100.0;
         if !ROUTE_EDITING.with_borrow(|v| *v) {
-            let route = crate::maneuver::preview(&view.planning_ship(), view.planned_burn);
+            let planning_ship = view.planning_ship();
+            let route = crate::maneuver::preview(&planning_ship, view.planned_burn);
             let project = |p| {
                 let p = frame.project(p);
                 Vec2::new(p.x as f32, p.y as f32)
             };
-            let coast_start = project(view.planning_ship().position);
+            let coast_start = project(planning_ship.position);
             let coast_end = project(route.coast_endpoint);
             for i in 0..32 {
                 gizmos.line_2d(

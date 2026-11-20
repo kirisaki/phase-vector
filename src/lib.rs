@@ -7,6 +7,7 @@ pub mod map;
 pub mod mission;
 pub mod observation;
 pub mod physics;
+pub mod presentation;
 pub mod repl;
 pub mod scenario;
 pub mod session;

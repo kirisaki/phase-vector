@@ -88,10 +88,9 @@ pub struct Session {
     command_log: Vec<CommandRecord>,
 }
 
-#[derive(Serialize)]
+/// Authoritative state for commands and diagnostics; use presentation::State for the UI.
 pub struct Snapshot<'a> {
     pub world: &'a World,
-    #[serde(skip)]
     pub mission: Option<&'a crate::mission::Mission>,
     pub scale: crate::scenario::Scale,
     pub player_id: u32,
