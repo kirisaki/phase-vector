@@ -8,7 +8,7 @@ and delta-v expenditure.
 
 ## Status
 
-**Step 3: blockade mission.** One friendly ship must stop a non-firing enemy
+**Step 3 complete: blockade mission.** One friendly ship must stop a non-firing enemy
 from reaching its exit before 1,200 seconds. Fire an unguided railgun at a future
 point; the enemy reacts only to delivered attack observations and tries to
 recover its course. Win by disabling it or delaying it past the deadline.
@@ -22,6 +22,8 @@ diagnostics. The UI and Lua share the same validated command API.
 This milestone includes minimal aiming, prediction, result metrics, and retry
 controls to play and verify the mission. Arbitrary shot arrival times, a time
 slider, formal scoring, and paused parameter editing remain steps 4–5. Tuning is provisional; the current enemy is conservative.
+The [acceptance coverage](docs/step-3-blockade.md#acceptance-coverage) records
+which requirements are verified natively and through real browser interaction.
 
 See the [PoC specification](docs/poc-spec.md),
 [stack decisions](docs/step-1-stack.md),
@@ -371,6 +373,9 @@ Endpoint-planning tests cover prediction/execution agreement, partial fuel
 exhaustion, unreachable targets, and shared Lua validation. Presentation tests
 check the JSON contract, observation-only enemy state and camera framing, and
 separation of pending reservations from already flying rounds.
+Mission and observation tests additionally cover queued-hit victory with pending
+launches, actual route recovery after an oblique attack, reservation secrecy,
+light-delay delivery, out-of-order samples, and stale-track expiration.
 Bevy is a browser-target dependency; native tests need no display server.
 
 For real browser interaction checks:

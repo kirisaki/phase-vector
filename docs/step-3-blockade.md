@@ -1,6 +1,9 @@
 # Step 3: blockade mission
 
-The mission core, shared command API, and browser mission controls are implemented.
+Step 3 is complete for the PoC scope: the mission core, shared command API,
+observation-limited enemy, and browser mission controls are implemented and
+verified. The acceptance coverage below distinguishes native simulation checks
+from real browser interaction. Difficulty tuning remains provisional.
 
 ## Rules and scope
 
@@ -110,6 +113,27 @@ player draft orders or observe reservations before launch. No random choices or
 hidden script forces an outcome.
 
 ## Verification and limitations
+
+### Acceptance coverage
+
+| Requirement | Evidence |
+| --- | --- |
+| One non-firing enemy, unlimited gun ammunition, reload, disabling hits | `tests/mission.rs`: inherited muzzle velocity, reload reservations, active salvos, and an actual queued hit through the session API |
+| Goal entry, disablement, timeout, and exact deadline ordering | Swept goal/impact tests include entry and impact exactly at the deadline and a contact after it |
+| Fuel exhaustion or temporary deviation is not a win | Zero-fuel breakthrough and off-route tests keep the mission running until an actual terminal condition |
+| Only observed attacks can influence the enemy | Unlaunched reservations leave world state, delivered observations, and AI decisions identical to an unarmed run; hidden projectiles cannot trigger evasion before delivery |
+| Delayed, detached observations | `tests/observation.rs`: processing plus quantized light delay, older packets arriving after newer fixes, and stale projectile knowledge surviving hidden removal until sample-age expiry |
+| Evasion and return toward the mission route | AI decision tests plus a full oblique-shot run that measures lateral displacement growing and then shrinking during recovery under the normal acceleration and delta-v limits |
+| Terminal state and retry | A queued disabling hit freezes the session and pending launches; retry restores the initial world, sensors, queue, cooldown, and decision state |
+| Playable mission and reproducibility | Native full-command replay and playback-speed checks; Chromium tests for mouse/touch aiming, launch timing, no-attack defeat, non-hit victory, terminal controls, and retry |
+
+The queued-hit integration fixture gives the enemy zero initial delta-v to
+isolate gun-to-impact-to-outcome behavior; it is not an alternate playable mode
+or evidence that hitting the fully fueled default enemy is easy. Browser mission
+checks use the normal default scenario. No browser hit-victory fixture or
+physical-phone/Safari verification is claimed.
+
+### Tuning and scope limits
 
 Native tests cover no-attack breakthrough, zero fuel, off-route timeout, swept
 entry, hit/entry order and ties, the exact deadline, gun speed inheritance,

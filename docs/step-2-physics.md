@@ -32,7 +32,8 @@ the target's numeric ID. Events are ordered by contact time, projectile ID, then
 target ID. All ship endpoints come from the same starting tick.
 
 The physics layer emits impact events and does not disable ships or decide a
-winner. Mission rules are step 3. There is no projectile expiry or map-edge
+winner. The [step-3 mission layer](step-3-blockade.md) implements those rules.
+There is no projectile expiry or map-edge
 culling, and ships do not collide with one another in this PoC.
 
 ## Reproducibility
@@ -52,7 +53,8 @@ starts simultaneous execution. The current vector is frozen for 480 physical
 ticks. Playback continues across boundaries and repeats the latest draft.
 Drafts can be edited while running or paused; they never modify the active
 interval. A changed vector replaces the next order and then repeats until
-changed again. The passive second ship coasts.
+changed again. The passive second ship coasts in the optional physics sandbox;
+the default blockade runs the observation-limited enemy controller.
 
 `play` and `resume` start continuous playback. `commit` plays at the selected
 speed until the next command boundary, then pauses before applying another
@@ -78,14 +80,16 @@ projectiles, impact history, and the queued vector persist across boundaries.
 
 Each committed vector and start tick is recorded. Replaying the log directly
 through the physics core reproduces the world without any presentation clock.
-This is a same-runtime guarantee. The mission's ten-opportunity target, richer
-maneuver timelines, and enemy decisions remain later milestones.
+This is a same-runtime guarantee. Step 3 adds a ten-interval mission, recorded
+shot reservations, and deterministic observation-limited enemy decisions.
+Richer maneuver timelines remain later work.
 
 ## Friendly endpoint planning
 
 The current GUI plans one constant thrust vector by specifying an absolute
-position at the end of the next complete 120-second order interval. This is an early step-4 subset; it does not implement
-weapons, enemy forecasts, variable arrival times, or intermediate waypoints.
+position at the end of the next complete 120-second order interval. This is an
+early step-4 subset; variable arrival times and intermediate waypoints remain
+unimplemented. Step 3 separately adds the gun and observed enemy forecast.
 
 `maneuver::preview` clones the friendly ship and uses the same kick/drift routine
 as execution, including partial fuel exhaustion. It samples the route every two
@@ -119,7 +123,8 @@ zoom suspends this until Overview is selected again.
 The SVG layer uses the same origin, metres per render unit, and AutoMin(2000,
 1200) projection as Bevy for physical trajectories and arrival annotations.
 The burn control is centered on the ship's current position. Its radius fits
-available screen space up to 90 pixels. Handle offsets map to the reachable
+the viewport size up to 90 pixels, independently of distance to the screen edge;
+panning clips the ring without shrinking it. Handle offsets map to the reachable
 maneuver displacement relative to coasting, and the inverse solver supplies the
 constant thrust. The ring is a control range, not an arrival region at map scale.
 There is no filled or outlined circle at the physical arrival point. An amber

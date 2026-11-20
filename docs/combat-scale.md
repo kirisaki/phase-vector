@@ -10,7 +10,7 @@ It supersedes the earlier near-light-speed trial. Constants live in
 | --- | --- |
 | Initial ship separation | 240,000 km |
 | Friendly velocity | +75 km/s along Y |
-| Passive contact velocity | −37.5 km/s along Y |
+| Initial enemy velocity | −37.5 km/s along Y |
 | Maximum acceleration, each ship | 5 G = 49.03325 m/s² |
 | Initial delta-v, each ship | 60 km/s |
 | Reference railgun muzzle speed | 660 km/s |
@@ -20,8 +20,9 @@ It supersedes the earlier near-light-speed trial. Constants live in
 
 G means standard gravity, 9.80665 m/s². Initial headings are retained: the ships
 start at opposite X coordinates and drift in opposite Y directions. Acceleration
-and delta-v limits apply to both ships, although the contact still coasts without
-AI. The separation and muzzle speed are the independent parameters; reference
+and delta-v limits apply to both ships. The default blockade uses the
+[observation-limited enemy controller](step-3-blockade.md); the optional physics
+sandbox retains a passive coasting contact. The separation and muzzle speed are the independent parameters; reference
 flight time is derived from their ratio, not rounded to 364 seconds internally.
 This is a stationary-target reference, not a solved intercept for moving ships.
 
@@ -36,7 +37,8 @@ coasting rather than removing the existing velocity.
 For the first lateral burn from the initial state, the semi-implicit integrator
 produces 353.77489875 km of lateral displacement relative to coasting and 9,000 km
 of longitudinal drift. The heading changes by about 4.486 degrees. These are
-provisional gameplay values; mission and evasion balance have not been validated.
+provisional gameplay values. Blockade trials verify placement-dependent outcomes
+and prevention without a hit, but final difficulty balance has not been established.
 
 ## Travel time and observed warning
 
@@ -48,9 +50,11 @@ will depend on geometry, visibility, detection, and processing delay.
 The original 240–480 s flight-time tuning band corresponds to ranges of
 158,400–316,800 km at 660 km/s. Reaction lead time must be tuned separately;
 this scale does not retain the previous near-c weapon's short warning window.
-No light-delay model or observation-limited AI exists in the current sandbox.
-Both displayed ships are authoritative diagnostic state. Sensor rules, evasion,
-and return to the mission route remain step 3.
+The default blockade samples observations every second and adds one second of
+processing plus quantized light travel time. Its enemy threat horizon is 120 s,
+independent of flight time. Displayed enemy tracks use delivered observations;
+only the optional physics sandbox displays both ships' authoritative state.
+See [the implemented sensor and evasion rules](step-3-blockade.md).
 
 ## Reference frames and numerical model
 
@@ -61,10 +65,12 @@ Newtonian kick/drift integration; projectiles drift along straight world-frame
 trajectories. Gravity, relativistic acceleration, and proper-time effects are
 not modeled.
 
-`World::launch` accepts a world-frame velocity, not a muzzle velocity. The current
-flight test uses a stationary firing frame. Adding the firing ship's velocity
-and solving moving-target interception belong to the future firing UI and shot
-solver. The sandbox has no firing controls, reload mechanic, or hit consequences.
+`World::launch` accepts a world-frame velocity, not a muzzle velocity. The
+reference flight test uses a stationary firing frame. The blockade gun adds the
+firing ship's velocity and solves flight time to a fixed world target; its default
+lead point uses the observed enemy velocity. Reload is 30 s and a hit disables
+the enemy. Arbitrary arrival-time scheduling remains step 4. The optional physics
+sandbox has no firing controls, reload mechanic, or hit consequences.
 
 A 660 km/s projectile travels 165 km per tick, far beyond a ship's 0.5 km radius.
 Swept relative-motion contacts therefore remain necessary. Regression tests also

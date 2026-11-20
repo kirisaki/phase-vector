@@ -8,9 +8,9 @@ enemy or delay its arrival beyond a deadline through forced evasive maneuvers an
 delta-v expenditure.
 
 This document records the requested behavior, not completed functionality.
-The current implementation includes step-3 blockade rules and observation-limited
-enemy control, connected to the browser and Lua. See [blockade implementation](step-3-blockade.md)
-for adopted rules, tuning, and verification. Later milestone requirements below
+Step 3 is complete for the PoC scope, including blockade rules and observation-limited
+enemy control connected to the browser and Lua. See [blockade implementation](step-3-blockade.md)
+for adopted rules, acceptance coverage, tuning, and verification limits. Later milestone requirements below
 remain planned unless explicitly described as implemented.
 
 An early subset of step 4 now provides friendly 120-second endpoint planning,
