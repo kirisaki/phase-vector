@@ -145,6 +145,20 @@ impl Host {
                         view.scale.reference_flight_seconds,
                     )?;
                     snapshot.set(ctx, "scale", scale)?;
+                    let timing = Table::new(&ctx);
+                    let settings = crate::timing::SETTINGS;
+                    for (key, value) in [
+                        ("step_seconds", settings.step_seconds),
+                        ("interval_ticks", settings.interval_ticks as f64),
+                        ("interval_seconds", settings.interval_seconds),
+                        ("step_forward_ticks", settings.step_forward_ticks as f64),
+                        ("step_forward_seconds", settings.step_forward_seconds),
+                        ("forecast_intervals", settings.forecast_intervals as f64),
+                        ("forecast_seconds", settings.forecast_seconds),
+                    ] {
+                        timing.set(ctx, key, value)?;
+                    }
+                    snapshot.set(ctx, "timing", timing)?;
                     snapshot.set(ctx, "paused", view.paused)?;
                     snapshot.set(ctx, "phase", view.phase.label())?;
                     snapshot.set(ctx, "ticks", view.world.tick as f64)?;
@@ -169,7 +183,7 @@ impl Host {
                         table.set(
                             ctx,
                             "deadline_seconds",
-                            mission.config.deadline_tick as f64 * 0.25,
+                            mission.config.deadline_tick as f64 * crate::timing::STEP_SECONDS,
                         )?;
                         table.set(
                             ctx,
@@ -436,13 +450,19 @@ mod tests {
             "game.burn(1000, 0); game.speed(64); game.command('commit'); game.command('pause')",
         )
         .unwrap();
-        host.evaluate("for i=1,480 do game.command('step') end")
+        host.evaluate("for i=1,game.state().timing.interval_ticks do game.command('step') end")
             .unwrap();
         assert_eq!(host.evaluate("game.state().phase").unwrap(), "planning");
-        assert_eq!(host.evaluate("game.state().time_seconds").unwrap(), "120");
+        assert_eq!(
+            host.evaluate("game.state().time_seconds").unwrap(),
+            crate::timing::INTERVAL_SECONDS.to_string()
+        );
         assert_eq!(host.evaluate("game.state().command_count").unwrap(), "1");
         host.evaluate("game.command('next_turn')").unwrap();
-        assert_eq!(host.evaluate("game.state().time_seconds").unwrap(), "240");
+        assert_eq!(
+            host.evaluate("game.state().time_seconds").unwrap(),
+            (2.0 * crate::timing::INTERVAL_SECONDS).to_string()
+        );
         assert_eq!(host.evaluate("game.state().phase").unwrap(), "planning");
         assert_eq!(host.evaluate("game.state().command_count").unwrap(), "2");
     }

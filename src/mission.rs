@@ -5,6 +5,8 @@ use crate::{
     observation::Sensors,
     physics::{Burn, STEP_SECONDS, Ship, Vector2, World, swept_contact},
     scenario,
+    timing::seconds_to_ticks,
+    units::METRES_PER_KILOMETRE,
 };
 use serde::Serialize;
 
@@ -23,11 +25,14 @@ impl Default for Config {
     fn default() -> Self {
         Self {
             enemy_id: 2,
-            goal: Vector2::new(scenario::INITIAL_SEPARATION / 2.0, -45_000_000.0),
-            goal_radius: 1_000_000.0,
-            deadline_tick: 4800,
-            reload_ticks: 480,
-            sensor_processing_ticks: 4,
+            goal: Vector2::new(
+                scenario::INITIAL_SEPARATION / 2.0,
+                -45_000.0 * METRES_PER_KILOMETRE,
+            ),
+            goal_radius: 1_000.0 * METRES_PER_KILOMETRE,
+            deadline_tick: seconds_to_ticks(1200),
+            reload_ticks: seconds_to_ticks(120),
+            sensor_processing_ticks: seconds_to_ticks(1),
             cruise_speed: scenario::CONTACT_SPEED,
             policy: Policy::default(),
         }
@@ -74,6 +79,8 @@ pub struct Solution {
     pub arrival_seconds: f64,
 }
 
+const QUADRATIC_DEGENERACY_TOLERANCE: f64 = 1e-6; // (m/s)²
+
 // Positive interception time for a fixed relative muzzle speed.
 fn intercept_time(r: Vector2, velocity: Vector2) -> Result<f64, String> {
     let a = velocity.x * velocity.x + velocity.y * velocity.y - scenario::RAILGUN_SPEED.powi(2);
@@ -87,7 +94,7 @@ fn intercept_time(r: Vector2, velocity: Vector2) -> Result<f64, String> {
         return Err("Target is unreachable at this muzzle speed.".into());
     }
     let mut roots = Vec::new();
-    if a.abs() < 1e-6 {
+    if a.abs() < QUADRATIC_DEGENERACY_TOLERANCE {
         if b != 0.0 {
             roots.push(-c / b);
         }
@@ -213,7 +220,8 @@ impl Mission {
         let origin = ship.position;
         let velocity = ship.velocity + solution.direction * scenario::RAILGUN_SPEED;
         let target = order.target;
-        let projectile_id = world.launch(player_id, origin, velocity, 1.0)?;
+        let projectile_id =
+            world.launch(player_id, origin, velocity, scenario::PROJECTILE_RADIUS)?;
         self.shots.push(Shot {
             projectile_id,
             launch_tick: world.tick,
@@ -240,7 +248,7 @@ impl Mission {
             .iter()
             .find(|s| s.id == self.config.enemy_id)
             .unwrap();
-        if world.tick.is_multiple_of(4) {
+        if world.tick.is_multiple_of(ai::DECISION_TICKS) {
             self.decision = ai::decide(
                 enemy,
                 self.config.goal,

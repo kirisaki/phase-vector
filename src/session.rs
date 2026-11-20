@@ -4,13 +4,10 @@ use serde::Serialize;
 
 use crate::physics::{Burn, STEP_SECONDS, Vector2, World};
 
-pub const INTERVAL_TICKS: u64 = 480;
-pub const INTERVAL_SECONDS: f64 = INTERVAL_TICKS as f64 * STEP_SECONDS;
-// The browser calls pulse at 60 Hz. Physics advances at 4 Hz at normal speed.
-pub const PULSES_PER_TICK: u32 = 15;
+use crate::timing::STEP_FORWARD_TICKS;
+pub use crate::timing::{INTERVAL_SECONDS, INTERVAL_TICKS, PULSES_PER_TICK};
+
 pub const DEFAULT_SPEED: u32 = 32;
-// Ten simulated seconds at the fixed 0.25-second physics timestep.
-const STEP_FORWARD_TICKS: u64 = 40;
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize)]
 #[serde(rename_all = "lowercase")]

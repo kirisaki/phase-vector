@@ -7,6 +7,7 @@ use phase_vector::{
 
 #[test]
 fn light_delay_and_flight_time_use_the_same_distance() {
+    // Independent regression anchors for the selected trial, not production formulas.
     assert_eq!(INITIAL_SEPARATION, 240_000_000.0);
     assert_eq!(RAILGUN_SPEED, 660_000.0);
     assert!((INITIAL_SEPARATION / LIGHT_SPEED - 0.800553828475565).abs() < 1e-12);
@@ -71,7 +72,7 @@ fn railgun_hits_a_small_target_after_three_command_intervals() {
     .unwrap();
     let mut world = World::new(vec![target]).unwrap();
     world
-        .launch(1, V::ZERO, V::new(RAILGUN_SPEED, 0.0), 1.0)
+        .launch(1, V::ZERO, V::new(RAILGUN_SPEED, 0.0), PROJECTILE_RADIUS)
         .unwrap();
     for _ in 0..3 * INTERVAL_TICKS {
         world.step(&[]).unwrap();
@@ -83,7 +84,7 @@ fn railgun_hits_a_small_target_after_three_command_intervals() {
     }
     assert_eq!(world.impacts.len(), 1);
     let impact = &world.impacts[0];
-    let expected = (INITIAL_SEPARATION - SHIP_RADIUS - 1.0) / RAILGUN_SPEED;
+    let expected = (INITIAL_SEPARATION - SHIP_RADIUS - PROJECTILE_RADIUS) / RAILGUN_SPEED;
     assert!(((impact.tick as f64 + impact.fraction) * STEP_SECONDS - expected).abs() < 1e-7);
 }
 

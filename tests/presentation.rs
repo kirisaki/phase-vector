@@ -1,3 +1,6 @@
+use phase_vector::timing::{
+    FORECAST_SECONDS, INTERVAL_SECONDS, INTERVAL_TICKS, STEP_FORWARD_SECONDS,
+};
 use phase_vector::{
     map::MapView,
     mission::solve_shot,
@@ -18,9 +21,12 @@ fn sandbox_view_preserves_world_and_session_fields() {
     assert!(json["mission"].is_null());
     assert_eq!(json["phase"], "executing");
     assert_eq!(json["paused"], true);
-    assert_eq!(json["time_seconds"], 10.0);
-    assert_eq!(json["order_start_seconds"], 120.0);
-    assert_eq!(json["remaining_seconds"], 110.0);
+    assert_eq!(json["time_seconds"], STEP_FORWARD_SECONDS);
+    assert_eq!(json["order_start_seconds"], INTERVAL_SECONDS);
+    assert_eq!(
+        json["remaining_seconds"],
+        INTERVAL_SECONDS - STEP_FORWARD_SECONDS
+    );
     assert_eq!(json["command_log"], to_value(snapshot.command_log).unwrap());
     assert_eq!(
         json["maneuver"],
@@ -73,7 +79,7 @@ fn hidden_enemy_changes_cannot_change_normal_ui_json_or_camera() {
     );
     assert_eq!(
         changed["mission"]["prediction"][1],
-        to_value(estimated + contact.velocity * 360.0).unwrap()
+        to_value(estimated + contact.velocity * FORECAST_SECONDS).unwrap()
     );
 }
 
@@ -94,9 +100,9 @@ fn presentation_keeps_reservations_and_flight_separate_without_advancing_time() 
     let shown = state.mission.as_ref().unwrap();
     assert_eq!(state.world.projectiles.len(), 1);
     assert_eq!(shown.shots.len(), 1);
-    assert_eq!(shown.queued.unwrap().launch_tick, 480);
+    assert_eq!(shown.queued.unwrap().launch_tick, INTERVAL_TICKS);
     assert_eq!(shown.queued.unwrap().target, target);
-    let solution = solve_shot(&snapshot.planning_ship(), target, 480).unwrap();
+    let solution = solve_shot(&snapshot.planning_ship(), target, INTERVAL_TICKS).unwrap();
     assert_eq!(shown.queued_solution.as_ref().unwrap(), &solution);
     assert_eq!(shown.aim.as_ref().unwrap(), &session.aim().unwrap());
     assert_eq!(
@@ -105,4 +111,28 @@ fn presentation_keeps_reservations_and_flight_separate_without_advancing_time() 
     );
     assert_eq!(session.world(), &before);
     assert_eq!(session.mission().unwrap(), &mission);
+}
+
+#[test]
+fn browser_and_lua_share_clock_settings_and_boundary_units() {
+    let mut host = phase_vector::repl::Host::default();
+    let json = {
+        let session = host.state.borrow();
+        to_value(State::new(&session.snapshot(), &MapView::default())).unwrap()
+    };
+    for (name, value) in json["timing"].as_object().unwrap() {
+        let from_lua: f64 = host
+            .evaluate(&format!("game.state().timing.{name}"))
+            .unwrap()
+            .parse()
+            .unwrap();
+        assert_eq!(from_lua, value.as_f64().unwrap(), "{name}");
+    }
+    host.evaluate("for i=1,game.state().timing.interval_ticks do game.command('step') end")
+        .unwrap();
+    assert_eq!(host.state.borrow().world().tick, INTERVAL_TICKS);
+    assert_eq!(
+        host.state.borrow().snapshot().time_seconds,
+        INTERVAL_SECONDS
+    );
 }

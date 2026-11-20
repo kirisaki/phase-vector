@@ -18,6 +18,7 @@ pub struct State<'a> {
     pub world: VisibleWorld<'a>,
     pub mission: Option<MissionView<'a>>,
     pub scale: Scale,
+    pub timing: crate::timing::Timing,
     pub player_id: u32,
     pub phase: Phase,
     pub paused: bool,
@@ -109,7 +110,10 @@ impl<'a> State<'a> {
                 aim: mission.aim(&launch_ship, launch_tick).ok(),
                 contact,
                 contact_age: (snapshot.world.tick - contact.sampled_tick) as f64 * STEP_SECONDS,
-                prediction: [position, position + contact.velocity * 360.0],
+                prediction: [
+                    position,
+                    position + contact.velocity * crate::timing::FORECAST_SECONDS,
+                ],
             }
         });
         Self {
@@ -133,6 +137,7 @@ impl<'a> State<'a> {
             },
             mission,
             scale: snapshot.scale,
+            timing: crate::timing::SETTINGS,
             player_id: snapshot.player_id,
             phase: snapshot.phase,
             paused: snapshot.paused,

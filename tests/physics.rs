@@ -1,4 +1,5 @@
 use phase_vector::physics::{Burn, STEP_SECONDS, Ship, Vector2 as V, World, swept_contact};
+use phase_vector::timing::{INTERVAL_SECONDS, INTERVAL_TICKS, seconds_to_ticks};
 
 fn near(actual: f64, expected: f64) {
     assert!((actual - expected).abs() < 1e-9, "{actual} != {expected}");
@@ -10,7 +11,7 @@ fn ship(id: u32, position: V, velocity: V) -> Ship {
 #[test]
 fn inertia_without_gravity_or_fuel_consumption() {
     let mut world = World::new(vec![ship(1, V::new(3.0, -2.0), V::new(4.0, -8.0))]).unwrap();
-    for _ in 0..480 {
+    for _ in 0..seconds_to_ticks(120) {
         world.step(&[]).unwrap();
     }
     assert_eq!(world.ships[0].position, V::new(483.0, -962.0));
@@ -158,11 +159,14 @@ fn first_contact_and_ties_have_stable_id_order() {
 fn projectile_does_not_collide_with_its_owner_and_is_not_culled_at_a_turn_boundary() {
     let mut world = World::new(vec![ship(1, V::ZERO, V::ZERO)]).unwrap();
     world.launch(1, V::ZERO, V::new(100.0, 0.0), 0.1).unwrap();
-    for _ in 0..960 {
+    for _ in 0..2 * INTERVAL_TICKS {
         world.step(&[]).unwrap();
     }
     assert_eq!(world.projectiles.len(), 1);
-    assert_eq!(world.projectiles[0].position.x, 24000.0);
+    assert_eq!(
+        world.projectiles[0].position.x,
+        100.0 * 2.0 * INTERVAL_SECONDS
+    );
 }
 
 #[test]
@@ -220,7 +224,7 @@ fn identical_initial_conditions_and_orders_reproduce_the_entire_world() {
 
 #[test]
 fn astronomical_contacts_preserve_metres_instead_of_rounding_misses_into_hits() {
-    let speed = 0.9 * 299_792_458.0;
+    let speed = 0.9 * phase_vector::units::LIGHT_SPEED;
     let range = speed * 360.0;
     // The old discriminant loses radius-sized differences at these distances.
     for offset in [0.0, 100_000_000_000.0] {

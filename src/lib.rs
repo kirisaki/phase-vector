@@ -11,6 +11,8 @@ pub mod presentation;
 pub mod repl;
 pub mod scenario;
 pub mod session;
+pub mod timing;
+pub mod units;
 
 #[cfg(target_arch = "wasm32")]
 mod browser;

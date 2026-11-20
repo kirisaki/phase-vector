@@ -1,7 +1,11 @@
 use phase_vector::{
-    physics::Vector2 as V,
+    physics::{STEP_SECONDS, Vector2 as V},
     scenario::{CONTACT_SPEED, FRIENDLY_SPEED, INITIAL_SEPARATION, MAX_ACCELERATION},
-    session::{Command as C, INTERVAL_TICKS, Phase, Session},
+    session::{
+        Command as C, DEFAULT_SPEED, INTERVAL_SECONDS, INTERVAL_TICKS, PULSES_PER_TICK, Phase,
+        Session,
+    },
+    timing::{STEP_FORWARD_SECONDS, STEP_FORWARD_TICKS},
 };
 
 fn finish(session: &mut Session) {
@@ -36,7 +40,7 @@ fn every_speed_continues_across_four_intervals_without_losing_time() {
         s.dispatch(C::SetSpeed(speed as f64)).unwrap();
         s.dispatch(C::PlanBurn(burn)).unwrap();
         s.dispatch(C::Resume).unwrap();
-        for _ in 0..(4 * INTERVAL_TICKS * 15 / speed) {
+        for _ in 0..(4 * INTERVAL_TICKS * u64::from(PULSES_PER_TICK) / speed) {
             s.pulse();
         }
         assert_eq!(s.world(), reference.world());
@@ -51,9 +55,11 @@ fn every_speed_continues_across_four_intervals_without_losing_time() {
         }
         assert_eq!(s.world(), &frozen);
         let own = &s.world().ships[0];
-        assert!((own.position.y - FRIENDLY_SPEED * 480.0).abs() < 0.001);
+        assert!((own.position.y - FRIENDLY_SPEED * 4.0 * INTERVAL_SECONDS).abs() < 0.001);
         assert_eq!(s.world().ships[1].position.x, INITIAL_SEPARATION / 2.0);
-        assert!((s.world().ships[1].position.y + CONTACT_SPEED * 480.0).abs() < 0.001);
+        assert!(
+            (s.world().ships[1].position.y + CONTACT_SPEED * 4.0 * INTERVAL_SECONDS).abs() < 0.001
+        );
     }
 }
 
@@ -73,7 +79,7 @@ fn paused_edits_queue_without_changing_the_active_order() {
     assert_eq!(s.snapshot().planned_burn, V::ZERO);
     s.dispatch(C::Step).unwrap();
     assert_eq!(s.world().tick, 1);
-    assert_eq!(s.snapshot().time_seconds, 0.25);
+    assert_eq!(s.snapshot().time_seconds, STEP_SECONDS);
     assert_eq!(s.snapshot().active_burn, V::new(20.0, 0.0));
 }
 
@@ -140,7 +146,7 @@ fn a_new_interval_repeats_until_explicitly_changed_to_coasting() {
     finish(&mut s);
     assert_eq!(s.world().ships[0].velocity, end.velocity);
     assert_eq!(s.world().ships[0].remaining_dv, end.remaining_dv);
-    assert_eq!(s.world().tick, 960);
+    assert_eq!(s.world().tick, 2 * INTERVAL_TICKS);
 }
 
 #[test]
@@ -168,28 +174,28 @@ fn ten_second_step_matches_individual_ticks_and_clips_to_the_boundary() {
     assert!(base.dispatch(C::StepForward).is_err());
     assert_eq!(base.world(), &before);
     base.dispatch(C::Pause).unwrap();
-    for elapsed in [0, 1, 479] {
+    for elapsed in [0, 1, INTERVAL_TICKS - 1] {
         let mut stepped = base.clone();
         for _ in 0..elapsed {
             stepped.dispatch(C::Step).unwrap();
         }
         let mut reference = stepped.clone();
-        for _ in 0..40.min(INTERVAL_TICKS - elapsed) {
+        for _ in 0..STEP_FORWARD_TICKS.min(INTERVAL_TICKS - elapsed) {
             reference.dispatch(C::Step).unwrap();
         }
         stepped.dispatch(C::StepForward).unwrap();
         assert_eq!(stepped.world(), reference.world());
         assert_eq!(stepped.snapshot().phase, reference.snapshot().phase);
         assert!(stepped.snapshot().paused);
-        assert_eq!(stepped.snapshot().speed, 32);
-        if elapsed == 479 {
+        assert_eq!(stepped.snapshot().speed, DEFAULT_SPEED);
+        if elapsed == INTERVAL_TICKS - 1 {
             assert_eq!(stepped.world().tick, INTERVAL_TICKS);
             stepped.dispatch(C::StepForward).unwrap();
-            assert_eq!(stepped.world().tick, INTERVAL_TICKS + 40);
+            assert_eq!(stepped.world().tick, INTERVAL_TICKS + STEP_FORWARD_TICKS);
         } else {
             assert_eq!(
                 stepped.snapshot().time_seconds,
-                elapsed as f64 * 0.25 + 10.0
+                elapsed as f64 * STEP_SECONDS + STEP_FORWARD_SECONDS
             );
         }
     }
@@ -242,7 +248,7 @@ fn next_turn_preserves_physics_and_stops_at_the_next_planning_boundary() {
         );
         assert_eq!(skipped.snapshot().phase, Phase::Planning);
         assert!(skipped.snapshot().paused);
-        assert_eq!(skipped.snapshot().speed, 32);
+        assert_eq!(skipped.snapshot().speed, DEFAULT_SPEED);
         assert_eq!(
             skipped.snapshot().planned_burn,
             V::new(MAX_ACCELERATION, 0.0)
@@ -273,7 +279,7 @@ fn invalid_values_do_not_change_the_plan_or_playback_speed() {
     }
     for speed in [0.0, -1.0, 1.5, 4.0, 16.0, 1000.0, f64::NAN] {
         assert!(s.dispatch(C::SetSpeed(speed)).is_err());
-        assert_eq!(s.snapshot().speed, 32);
+        assert_eq!(s.snapshot().speed, DEFAULT_SPEED);
     }
 }
 
@@ -290,7 +296,7 @@ fn reset_restores_initial_conditions_and_clears_orders_and_history() {
     s.dispatch(C::Reset).unwrap();
     assert_eq!(s.world(), &initial);
     assert!(s.snapshot().command_log.is_empty());
-    assert_eq!(s.snapshot().speed, 32);
+    assert_eq!(s.snapshot().speed, DEFAULT_SPEED);
     assert_eq!(s.snapshot().phase, Phase::Planning);
     assert!(s.snapshot().paused);
 }
@@ -311,9 +317,9 @@ fn running_edits_apply_only_at_the_next_boundary_and_repeat_with_replay() {
     s.dispatch(C::PlanBurn(second)).unwrap();
     assert_eq!(s.world(), &frozen);
     assert_eq!(s.snapshot().active_burn, first);
-    assert_eq!(s.snapshot().order_start_seconds, 120.0);
+    assert_eq!(s.snapshot().order_start_seconds, INTERVAL_SECONDS);
     // Remaining at 32x: exactly four intervals in 900 pulses, with no pauses.
-    for _ in 70..900 {
+    for _ in 70..(4 * INTERVAL_TICKS * u64::from(PULSES_PER_TICK) / u64::from(DEFAULT_SPEED)) {
         s.pulse();
     }
     assert_eq!(s.world().tick, 4 * INTERVAL_TICKS);
@@ -336,10 +342,13 @@ fn stepping_from_a_boundary_is_paused_and_commit_alias_does_not_restart_an_inter
     let mut s = Session::default();
     s.dispatch(C::StepForward).unwrap();
     assert!(s.snapshot().paused);
-    assert_eq!(s.world().tick, 40);
+    assert_eq!(s.world().tick, STEP_FORWARD_TICKS);
     s.dispatch(C::Commit).unwrap();
     s.dispatch(C::Resume).unwrap();
     assert_eq!(s.snapshot().command_log.len(), 1);
-    assert_eq!(s.snapshot().remaining_seconds, 110.0);
+    assert_eq!(
+        s.snapshot().remaining_seconds,
+        INTERVAL_SECONDS - STEP_FORWARD_SECONDS
+    );
     assert!(!s.snapshot().paused);
 }

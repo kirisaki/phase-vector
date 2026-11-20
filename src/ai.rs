@@ -6,6 +6,11 @@ use crate::{
 };
 use serde::Serialize;
 
+pub const DECISION_TICKS: u64 = crate::timing::seconds_to_ticks(1);
+// These tolerances serve different physical quantities and must not share an epsilon.
+const COAST_ACCELERATION_TOLERANCE: f64 = 0.001; // m/s²
+const SYMMETRIC_APPROACH_TOLERANCE: f64 = 1.0; // m
+
 #[derive(Clone, Debug, PartialEq, Serialize)]
 pub struct Decision {
     pub acceleration: Vector2,
@@ -32,11 +37,12 @@ pub struct Policy {
     pub hold_seconds: f64,
     pub recovery_seconds: f64,
 }
+// These durations are independent tuning knobs, not aliases of the command interval.
 impl Default for Policy {
     fn default() -> Self {
         Self {
             reaction_seconds: 120.0,
-            safety_radius: 75_000.0,
+            safety_radius: 75.0 * crate::units::METRES_PER_KILOMETRE,
             hold_seconds: 120.0,
             recovery_seconds: 120.0,
         }
@@ -71,7 +77,7 @@ pub fn decide(
     decision.acceleration =
         ((desired - own.velocity) * (1.0 / policy.recovery_seconds)).clamped(own.max_acceleration);
     decision.threat_id = None;
-    decision.reason = if decision.acceleration.length() < 0.001 {
+    decision.reason = if decision.acceleration.length() < COAST_ACCELERATION_TOLERANCE {
         "Following mission route"
     } else {
         "Returning to mission route and cruise speed"
@@ -102,7 +108,11 @@ pub fn decide(
             own.position + own.velocity * t - (track.position_at(now) + track.velocity * t);
         let signed = separation.x * normal.x + separation.y * normal.y;
         // On a symmetric approach use a stable side, not hidden mission outcomes.
-        let direction = if signed < -1.0 { normal * -1.0 } else { normal };
+        let direction = if signed < -SYMMETRIC_APPROACH_TOLERANCE {
+            normal * -1.0
+        } else {
+            normal
+        };
         decision.acceleration = direction * own.max_acceleration;
         decision.reason = format!(
             "Evading observed projectile {} (closest approach in {:.1} s)",

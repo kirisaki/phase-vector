@@ -1,3 +1,4 @@
+use phase_vector::timing::{FORECAST_INTERVALS, INTERVAL_SECONDS, INTERVAL_TICKS, STEP_SECONDS};
 use phase_vector::{
     maneuver::{preview, solve},
     physics::Vector2 as V,
@@ -50,13 +51,13 @@ fn limited_fuel_uses_the_same_partial_burn_and_coasting_as_execution() {
     let max = preview(ship, V::new(MAX_ACCELERATION, 0.0));
     assert_eq!(max.remaining_dv, 0.0);
     // Exhaustion spans several ticks, including a final partial burn.
-    let acceleration_per_tick = MAX_ACCELERATION * 0.25;
+    let acceleration_per_tick = MAX_ACCELERATION * STEP_SECONDS;
     let full_ticks = (123.45 / acceleration_per_tick).floor() as u64;
     let remainder = 123.45 - full_ticks as f64 * acceleration_per_tick;
     let expected = (0..full_ticks)
-        .map(|tick| acceleration_per_tick * (120.0 - tick as f64 * 0.25))
+        .map(|tick| acceleration_per_tick * (INTERVAL_SECONDS - tick as f64 * STEP_SECONDS))
         .sum::<f64>()
-        + remainder * (120.0 - full_ticks as f64 * 0.25);
+        + remainder * (INTERVAL_SECONDS - full_ticks as f64 * STEP_SECONDS);
     assert!((max.reachable_radius - expected).abs() < 1e-6);
     let reach = max.reachable_radius;
     let session = Session::new(world, 1).unwrap();
@@ -148,8 +149,11 @@ fn executing_preview_keeps_the_committed_endpoint_and_remaining_cost() {
             session.dispatch(C::Step).unwrap();
         }
         let view = session.snapshot();
-        let remaining =
-            phase_vector::maneuver::preview_ticks(&view.world.ships[0], view.active_burn, 480 - 37);
+        let remaining = phase_vector::maneuver::preview_ticks(
+            &view.world.ships[0],
+            view.active_burn,
+            INTERVAL_TICKS - 37,
+        );
         assert_eq!(remaining.endpoint, original.endpoint);
         assert_eq!(remaining.points.last(), Some(&original.endpoint));
         assert_eq!(remaining.arrival_velocity, original.arrival_velocity);
@@ -208,7 +212,7 @@ fn queued_arrival_uses_the_fuel_left_after_the_active_interval() {
 
 #[test]
 fn three_turn_forecast_matches_execution_and_fuel_exhaustion() {
-    for remaining_dv in [0.0, 6_000.0, 60_000.0] {
+    for remaining_dv in [0.0, 6_000.0, phase_vector::scenario::INITIAL_DELTA_V] {
         for elapsed in [0, 37] {
             let mut world = Session::default().world().clone();
             world.ships[0].remaining_dv = remaining_dv;
@@ -228,14 +232,14 @@ fn three_turn_forecast_matches_execution_and_fuel_exhaustion() {
             let forecast = preview.forecast.unwrap();
             assert_eq!(session.world(), &original);
             assert_eq!(session.snapshot().command_log, log);
-            assert_eq!(forecast.boundaries.len(), 3);
+            assert_eq!(forecast.boundaries.len(), FORECAST_INTERVALS);
             assert_eq!(forecast.points.first(), Some(&original.ships[0].position));
             for (index, boundary) in forecast.boundaries.iter().enumerate() {
                 session.dispatch(C::NextTurn).unwrap();
                 let actual = &session.world().ships[0];
                 assert_eq!(
                     boundary.seconds_ahead,
-                    (index + 1) as f64 * 120.0 - elapsed as f64 * 0.25
+                    (index + 1) as f64 * INTERVAL_SECONDS - elapsed as f64 * STEP_SECONDS
                 );
                 assert_eq!(boundary.position, actual.position);
                 assert_eq!(boundary.velocity, actual.velocity);

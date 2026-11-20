@@ -4,8 +4,12 @@ use serde::Serialize;
 
 use crate::{
     physics::{STEP_SECONDS, Ship, Vector2},
-    session::INTERVAL_TICKS,
+    timing::{FORECAST_INTERVALS, INTERVAL_TICKS, seconds_to_ticks},
 };
+
+const ROUTE_SAMPLE_TICKS: u64 = seconds_to_ticks(2);
+const ENDPOINT_TOLERANCE_METRES: f64 = 0.001;
+const SOLVER_ITERATIONS: usize = 48;
 
 #[derive(Serialize)]
 pub struct Preview {
@@ -34,13 +38,13 @@ pub struct ForecastBoundary {
     pub remaining_dv: f64,
 }
 
-/// Predict the next three command boundaries, retaining the active first interval.
+/// Predict the configured command boundaries, retaining the active first interval.
 pub fn forecast(ship: &Ship, active: Vector2, queued: Vector2, first_ticks: u64) -> Forecast {
     let mut predicted = ship.clone();
     let mut points = vec![ship.position];
-    let mut boundaries = Vec::with_capacity(3);
+    let mut boundaries = Vec::with_capacity(FORECAST_INTERVALS);
     let mut elapsed = 0;
-    for turn in 0..3 {
+    for turn in 0..FORECAST_INTERVALS {
         let ticks = if turn == 0 {
             first_ticks
         } else {
@@ -50,7 +54,7 @@ pub fn forecast(ship: &Ship, active: Vector2, queued: Vector2, first_ticks: u64)
         for tick in 1..=ticks {
             predicted.advance(burn);
             elapsed += 1;
-            if elapsed % 8 == 0 || tick == ticks {
+            if elapsed % ROUTE_SAMPLE_TICKS == 0 || tick == ticks {
                 points.push(predicted.position);
             }
         }
@@ -90,7 +94,7 @@ pub fn preview_ticks(ship: &Ship, acceleration: Vector2, ticks: u64) -> Preview 
     for tick in 1..=ticks {
         coast.advance(Vector2::ZERO);
         planned.advance(acceleration);
-        if tick % 8 == 0 || tick == ticks {
+        if tick % ROUTE_SAMPLE_TICKS == 0 || tick == ticks {
             points.push(planned.position);
         }
     }
@@ -115,15 +119,15 @@ pub fn solve(ship: &Ship, target: Vector2) -> Result<Vector2, String> {
     let context = preview(ship, Vector2::ZERO);
     let offset = target - context.coast_endpoint;
     let distance = offset.length();
-    if distance > context.reachable_radius + 0.001 {
+    if distance > context.reachable_radius + ENDPOINT_TOLERANCE_METRES {
         return Err("Unreachable: outside the acceleration and delta-v limits.".into());
     }
-    if distance <= 0.001 {
+    if distance <= ENDPOINT_TOLERANCE_METRES {
         return Ok(Vector2::ZERO);
     }
     let mut low = 0.0;
     let mut high = ship.max_acceleration;
-    for _ in 0..48 {
+    for _ in 0..SOLVER_ITERATIONS {
         let middle = (low + high) * 0.5;
         if displacement(ship, middle, INTERVAL_TICKS) < distance {
             low = middle;

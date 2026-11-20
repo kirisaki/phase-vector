@@ -2,9 +2,13 @@
 
 use crate::{
     physics::{Projectile, STEP_SECONDS, Ship, Vector2, World},
-    scenario::LIGHT_SPEED,
+    timing::seconds_to_ticks,
+    units::LIGHT_SPEED,
 };
 use serde::Serialize;
+
+pub const SAMPLE_TICKS: u64 = seconds_to_ticks(1);
+pub const TRACK_RETENTION_TICKS: u64 = seconds_to_ticks(300);
 
 #[derive(Clone, Debug, PartialEq, Serialize)]
 pub struct Track {
@@ -92,8 +96,8 @@ impl Sensors {
         self.threats.sort_by_key(|t| t.id);
         // A missed projectile may leave stale knowledge; expiration uses sample age only.
         self.threats
-            .retain(|t| now.saturating_sub(t.sampled_tick) <= 1200);
-        if !now.is_multiple_of(4) {
+            .retain(|t| now.saturating_sub(t.sampled_tick) <= TRACK_RETENTION_TICKS);
+        if !now.is_multiple_of(SAMPLE_TICKS) {
             return;
         }
         let friendly = world.ships.iter().find(|s| s.id == friendly_id).unwrap();

@@ -45,7 +45,10 @@ fn off_route_is_not_a_win_before_the_deadline() {
     }
     s.dispatch(C::NextTurn).unwrap();
     assert_eq!(s.mission().unwrap().outcome, Outcome::Timeout);
-    assert_eq!(s.mission().unwrap().ended_seconds, Some(1200.0));
+    assert_eq!(
+        s.mission().unwrap().ended_seconds,
+        Some(Config::default().deadline_tick as f64 * STEP_SECONDS)
+    );
 }
 
 fn event_fixture(goal: V, radius: f64, projectile_x: Option<f64>) -> Mission {
@@ -83,7 +86,7 @@ fn swept_goal_entry_and_impact_ordering_include_exact_deadline() {
     );
     let exact = event_fixture(V::new(3.5, 0.0), 1.0, None);
     assert_eq!(exact.outcome, Outcome::Breakthrough);
-    assert_eq!(exact.ended_seconds, Some(0.25));
+    assert_eq!(exact.ended_seconds, Some(STEP_SECONDS));
     assert_eq!(
         event_fixture(V::new(3.6, 0.0), 1.0, None).outcome,
         Outcome::Timeout
@@ -107,7 +110,10 @@ fn queued_gun_uses_inherited_velocity_reload_and_persists_across_turns() {
         (projectile.position + projectile.velocity * aim.flight_seconds - aim.target).length()
             < 0.01
     );
-    assert_eq!(s.mission().unwrap().ready_tick, 480);
+    assert_eq!(
+        s.mission().unwrap().ready_tick,
+        s.mission().unwrap().config.reload_ticks
+    );
     let frozen = s.world().clone();
     s.dispatch(C::QueueShot(s.aim().unwrap().target)).unwrap();
     assert_eq!(s.world(), &frozen);
@@ -137,7 +143,7 @@ fn invalid_shots_and_cooldown_do_not_replace_an_existing_reservation() {
     }
     m.launch_queued(&mut world, 1).unwrap();
     assert!(m.queue(&ship, aim.target, 0).is_err());
-    assert!(m.queue(&ship, aim.target, 4800).is_err());
+    assert!(m.queue(&ship, aim.target, m.config.deadline_tick).is_err());
     assert!(solve_shot(&ship, ship.position, 0).is_err());
 }
 

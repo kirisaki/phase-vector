@@ -4,7 +4,7 @@ use std::ops::{Add, Mul, Sub};
 
 use serde::Serialize;
 
-pub const STEP_SECONDS: f64 = 0.25;
+pub use crate::timing::STEP_SECONDS;
 
 #[derive(Clone, Copy, Debug, Default, PartialEq, Serialize)]
 pub struct Vector2 {

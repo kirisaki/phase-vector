@@ -1,19 +1,20 @@
-//! Shared SI-scale assumptions for the provisional railgun sandbox.
+//! Shared ship and weapon tuning for the provisional blockade scenario.
 
 use serde::Serialize;
 
 use crate::physics::{Ship, Vector2, World};
 
-pub const LIGHT_SPEED: f64 = 299_792_458.0;
-pub const RAILGUN_SPEED: f64 = 660_000.0;
-pub const INITIAL_SEPARATION: f64 = 240_000_000.0;
+use crate::units::METRES_PER_KILOMETRE;
+pub use crate::units::{LIGHT_SPEED, STANDARD_GRAVITY};
+pub const RAILGUN_SPEED: f64 = 660.0 * METRES_PER_KILOMETRE;
+pub const INITIAL_SEPARATION: f64 = 240_000.0 * METRES_PER_KILOMETRE;
 pub const REFERENCE_FLIGHT_SECONDS: f64 = INITIAL_SEPARATION / RAILGUN_SPEED;
-pub const SHIP_RADIUS: f64 = 500.0;
-pub const STANDARD_GRAVITY: f64 = 9.80665;
+pub const SHIP_RADIUS: f64 = 0.5 * METRES_PER_KILOMETRE;
+pub const PROJECTILE_RADIUS: f64 = 1.0; // metres
 pub const MAX_ACCELERATION: f64 = 5.0 * STANDARD_GRAVITY;
-pub const INITIAL_DELTA_V: f64 = 60_000.0;
-pub const FRIENDLY_SPEED: f64 = 75_000.0;
-pub const CONTACT_SPEED: f64 = 37_500.0;
+pub const INITIAL_DELTA_V: f64 = 60.0 * METRES_PER_KILOMETRE;
+pub const FRIENDLY_SPEED: f64 = 75.0 * METRES_PER_KILOMETRE;
+pub const CONTACT_SPEED: f64 = 37.5 * METRES_PER_KILOMETRE;
 
 #[derive(Clone, Copy, Serialize)]
 pub struct Scale {
