@@ -318,7 +318,9 @@ astronomical distances, camera-relative precision, deterministic replay, and
 WEGO boundaries at every playback speed,
 queued order timing, projectile persistence, reset, and Lua error recovery.
 Endpoint-planning tests cover prediction/execution agreement, partial fuel
-exhaustion, unreachable targets, and shared Lua validation.
+exhaustion, unreachable targets, and shared Lua validation. Presentation tests
+check the JSON contract, observation-only enemy state and camera framing, and
+separation of pending reservations from already flying rounds.
 Bevy is a browser-target dependency; native tests need no display server.
 
 For real browser interaction checks:
@@ -432,6 +434,17 @@ Write README files, design documents, and code comments in English. Reports may
 be in Japanese. Use Conventional Commits, keep the implementation small, separate
 simulation from presentation, and share the command API between UI and Lua.
 Commit `Cargo.lock`; do not commit credentials or generated output.
+
+`session::Snapshot` is authoritative state for commands and Lua diagnostics.
+`presentation::State` explicitly selects the normal UI's serialized fields,
+using the same observed world as the renderer and camera. This module has no
+browser dependency and is covered by native tests. Keep new normal-view fields
+here rather than serializing the authoritative snapshot in browser bindings.
+
+`web/map-overlay.js` owns the SVG projection shared by burn planning and aiming.
+`web/mission.js` owns targeting gestures and commands; `web/mission-map.js` draws
+the supplied state and preview without issuing commands. Keep the existing
+command-boundary and gesture behavior when changing presentation.
 
 ## License
 

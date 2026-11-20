@@ -1,5 +1,7 @@
 import { plan_arrival, preview_arrival, set_route_editing, state_json } from './pkg/phase_vector.js';
 
+import { mapProjection } from './map-overlay.js';
+
 const el = (id) => document.getElementById(id);
 const number = new Intl.NumberFormat('en-US', { maximumFractionDigits: 3 });
 const km = (value) => number.format(value / 1000);
@@ -31,15 +33,7 @@ export function createRouteEditor(onChange) {
   requestAnimationFrame(animatePulse);
 
   function projection() {
-    const box = svg.getBoundingClientRect();
-    const width = Math.max(box.width, 1), height = Math.max(box.height, 1);
-    // Match Bevy's AutoMin(2000, 1200) orthographic projection exactly.
-    const halfWidth = Math.max(1000, 600 * width / height);
-    const metresPerPixel = halfWidth * 2 * state.map.metres_per_unit / width;
-    svg.setAttribute('viewBox', `0 0 ${width} ${height}`);
-    return { box, width, height, metresPerPixel,
-      project: (p) => [width / 2 + (p.x - state.map.center.x) / metresPerPixel,
-        height / 2 - (p.y - state.map.center.y) / metresPerPixel] };
+    return mapProjection(svg, state.map);
   }
 
   function controls(view) {
@@ -71,13 +65,12 @@ export function createRouteEditor(onChange) {
     const arrival = dragging ? target : candidate.endpoint;
     const coast = (dragging ? context : state).maneuver.coast_endpoint;
     const view = projection();
-    const { project } = view;
+    const { project, path } = view;
     const control = controls(view);
     const { cx, cy } = control;
     const [actualX, actualY] = project(arrival);
     const x = cx + (arrival.x - coast.x) / control.metresPerPixel;
     const y = cy - (arrival.y - coast.y) / control.metresPerPixel;
-    const path = (points) => points.map((p, i) => `${i ? 'L' : 'M'}${project(p).join(' ')}`).join(' ');
     handle.setAttribute('transform', `translate(${x} ${y})`);
     const area = svg.querySelector('.reach-area');
     area.setAttribute('cx', cx); area.setAttribute('cy', cy);

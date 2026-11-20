@@ -1,7 +1,9 @@
 import { queue_shot, preview_shot, command, set_route_editing } from './pkg/phase_vector.js';
 
+import { mapProjection } from './map-overlay.js';
+import { drawMissionMap } from './mission-map.js';
+
 const el = (id) => document.getElementById(id);
-const ns = 'http://www.w3.org/2000/svg';
 const decimal = (n) => n.toFixed(1);
 
 export function createMissionControls(onChange) {
@@ -11,14 +13,7 @@ export function createMissionControls(onChange) {
   const finished = () => state?.mission?.outcome !== 'running';
 
   function projection() {
-    const box = svg.getBoundingClientRect();
-    const width = Math.max(box.width, 1), height = Math.max(box.height, 1);
-    const scale = Math.max(1000, 600 * width / height) * 2 * state.map.metres_per_unit / width;
-    svg.setAttribute('viewBox', `0 0 ${width} ${height}`);
-    return { scale, box, width,
-      project: (p) => [width / 2 + (p.x - state.map.center.x) / scale, height / 2 - (p.y - state.map.center.y) / scale],
-      unproject: (x, y) => ({ x: state.map.center.x + (x - box.left - width / 2) * scale,
-        y: state.map.center.y - (y - box.top - height / 2) * scale }) };
+    return mapProjection(svg, state.map);
   }
 
   function render() {
@@ -53,35 +48,7 @@ export function createMissionControls(onChange) {
       tooLate ? 'No command boundary remains before the deadline.' :
       reload ? `Reloading until ${decimal(m.ready_seconds)} s.` :
       `${queued}${target ? 'Fixed point' : 'Observed lead'} · launch ${decimal(state.order_start_seconds)} s · flight ${solution ? decimal(solution.flight_seconds) : '—'} s · contact age ${decimal(m.contact_age)} s`);
-    const view = projection(), { project } = view;
-    const path = (points) => points.map((p, i) => `${i ? 'L' : 'M'}${project(p).join(' ')}`).join(' ');
-    const [gx, gy] = project(m.goal);
-    el('mission-goal').setAttribute('cx', gx); el('mission-goal').setAttribute('cy', gy);
-    el('mission-goal').setAttribute('r', Math.max(3, m.goal_radius / view.scale));
-    el('goal-label').setAttribute('x', gx + 8); el('goal-label').setAttribute('y', gy + 4);
-    el('enemy-prediction').setAttribute('d', path(m.prediction));
-    const [px, py] = project(m.prediction[1]);
-    el('prediction-label').setAttribute('text-anchor', px > view.width - 180 ? 'end' : 'start');
-    el('prediction-label').setAttribute('x', px + (px > view.width - 180 ? -8 : 8));
-    el('prediction-label').setAttribute('y', py + 16);
-    el('aim-line').setAttribute('d', solution && !done ? path([solution.origin, solution.target]) : '');
-    el('queued-shot-line').setAttribute('d', m.queued_solution && !done ? path([m.queued_solution.origin, m.queued_solution.target]) : '');
-    handle.style.display = aim && !done ? '' : 'none';
-    if (aim) {
-      const [x, y] = project(aim);
-      handle.setAttribute('transform', `translate(${x} ${y})`);
-      handle.querySelector('text').setAttribute('text-anchor', x > view.width - 100 ? 'end' : 'start');
-      handle.querySelector('text').setAttribute('x', x > view.width - 100 ? -14 : 14);
-    }
-    handle.querySelector('text').textContent = target ? 'Aim · fixed' : 'Aim · lead';
-    el('shot-trails').replaceChildren();
-    for (const projectile of state.world.projectiles) {
-      const shot = m.shots.find((shot) => shot.projectile_id === projectile.id);
-      if (!shot) continue;
-      const trail = document.createElementNS(ns, 'path');
-      trail.setAttribute('d', path([shot.origin, projectile.position]));
-      el('shot-trails').append(trail);
-    }
+    drawMissionMap(svg, state, { aim, solution, fixedTarget: Boolean(target), done });
   }
 
   function invoke(action) {
