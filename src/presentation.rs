@@ -71,6 +71,14 @@ impl VisibleShip {
 }
 
 #[derive(Serialize)]
+pub struct QueuedShotView<'a> {
+    #[serde(flatten)]
+    pub order: &'a QueuedShot,
+    pub solution: Option<Solution>,
+    pub error: Option<String>,
+}
+
+#[derive(Serialize)]
 pub struct MissionView<'a> {
     pub outcome: Outcome,
     pub ended_seconds: Option<f64>,
@@ -79,8 +87,8 @@ pub struct MissionView<'a> {
     pub deadline_seconds: f64,
     pub ready_seconds: f64,
     pub shots: &'a [Shot],
-    pub queued: Option<&'a QueuedShot>,
-    pub queued_solution: Option<Solution>,
+    pub queued: Vec<QueuedShotView<'a>>,
+    pub queue_error: Option<String>,
     pub aim: Option<Solution>,
     pub contact: &'a Track,
     pub contact_age: f64,
@@ -93,8 +101,8 @@ impl<'a> State<'a> {
         let mission = snapshot.mission.map(|mission| {
             let contact = &mission.sensors.contact;
             let position = contact.position_at(snapshot.world.tick);
-            let launch_ship = snapshot.planning_ship();
-            let launch_tick = (snapshot.order_start_seconds / STEP_SECONDS) as u64;
+            let launch_tick =
+                mission.next_launch_tick((snapshot.order_start_seconds / STEP_SECONDS) as u64);
             MissionView {
                 outcome: mission.outcome,
                 ended_seconds: mission.ended_seconds,
@@ -103,11 +111,26 @@ impl<'a> State<'a> {
                 deadline_seconds: mission.config.deadline_tick as f64 * STEP_SECONDS,
                 ready_seconds: mission.ready_tick as f64 * STEP_SECONDS,
                 shots: &mission.shots,
-                queued: mission.queued.as_ref(),
-                queued_solution: mission.queued.as_ref().and_then(|order| {
-                    solve_shot(&launch_ship, order.target, order.launch_tick).ok()
-                }),
-                aim: mission.aim(&launch_ship, launch_tick).ok(),
+                queued: mission
+                    .queued
+                    .iter()
+                    .map(|order| {
+                        let solution = solve_shot(
+                            &snapshot.planning_ship_at(order.launch_tick),
+                            order.target,
+                            order.launch_tick,
+                        );
+                        QueuedShotView {
+                            order,
+                            error: solution.as_ref().err().cloned(),
+                            solution: solution.ok(),
+                        }
+                    })
+                    .collect(),
+                queue_error: launch_tick.as_ref().err().cloned(),
+                aim: launch_tick
+                    .ok()
+                    .and_then(|tick| mission.aim(&snapshot.planning_ship_at(tick), tick).ok()),
                 contact,
                 contact_age: (snapshot.world.tick - contact.sampled_tick) as f64 * STEP_SECONDS,
                 prediction: [

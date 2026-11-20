@@ -80,6 +80,23 @@ impl Host {
                 }),
             )
             .expect("static key");
+            let cancel_state = state.clone();
+            game.set(
+                ctx,
+                "cancel_shot",
+                Callback::from_fn(&ctx, move |ctx, _, mut stack| {
+                    let id: u32 = stack.consume(ctx)?;
+                    cancel_state
+                        .borrow_mut()
+                        .dispatch(Command::CancelQueuedShot(id))
+                        .map_err(|e| {
+                            piccolo::Error::from_value(Value::String(ctx.intern(e.as_bytes())))
+                        })?;
+                    stack.replace(ctx, true);
+                    Ok(CallbackReturn::Return)
+                }),
+            )
+            .expect("static key");
             let aim_state = state.clone();
             game.set(
                 ctx,
@@ -221,7 +238,22 @@ impl Host {
                             "ai_hold_until_tick",
                             mission.decision.hold_until as f64,
                         )?;
-                        table.set(ctx, "queued", mission.queued.is_some())?;
+                        table.set(ctx, "queued", !mission.queued.is_empty())?;
+                        let queue = Table::new(&ctx);
+                        for (i, order) in mission.queued.iter().enumerate() {
+                            let item = Table::new(&ctx);
+                            item.set(ctx, "id", order.id)?;
+                            item.set(ctx, "target_x", order.target.x)?;
+                            item.set(ctx, "target_y", order.target.y)?;
+                            item.set(ctx, "launch_tick", order.launch_tick as f64)?;
+                            item.set(
+                                ctx,
+                                "launch_seconds",
+                                order.launch_tick as f64 * crate::physics::STEP_SECONDS,
+                            )?;
+                            queue.set(ctx, (i + 1) as i64, item)?;
+                        }
+                        table.set(ctx, "queue", queue)?;
                         snapshot.set(ctx, "mission", table)?;
                     }
                     let ships = Table::new(&ctx);

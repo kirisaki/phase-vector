@@ -100,10 +100,10 @@ fn presentation_keeps_reservations_and_flight_separate_without_advancing_time() 
     let shown = state.mission.as_ref().unwrap();
     assert_eq!(state.world.projectiles.len(), 1);
     assert_eq!(shown.shots.len(), 1);
-    assert_eq!(shown.queued.unwrap().launch_tick, INTERVAL_TICKS);
-    assert_eq!(shown.queued.unwrap().target, target);
+    assert_eq!(shown.queued[0].order.launch_tick, INTERVAL_TICKS);
+    assert_eq!(shown.queued[0].order.target, target);
     let solution = solve_shot(&snapshot.planning_ship(), target, INTERVAL_TICKS).unwrap();
-    assert_eq!(shown.queued_solution.as_ref().unwrap(), &solution);
+    assert_eq!(shown.queued[0].solution.as_ref().unwrap(), &solution);
     assert_eq!(shown.aim.as_ref().unwrap(), &session.aim().unwrap());
     assert_eq!(
         shown.contact_age,

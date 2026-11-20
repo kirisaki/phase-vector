@@ -398,3 +398,133 @@ fn lua_exposes_detached_delivered_observations_and_ai_explanations() {
         "0"
     );
 }
+
+#[test]
+fn multiple_reservations_fill_gaps_without_moving_other_shots() {
+    use phase_vector::timing::INTERVAL_TICKS;
+    let mut s = Session::blockade();
+    for _ in 0..3 {
+        s.dispatch(C::QueueShot(s.aim().unwrap().target)).unwrap();
+    }
+    let orders = s.mission().unwrap().queued.clone();
+    assert_eq!(
+        orders.iter().map(|q| q.launch_tick).collect::<Vec<_>>(),
+        vec![0, INTERVAL_TICKS, 2 * INTERVAL_TICKS]
+    );
+    s.dispatch(C::CancelQueuedShot(orders[1].id)).unwrap();
+    assert_eq!(s.mission().unwrap().queued[1], orders[2]);
+    s.dispatch(C::QueueShot(s.aim().unwrap().target)).unwrap();
+    let queue = &s.mission().unwrap().queued;
+    assert_eq!(queue[1].launch_tick, INTERVAL_TICKS);
+    assert!(queue[1].id > orders[2].id);
+    let before = s.mission().unwrap().clone();
+    assert!(s.dispatch(C::CancelQueuedShot(orders[1].id)).is_err());
+    assert!(s.dispatch(C::QueueShot(V::new(f64::NAN, 0.0))).is_err());
+    assert_eq!(s.mission().unwrap(), &before);
+    for turn in 1..=3 {
+        s.dispatch(C::NextTurn).unwrap();
+        assert_eq!(s.mission().unwrap().shots.len(), turn);
+        assert_eq!(s.mission().unwrap().queued.len(), 3 - turn);
+    }
+    assert_eq!(
+        s.mission()
+            .unwrap()
+            .shots
+            .iter()
+            .map(|q| q.launch_tick)
+            .collect::<Vec<_>>(),
+        vec![0, INTERVAL_TICKS, 2 * INTERVAL_TICKS]
+    );
+}
+
+#[test]
+fn queue_respects_long_reload_and_deadline_and_reset_clears_all() {
+    use phase_vector::timing::INTERVAL_TICKS;
+    let world = scenario::initial_world();
+    let mut m = Mission::new(
+        &world,
+        1,
+        Config {
+            reload_ticks: INTERVAL_TICKS + 1,
+            ..Config::default()
+        },
+    )
+    .unwrap();
+    for interval in [0, 2, 4, 6, 8] {
+        let tick = m.next_launch_tick(0).unwrap();
+        assert_eq!(tick, interval * INTERVAL_TICKS);
+        m.queue(&world.ships[0], V::ZERO, tick).unwrap();
+    }
+    let before = m.clone();
+    assert!(m.next_launch_tick(0).is_err());
+    assert!(m.queue(&world.ships[0], V::ZERO, INTERVAL_TICKS).is_err());
+    assert_eq!(m, before);
+    m.cancel(m.queued[2].id).unwrap();
+    assert_eq!(m.next_launch_tick(0).unwrap(), 4 * INTERVAL_TICKS);
+    let mut s = Session::blockade();
+    while let Ok(aim) = s.aim() {
+        s.dispatch(C::QueueShot(aim.target)).unwrap();
+    }
+    assert_eq!(s.mission().unwrap().queued.len(), 10);
+    let before = s.mission().unwrap().clone();
+    assert!(s.dispatch(C::QueueShot(V::ZERO)).is_err());
+    assert_eq!(s.mission().unwrap(), &before);
+    s.dispatch(C::Reset).unwrap();
+    assert!(s.mission().unwrap().queued.is_empty());
+    assert_eq!(s.next_shot_tick().unwrap(), 0);
+}
+
+#[test]
+fn future_launch_preview_tracks_maneuvers_and_matches_actual_launch() {
+    use phase_vector::timing::INTERVAL_TICKS;
+    let mut s = Session::blockade();
+    for _ in 0..3 {
+        s.dispatch(C::QueueShot(s.aim().unwrap().target)).unwrap();
+    }
+    let order = s.mission().unwrap().queued[2].clone();
+    s.dispatch(C::StepForward).unwrap();
+    let active = s.snapshot().active_burn;
+    let coast = s.snapshot().planning_ship_at(order.launch_tick);
+    s.dispatch(C::PlanBurn(V::new(scenario::MAX_ACCELERATION, 0.0)))
+        .unwrap();
+    assert_eq!(s.snapshot().active_burn, active);
+    let predicted = s.snapshot().planning_ship_at(order.launch_tick);
+    assert_ne!(predicted.position, coast.position);
+    assert_eq!(s.mission().unwrap().queued[1], order);
+    let solution = solve_shot(&predicted, order.target, order.launch_tick).unwrap();
+    s.dispatch(C::NextTurn).unwrap();
+    s.dispatch(C::NextTurn).unwrap();
+    assert_eq!(s.world().tick, 2 * INTERVAL_TICKS);
+    assert_eq!(s.world().ships[0], predicted);
+    s.dispatch(C::Resume).unwrap();
+    let shot = &s.mission().unwrap().shots[2];
+    assert_eq!(shot.origin, solution.origin);
+    assert_eq!(
+        shot.velocity,
+        predicted.velocity + solution.direction * scenario::RAILGUN_SPEED
+    );
+    s.dispatch(C::CancelShot).unwrap();
+    assert_eq!(s.mission().unwrap().shots.len(), 3);
+}
+
+#[test]
+fn lua_multiple_queue_and_individual_cancel_match_the_command_api() {
+    let mut lua = phase_vector::repl::Host::with_session(Session::blockade());
+    let mut ui = Session::blockade();
+    for _ in 0..3 {
+        ui.dispatch(C::QueueShot(ui.aim().unwrap().target)).unwrap();
+        lua.evaluate("game.fire(game.aim())").unwrap();
+    }
+    assert_eq!(lua.evaluate("#game.state().mission.queue").unwrap(), "3");
+    let id = ui.mission().unwrap().queued[1].id;
+    ui.dispatch(C::CancelQueuedShot(id)).unwrap();
+    lua.evaluate("game.cancel_shot(game.state().mission.queue[2].id)")
+        .unwrap();
+    assert_eq!(ui.mission(), lua.state.borrow().mission());
+    for _ in 0..3 {
+        ui.dispatch(C::NextTurn).unwrap();
+        lua.evaluate("game.command('next_turn')").unwrap();
+    }
+    assert_eq!(ui.world(), lua.state.borrow().world());
+    assert_eq!(ui.mission(), lua.state.borrow().mission());
+}

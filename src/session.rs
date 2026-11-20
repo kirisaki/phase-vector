@@ -31,6 +31,7 @@ pub enum Command {
     PlanArrival(Vector2),
     QueueShot(Vector2),
     CancelShot,
+    CancelQueuedShot(u32),
     StartMission,
     Sandbox,
     Commit,
@@ -160,11 +161,24 @@ impl Session {
         self.mission.as_ref().is_some_and(|m| !m.running())
     }
 
-    pub fn aim(&self) -> Result<crate::mission::Solution, String> {
+    pub fn next_shot_tick(&self) -> Result<u64, String> {
         self.mission
             .as_ref()
             .ok_or("Start a blockade mission to use the gun.")?
-            .aim(&self.snapshot().planning_ship(), self.interval_end)
+            .next_launch_tick(self.interval_end)
+    }
+
+    pub fn aim(&self) -> Result<crate::mission::Solution, String> {
+        let tick = self.next_shot_tick()?;
+        self.mission
+            .as_ref()
+            .unwrap()
+            .aim(&self.snapshot().planning_ship_at(tick), tick)
+    }
+
+    pub fn preview_shot(&self, target: Vector2) -> Result<crate::mission::Solution, String> {
+        let tick = self.next_shot_tick()?;
+        crate::mission::solve_shot(&self.snapshot().planning_ship_at(tick), target, tick)
     }
 
     pub fn world(&self) -> &World {
@@ -209,14 +223,25 @@ impl Session {
         }
         match command {
             Command::QueueShot(target) => {
-                let ship = self.snapshot().planning_ship();
+                let tick = self.next_shot_tick()?;
+                let ship = self.snapshot().planning_ship_at(tick);
                 self.mission
                     .as_mut()
                     .ok_or("Start a blockade mission to use the gun.")?
-                    .queue(&ship, target, self.interval_end)?;
+                    .queue(&ship, target, tick)?;
             }
             Command::CancelShot => {
-                self.mission.as_mut().ok_or("No active mission.")?.queued = None;
+                self.mission
+                    .as_mut()
+                    .ok_or("No active mission.")?
+                    .queued
+                    .clear();
+            }
+            Command::CancelQueuedShot(id) => {
+                self.mission
+                    .as_mut()
+                    .ok_or("No active mission.")?
+                    .cancel(id)?;
             }
             Command::StartMission => *self = Self::blockade(),
             Command::Sandbox => *self = Self::default(),
@@ -379,6 +404,16 @@ impl Snapshot<'_> {
             for _ in 0..(self.remaining_seconds / STEP_SECONDS) as u64 {
                 ship.advance(self.active_burn);
             }
+        }
+        ship
+    }
+
+    /// Predict a future firing boundary using the frozen interval and repeating draft burn.
+    pub fn planning_ship_at(&self, tick: u64) -> crate::physics::Ship {
+        let mut ship = self.planning_ship();
+        let start = (self.order_start_seconds / STEP_SECONDS) as u64;
+        for _ in start..tick {
+            ship.advance(self.planned_burn);
         }
         ship
     }

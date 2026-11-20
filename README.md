@@ -14,15 +14,14 @@ point; the enemy reacts only to delivered attack observations and tries to
 recover its course. Win by disabling it or delaying it past the deadline.
 
 Physics and continuous 120-second command cycles remain independent of rendering.
-Plan thrust directly on the map and queue a single shot for the next boundary,
-while running or paused. Enemy markers, camera framing, and the amber prediction
+Plan thrust directly on the map and queue multiple shots for future command
+boundaries, while running or paused. Enemy markers, camera framing, and the amber prediction
 use delayed observations. The Lua console exposes true state separately for
 diagnostics. The UI and Lua share the same validated command API.
 
 This milestone includes minimal aiming, prediction, result metrics, and retry
-controls to play and verify the mission. Arbitrary shot arrival times, multiple
-future reservations, a time slider, formal scoring, and paused parameter editing
-remain steps 4–5. Tuning is provisional; the current enemy is conservative.
+controls to play and verify the mission. Arbitrary shot arrival times, a time
+slider, formal scoring, and paused parameter editing remain steps 4–5. Tuning is provisional; the current enemy is conservative.
 
 See the [PoC specification](docs/poc-spec.md),
 [stack decisions](docs/step-1-stack.md),
@@ -124,8 +123,8 @@ share the status area; longer messages can be scrolled inside it.
 | --- | --- |
 | Aim crosshair | Drag the future target point on the map; arrows move it by 100 km (Shift: 10 km), Home restores observed lead tracking |
 | Track lead | Follow the constant-velocity intercept from the last received enemy observation; this is a prediction, not a guaranteed hit |
-| Queue shot / Replace shot | Reserve one shot at the next 120-second boundary; subsequent aim movement does not change the reservation until Replace is pressed |
-| Cancel shot | Remove an unlaunched reservation; flying rounds remain ballistic |
+| Queue shot | Add a shot at the earliest free 120-second boundary after reload; aim movement does not change existing reservations |
+| Cancel / Clear queue | Remove one numbered reservation / all unlaunched reservations; other launch times and flying rounds stay unchanged |
 | Retry | Available after victory or defeat; restore the complete initial scenario |
 | Ship-centered Burn handle | Available while running or paused; drag directly without switching modes or changing the camera |
 | Drag / release | Preview the burn, delta-v cost, remaining delta-v, and arrival velocity; release to queue the next interval; the current interval keeps its active order |
@@ -152,12 +151,20 @@ impact/entry favors disablement; entry at the deadline beats timeout. No formal
 points formula is implemented yet.
 
 The gun has unlimited ammunition and a 120-second reload. Each reservation fires
-once at the next command boundary, using the firing ship's velocity plus a fixed
+once at its reserved command boundary, using the firing ship's velocity plus a fixed
 660 km/s muzzle velocity. The preview solves direction and flight time for the
 chosen world point. Unreachable points are rejected. Pending previews are
 recomputed from the predicted launch state; the actual launch solves again.
+Reservations are sorted by launch time and keep stable IDs. With the default
+reload, three initial additions fire at 0, 120, and 240 seconds. Cancellation
+leaves other launch times unchanged; the next addition fills the earliest free
+slot. No launch can be queued at or beyond the mission deadline. Future firing
+states assume the draft burn repeats after the frozen current interval, including
+acceleration and delta-v limits. Targets stay fixed; changing a target requires
+cancelling it and adding another shot. The queue lists firing and arrival times;
+unreachable reservations are marked and can be cancelled.
 Already flying rounds are unaffected by later maneuvers. The white dashed line
-shows the aim; a brighter dashed line retains the reserved shot. Thin white
+shows the aim; brighter numbered dashed lines retain all reserved shots. Thin white
 trails show launched rounds. Amber dots show a 360-second constant-observed-velocity
 prediction. Enemy fuel and AI decisions are absent from the normal view.
 
@@ -290,8 +297,11 @@ each displayed value to 1,024 characters, and visible history to 100 entries.
 Mission commands and privileged diagnostics:
 
 ```lua
-game.fire(game.aim()) -- Queue the observed-lead target at the next boundary
-game.command("cancel_shot")
+game.fire(game.aim()) -- Append an observed-lead target at the earliest free boundary
+game.fire(game.aim()) -- Append another shot one reload later
+game.state().mission.queue -- IDs, target coordinates, launch ticks and seconds
+game.cancel_shot(game.state().mission.queue[1].id) -- Cancel one reservation
+game.command("cancel_shot") -- Clear all unlaunched reservations
 game.fire(120000000, -13600000) -- Fixed world target in metres
 return game.state().mission.outcome, game.state().mission.shots
 return game.state().mission.ai_reason, game.state().mission.evasions
@@ -422,7 +432,7 @@ not require a game server or custom domain.
 - The normal view extrapolates the latest received enemy track. The initial track
   is supplied by the briefing. Lua inspection intentionally exposes true state.
 - One constant burn repeats each interval; a shot reservation fires only once.
-  Arbitrary arrival times and multiple future reservations remain step 4.
+  Arbitrary arrival times remain step 4.
 - Projectiles have no expiry or map culling. Contacts consume projectiles and
   record events; hitting the enemy ends the mission with disablement. Terminal
   physics is frozen at the end of the event tick; result time includes its fraction.

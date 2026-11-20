@@ -5,7 +5,7 @@ use crate::{
     observation::Sensors,
     physics::{Burn, STEP_SECONDS, Ship, Vector2, World, swept_contact},
     scenario,
-    timing::seconds_to_ticks,
+    timing::{INTERVAL_TICKS, seconds_to_ticks},
     units::METRES_PER_KILOMETRE,
 };
 use serde::Serialize;
@@ -58,6 +58,7 @@ impl Outcome {
 }
 #[derive(Clone, Debug, PartialEq, Serialize)]
 pub struct QueuedShot {
+    pub id: u32,
     pub target: Vector2,
     pub launch_tick: u64,
 }
@@ -135,7 +136,8 @@ pub struct Mission {
     pub ended_seconds: Option<f64>,
     pub sensors: Sensors,
     pub decision: Decision,
-    pub queued: Option<QueuedShot>,
+    pub queued: Vec<QueuedShot>,
+    next_order_id: u32,
     pub ready_tick: u64,
     pub shots: Vec<Shot>,
 }
@@ -173,7 +175,8 @@ impl Mission {
             outcome: Outcome::Running,
             ended_seconds: None,
             decision: Decision::default(),
-            queued: None,
+            queued: Vec::new(),
+            next_order_id: 1,
             ready_tick: world.tick,
             shots: Vec::new(),
         })
@@ -187,6 +190,42 @@ impl Mission {
         let t = intercept_time(position - ship.position, contact.velocity - ship.velocity)?;
         solve_shot(ship, position + contact.velocity * t, launch_tick)
     }
+    /// Find the earliest free command boundary, preserving every existing reservation.
+    pub fn next_launch_tick(&self, from_tick: u64) -> Result<u64, String> {
+        if !self.running() {
+            return Err("Mission is over; retry to issue orders.".into());
+        }
+        let align = |tick: u64| -> Option<u64> {
+            let intervals = tick.saturating_sub(from_tick).div_ceil(INTERVAL_TICKS);
+            from_tick.checked_add(intervals.checked_mul(INTERVAL_TICKS)?)
+        };
+        let exhausted = || "No free firing boundary remains before the deadline.".to_string();
+        let mut tick = align(self.ready_tick).ok_or_else(exhausted)?;
+        for order in &self.queued {
+            if tick.abs_diff(order.launch_tick) < self.config.reload_ticks {
+                tick = align(
+                    order
+                        .launch_tick
+                        .checked_add(self.config.reload_ticks)
+                        .ok_or_else(exhausted)?,
+                )
+                .ok_or_else(exhausted)?;
+            }
+        }
+        if tick >= self.config.deadline_tick {
+            return Err(exhausted());
+        }
+        Ok(tick)
+    }
+    pub fn cancel(&mut self, id: u32) -> Result<(), String> {
+        let index = self
+            .queued
+            .iter()
+            .position(|order| order.id == id)
+            .ok_or("Unknown queued shot.")?;
+        self.queued.remove(index);
+        Ok(())
+    }
     pub fn queue(&mut self, ship: &Ship, target: Vector2, launch_tick: u64) -> Result<(), String> {
         if !self.running() {
             return Err("Mission is over; retry to issue orders.".into());
@@ -197,11 +236,25 @@ impl Mission {
         if launch_tick >= self.config.deadline_tick {
             return Err("Launch would be after the mission deadline.".into());
         }
+        if self
+            .queued
+            .iter()
+            .any(|order| order.launch_tick.abs_diff(launch_tick) < self.config.reload_ticks)
+        {
+            return Err("Another reservation occupies this gun's reload window.".into());
+        }
         solve_shot(ship, target, launch_tick)?;
-        self.queued = Some(QueuedShot {
+        let next_id = self
+            .next_order_id
+            .checked_add(1)
+            .ok_or("Shot ID limit reached.")?;
+        self.queued.push(QueuedShot {
+            id: self.next_order_id,
             target,
             launch_tick,
         });
+        self.next_order_id = next_id;
+        self.queued.sort_by_key(|order| order.launch_tick);
         Ok(())
     }
     pub fn launch_queued(
@@ -209,10 +262,10 @@ impl Mission {
         world: &mut World,
         player_id: u32,
     ) -> Result<Option<Vector2>, String> {
-        let Some(order) = self.queued.as_ref() else {
+        let Some(order) = self.queued.first() else {
             return Ok(None);
         };
-        if order.launch_tick > world.tick {
+        if order.launch_tick > world.tick || self.ready_tick > world.tick {
             return Ok(None);
         }
         let ship = world.ships.iter().find(|s| s.id == player_id).unwrap();
@@ -230,7 +283,7 @@ impl Mission {
             velocity,
         });
         self.ready_tick = world.tick + self.config.reload_ticks;
-        self.queued = None;
+        self.queued.remove(0);
         Ok(Some(target))
     }
     pub fn step(&mut self, world: &mut World, player_id: u32, acceleration: Vector2) {

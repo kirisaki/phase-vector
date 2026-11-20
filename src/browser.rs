@@ -63,16 +63,22 @@ pub fn queue_shot(x: f64, y: f64) -> Result<(), JsValue> {
 }
 
 #[wasm_bindgen]
+pub fn cancel_shot(id: u32) -> Result<(), JsValue> {
+    HOST.with_borrow(|host| {
+        host.state
+            .borrow_mut()
+            .dispatch(Command::CancelQueuedShot(id))
+            .map_err(|e| JsValue::from_str(&e))
+    })
+}
+
+#[wasm_bindgen]
 pub fn preview_shot(x: f64, y: f64) -> Result<String, JsValue> {
     HOST.with_borrow(|host| {
         let session = host.state.borrow();
-        let view = session.snapshot();
-        let solution = crate::mission::solve_shot(
-            &view.planning_ship(),
-            Vector2::new(x, y),
-            (view.order_start_seconds / crate::physics::STEP_SECONDS) as u64,
-        )
-        .map_err(|e| JsValue::from_str(&e))?;
+        let solution = session
+            .preview_shot(Vector2::new(x, y))
+            .map_err(|e| JsValue::from_str(&e))?;
         Ok(serde_json::to_string(&solution).expect("serializable shot"))
     })
 }

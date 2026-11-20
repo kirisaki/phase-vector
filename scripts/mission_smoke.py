@@ -58,7 +58,7 @@ def main():
                 expect(page.locator('#ticks')).to_have_text('0')
                 assert state()['mission']['shots'] == []
                 assert state()['world']['projectiles'] == []
-                assert state()['mission']['queued'] is None
+                assert state()['mission']['queued'] == []
 
             def handle_point():
                 return page.locator('#aim-handle').evaluate('''h => {
@@ -85,14 +85,41 @@ def main():
             page.mouse.move(point['x'] - 30, point['y'] + 20, steps=4)
             page.mouse.up()
             page.locator('#queue-shot').click()
-            placed = state()['mission']['queued']['target']
+            placed = state()['mission']['queued'][0]['target']
             assert placed != original and state()['mission']['shots'] == []
             page.locator('#cancel-shot').click()
-            assert state()['mission']['queued'] is None
+            assert state()['mission']['queued'] == []
             page.locator('#track-aim').click()
             page.locator('#queue-shot').click()
-            assert state()['mission']['queued']['target'] == original
+            assert state()['mission']['queued'][0]['target'] == original
             page.locator('#cancel-shot').click()
+            # Add three shots, cancel the middle one, and refill its slot without moving others.
+            for _ in range(3):
+                page.locator('#queue-shot').click()
+            orders = state()['mission']['queued']
+            assert [q['launch_tick'] for q in orders] == [0, timing['interval_ticks'], 2 * timing['interval_ticks']]
+            expect(page.locator('#shot-queue .queued-shot')).to_have_count(3)
+            expect(page.locator('#queued-shot-markers text')).to_have_count(3)
+            assert page.locator('#tactical-map').bounding_box() == canvas
+            page.get_by_role('button', name=f"Cancel shot {orders[1]['id']}", exact=True).click()
+            assert state()['mission']['queued'][1] == orders[2]
+            page.locator('#queue-shot').click()
+            assert [q['launch_tick'] for q in state()['mission']['queued']] == [q['launch_tick'] for q in orders]
+            page.screenshot(path=str(artifacts / 'mission-multiple-queue.png'))
+            for turn in range(3):
+                next_turn()
+                assert len(state()['mission']['shots']) == turn + 1
+                assert len(state()['mission']['queued']) == 2 - turn
+            for _ in range(7):
+                page.locator('#queue-shot').click()
+            expect(page.locator('#queue-shot')).to_be_disabled()
+            expect(page.locator('#gun-feedback')).to_contain_text('No free firing boundary')
+            expect(page.locator('#shot-queue .queued-shot')).to_have_count(7)
+            first_id = state()['mission']['queued'][0]['id']
+            page.get_by_role('button', name=f'Cancel shot {first_id}', exact=True).click()
+            expect(page.locator('#queue-shot')).to_be_enabled()
+            page.evaluate("wasm.command('reset')")
+            page.wait_for_timeout(200)
             # No attack must lose; the terminal state freezes all gameplay commands.
             for _ in range(10):
                 next_turn()
@@ -139,11 +166,11 @@ def main():
             expect(page.locator('#queue-shot')).to_be_enabled()
             projectile = state()['world']['projectiles'][0]
             page.locator('#queue-shot').click()
-            assert state()['mission']['queued']['launch_tick'] == timing['interval_ticks']
+            assert state()['mission']['queued'][0]['launch_tick'] == timing['interval_ticks']
             assert len(state()['mission']['shots']) == 1
             page.locator('#toggle').click()
             next_turn()
-            assert state()['mission']['queued'] is not None
+            assert state()['mission']['queued'] != []
             page.locator('#step').click()
             expect(page.locator('#ticks')).to_have_text(str(timing['interval_ticks'] + timing['step_forward_ticks']))
             assert len(state()['mission']['shots']) == 2
@@ -161,18 +188,25 @@ def main():
                     page.locator('#' + control).scroll_into_view_if_needed()
                     expect(page.locator('#' + control)).to_be_in_viewport()
                 if width == 390:
+                    touch_aim = state()['mission']['aim']['target']
                     point = handle_point()
                     client = page.context.new_cdp_session(page)
                     client.send('Input.dispatchTouchEvent', {'type': 'touchStart', 'touchPoints': [point]})
                     client.send('Input.dispatchTouchEvent', {'type': 'touchMove', 'touchPoints': [{'x': point['x'] - 25, 'y': point['y'] - 10}]})
                     client.send('Input.dispatchTouchEvent', {'type': 'touchEnd', 'touchPoints': []})
                     page.locator('#queue-shot').click()
-                    assert state()['mission']['queued']['target'] != state()['mission']['aim']['target']
+                    assert state()['mission']['queued'][0]['target'] != touch_aim
+                    page.locator('#queue-shot').click()
+                    expect(page.locator('#shot-queue .queued-shot')).to_have_count(2)
+                    page.screenshot(path=str(artifacts / 'mission-touch-queue.png'))
+                    first_id = state()['mission']['queued'][0]['id']
+                    page.get_by_role('button', name=f'Cancel shot {first_id}', exact=True).click()
+                    assert len(state()['mission']['queued']) == 1
                     page.locator('#cancel-shot').click()
                     client.detach()
                 page.screenshot(path=str(artifacts / f'mission-{width}x{height}.png'))
             assert not errors, errors
-            print('PASS: observed prediction, pointer/touch aiming, queue/cancel, boundary firing, persistence, no-attack defeat, seven-shot non-hit victory, frozen results, retry, and responsive layout')
+            print('PASS: observed prediction, pointer/touch aiming, multiple queue/individual cancel/full queue, boundary firing, persistence, no-attack defeat, seven-shot non-hit victory, frozen results, retry, and responsive layout')
         except Exception:
             page.screenshot(path=str(artifacts / 'mission-failure.png'), full_page=True)
             raise

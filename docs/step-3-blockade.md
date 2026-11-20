@@ -47,16 +47,22 @@ direction at a fixed relative muzzle speed, including the firing ship's current
 velocity. The default lead point uses only the delivered contact's extrapolated
 position and velocity. It does not read the enemy's future decisions.
 
-`QueueShot` replaces the single reservation for the next player command boundary.
+`QueueShot` appends at the earliest free player command boundary that satisfies
+reload spacing against fired rounds and all reservations. Initial default slots
+are 0, 120, and 240 seconds. Reservations have stable IDs and fixed target points.
+Cancelling one does not move the others; later additions can fill freed slots.
+The deadline bounds the queue (ten initial slots with default tuning).
+Future launch predictions repeat the draft burn after the frozen current interval
+and account for acceleration and remaining delta-v. Each preview is recalculated
+when the maneuver changes; the target and launch tick remain fixed.
 Editing during execution cannot fire immediately. Launch occurs at the boundary
 before the first acceleration kick. A reservation does not consume a shot until
 launch. Shots are one-shot orders and do not repeat with thrust. Cancel affects
-only an unlaunched reservation. Launched projectiles retain their inertial world
+only unlaunched reservations (`CancelQueuedShot(id)` for one, `CancelShot` for all). Launched projectiles retain their inertial world
 velocity and survive command boundaries. The shot target is recorded beside the
 applied thrust vector for deterministic replay.
 
-The current UI/API does not choose an arbitrary arrival time or schedule multiple
-future shots. Those remain step 4. There is no blast damage, projectile lifetime,
+The current UI/API does not choose an arbitrary arrival time; that remains step 4. There is no blast damage, projectile lifetime,
 ship-to-ship collision, guided weapon, or enemy gun.
 
 ## Information boundary
@@ -116,8 +122,8 @@ The browser renders the default blockade; `?sandbox=1` retains the original
 sandbox for `scripts/browser_smoke.py` regression checks.
 
 The Aim crosshair edits a world-space point without changing the reserved shot.
-Queue/Replace explicitly stores it; Track lead restores observation-based aiming.
-A reserved point is fixed until replaced, while its direction/flight preview is
+Queue explicitly appends it; Track lead restores observation-based aiming.
+A reserved point is fixed until cancelled, while its direction/flight preview is
 recomputed from the predicted launch state. White trails show flying rounds;
 amber dots indicate a constant-observed-velocity estimate, not the AI's future.
 

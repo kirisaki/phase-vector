@@ -18,7 +18,17 @@ export function drawMissionMap(svg, state, { aim, solution, fixedTarget, done })
   el('prediction-label').setAttribute('x', px + (px > view.width - 180 ? -8 : 8));
   el('prediction-label').setAttribute('y', py + 16);
   el('aim-line').setAttribute('d', solution && !done ? path([solution.origin, solution.target]) : '');
-  el('queued-shot-line').setAttribute('d', m.queued_solution && !done ? path([m.queued_solution.origin, m.queued_solution.target]) : '');
+  el('queued-shot-line').setAttribute('d', done ? '' : m.queued
+    .filter((order) => order.solution)
+    .map(({ solution }) => path([solution.origin, solution.target])).join(' '));
+  el('queued-shot-markers').replaceChildren();
+  if (!done) for (const order of m.queued) {
+    const [x, y] = project(order.target);
+    const marker = document.createElementNS(ns, 'text');
+    marker.setAttribute('x', x + 8); marker.setAttribute('y', y - 10);
+    marker.textContent = `#${order.id}`;
+    el('queued-shot-markers').append(marker);
+  }
   handle.style.display = aim && !done ? '' : 'none';
   if (aim) {
     const [x, y] = project(aim);

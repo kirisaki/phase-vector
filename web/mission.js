@@ -1,4 +1,4 @@
-import { queue_shot, preview_shot, command, set_route_editing } from './pkg/phase_vector.js';
+import { queue_shot, cancel_shot, preview_shot, command, set_route_editing } from './pkg/phase_vector.js';
 
 import { mapProjection } from './map-overlay.js';
 import { drawMissionMap } from './mission-map.js';
@@ -35,20 +35,44 @@ export function createMissionControls(onChange) {
     let failure = '';
     try { solution = aim ? JSON.parse(preview_shot(aim.x, aim.y)) : null; }
     catch (e) { solution = null; failure = String(e); }
-    const reload = state.order_start_seconds < m.ready_seconds;
-    const tooLate = state.order_start_seconds >= m.deadline_seconds;
-    el('queue-shot').disabled = !solution || done || reload || tooLate || blocked || dragging;
-    el('queue-shot').textContent = m.queued ? 'Replace shot' : 'Queue shot';
+    el('queue-shot').disabled = !solution || done || blocked || dragging;
+    el('queue-shot').textContent = 'Queue shot';
     el('track-aim').disabled = done || dragging;
-    el('cancel-shot').disabled = !m.queued || done;
+    el('cancel-shot').disabled = !m.queued.length || done;
     el('retry').disabled = !done;
-    const queued = m.queued ? `Queued at ${decimal(m.queued.launch_tick * state.timing.step_seconds)} s. ` : '';
     el('gun-feedback').textContent = error || failure || (done ? 'Retry restores the initial scenario.' :
       blocked ? 'Apply numeric edits or finish the burn gesture before queuing a shot.' :
-      tooLate ? 'No command boundary remains before the deadline.' :
-      reload ? `Reloading until ${decimal(m.ready_seconds)} s.` :
-      `${queued}${target ? 'Fixed point' : 'Observed lead'} · launch ${decimal(state.order_start_seconds)} s · flight ${solution ? decimal(solution.flight_seconds) : '—'} s · contact age ${decimal(m.contact_age)} s`);
+      m.queue_error ||
+      `${target ? 'Fixed point' : 'Observed lead'} · launch ${solution ? decimal(solution.launch_tick * state.timing.step_seconds) : '—'} s · flight ${solution ? decimal(solution.flight_seconds) : '—'} s · contact age ${decimal(m.contact_age)} s`);
+    renderQueue(m, done);
     drawMissionMap(svg, state, { aim, solution, fixedTarget: Boolean(target), done });
+  }
+
+  function renderQueue(m, done) {
+    const list = el('shot-queue');
+    const ids = new Set(m.queued.map((order) => String(order.id)));
+    for (const node of list.querySelectorAll('[data-shot-id]')) {
+      if (!ids.has(node.dataset.shotId)) node.remove();
+    }
+    el('empty-queue').hidden = Boolean(m.queued.length);
+    m.queued.forEach((order, index) => {
+      let row = list.querySelector(`[data-shot-id="${order.id}"]`);
+      if (!row) {
+        row = document.createElement('div'); row.dataset.shotId = order.id;
+        row.className = 'queued-shot'; row.setAttribute('role', 'listitem');
+        row.append(document.createElement('span'), document.createElement('button'));
+        const button = row.querySelector('button'); button.textContent = 'Cancel';
+        button.setAttribute('aria-label', `Cancel shot ${order.id}`);
+        button.addEventListener('click', () => invoke(() => cancel_shot(order.id)));
+      }
+      // Keep nodes and focus stable across polling updates, including insertion into a freed slot.
+      const sibling = list.querySelectorAll('[data-shot-id]')[index];
+      if (sibling !== row) list.insertBefore(row, sibling ?? null);
+      row.querySelector('span').textContent = `#${order.id} · fire ${decimal(order.launch_tick * state.timing.step_seconds)} s · arrival ${order.solution ? decimal(order.solution.arrival_seconds) + ' s' : 'unreachable'}`;
+      row.title = order.error || `Target (${decimal(order.target.x / 1000)}, ${decimal(order.target.y / 1000)}) km`;
+      row.classList.toggle('invalid', Boolean(order.error));
+      row.querySelector('button').disabled = done;
+    });
   }
 
   function invoke(action) {
@@ -95,7 +119,8 @@ export function createMissionControls(onChange) {
     const delta = directions[event.key];
     if (!delta) return;
     event.preventDefault();
-    const source = target ?? state.mission.aim.target, step = event.shiftKey ? 10000 : 100000;
+    const source = target ?? state.mission.aim?.target, step = event.shiftKey ? 10000 : 100000;
+    if (!source) return;
     target = { x: source.x + delta[0] * step, y: source.y + delta[1] * step }; error = ''; render();
   });
   new ResizeObserver(() => { if (state) render(); }).observe(svg.parentElement);
