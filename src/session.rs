@@ -32,6 +32,10 @@ impl Phase {
 pub enum Command {
     PlanBurn(Vector2),
     PlanArrival(Vector2),
+    QueueShot(Vector2),
+    CancelShot,
+    StartMission,
+    Sandbox,
     Commit,
     Pause,
     Resume,
@@ -51,7 +55,10 @@ impl Command {
             "step" => Ok(Self::Step),
             "step_forward" => Ok(Self::StepForward),
             "next_turn" => Ok(Self::NextTurn),
-            "reset" => Ok(Self::Reset),
+            "reset" | "retry" => Ok(Self::Reset),
+            "mission" => Ok(Self::StartMission),
+            "sandbox" => Ok(Self::Sandbox),
+            "cancel_shot" => Ok(Self::CancelShot),
             _ => Err(format!("Unknown command: {name}")),
         }
     }
@@ -61,12 +68,15 @@ impl Command {
 pub struct CommandRecord {
     pub start_tick: u64,
     pub burn: Burn,
+    pub shot_target: Option<Vector2>,
 }
 
 #[derive(Clone, Debug)]
 pub struct Session {
     world: World,
     initial: World,
+    mission: Option<crate::mission::Mission>,
+    initial_mission: Option<crate::mission::Config>,
     player_id: u32,
     phase: Phase,
     paused: bool,
@@ -81,6 +91,8 @@ pub struct Session {
 #[derive(Serialize)]
 pub struct Snapshot<'a> {
     pub world: &'a World,
+    #[serde(skip)]
+    pub mission: Option<&'a crate::mission::Mission>,
     pub scale: crate::scenario::Scale,
     pub player_id: u32,
     pub phase: Phase,
@@ -108,6 +120,8 @@ impl Session {
         }
         Ok(Self {
             initial: world.clone(),
+            mission: None,
+            initial_mission: None,
             interval_end: world.tick,
             world,
             player_id,
@@ -121,6 +135,42 @@ impl Session {
         })
     }
 
+    pub fn blockade() -> Self {
+        Self::with_mission(
+            crate::scenario::initial_world(),
+            1,
+            crate::mission::Config::default(),
+        )
+        .unwrap()
+    }
+
+    pub fn with_mission(
+        world: World,
+        player_id: u32,
+        config: crate::mission::Config,
+    ) -> Result<Self, String> {
+        let mission = crate::mission::Mission::new(&world, player_id, config.clone())?;
+        let mut session = Self::new(world, player_id)?;
+        session.mission = Some(mission);
+        session.initial_mission = Some(config);
+        Ok(session)
+    }
+
+    pub fn mission(&self) -> Option<&crate::mission::Mission> {
+        self.mission.as_ref()
+    }
+
+    pub fn finished(&self) -> bool {
+        self.mission.as_ref().is_some_and(|m| !m.running())
+    }
+
+    pub fn aim(&self) -> Result<crate::mission::Solution, String> {
+        self.mission
+            .as_ref()
+            .ok_or("Start a blockade mission to use the gun.")?
+            .aim(&self.snapshot().planning_ship(), self.interval_end)
+    }
+
     pub fn world(&self) -> &World {
         &self.world
     }
@@ -128,6 +178,7 @@ impl Session {
     pub fn snapshot(&self) -> Snapshot<'_> {
         Snapshot {
             world: &self.world,
+            mission: self.mission.as_ref(),
             scale: crate::scenario::SCALE,
             player_id: self.player_id,
             phase: self.phase,
@@ -148,7 +199,31 @@ impl Session {
     }
 
     pub fn dispatch(&mut self, command: Command) -> Result<(), String> {
+        if self.finished()
+            && !matches!(
+                command,
+                Command::Reset
+                    | Command::StartMission
+                    | Command::Sandbox
+                    | Command::Pause
+                    | Command::SetSpeed(_)
+            )
+        {
+            return Err("Mission is over; retry to issue orders.".into());
+        }
         match command {
+            Command::QueueShot(target) => {
+                let ship = self.snapshot().planning_ship();
+                self.mission
+                    .as_mut()
+                    .ok_or("Start a blockade mission to use the gun.")?
+                    .queue(&ship, target, self.interval_end)?;
+            }
+            Command::CancelShot => {
+                self.mission.as_mut().ok_or("No active mission.")?.queued = None;
+            }
+            Command::StartMission => *self = Self::blockade(),
+            Command::Sandbox => *self = Self::default(),
             Command::PlanArrival(target) => {
                 let ship = self.snapshot().planning_ship();
                 self.planned_burn = crate::maneuver::solve(&ship, target)?;
@@ -188,6 +263,9 @@ impl Session {
                     1
                 };
                 for _ in 0..ticks.min(self.interval_end - self.world.tick) {
+                    if self.finished() {
+                        break;
+                    }
                     self.advance_tick();
                 }
             }
@@ -198,7 +276,7 @@ impl Session {
                 self.paused = true;
                 self.playback_quanta = 0;
                 // Complete every physical tick and stop before starting another interval.
-                while self.world.tick < self.interval_end {
+                while self.world.tick < self.interval_end && !self.finished() {
                     self.advance_tick();
                 }
             }
@@ -209,8 +287,12 @@ impl Session {
                 self.speed = speed as u32;
             }
             Command::Reset => {
-                *self = Self::new(self.initial.clone(), self.player_id)
-                    .expect("validated initial scenario");
+                *self = if let Some(config) = self.initial_mission.clone() {
+                    Self::with_mission(self.initial.clone(), self.player_id, config)
+                } else {
+                    Self::new(self.initial.clone(), self.player_id)
+                }
+                .expect("validated initial scenario");
             }
         }
         Ok(())
@@ -222,7 +304,7 @@ impl Session {
             return;
         }
         self.playback_quanta += self.speed;
-        while self.playback_quanta >= PULSES_PER_TICK {
+        while self.playback_quanta >= PULSES_PER_TICK && !self.paused {
             if self.phase == Phase::Planning && self.begin_interval().is_err() {
                 self.paused = true;
                 self.playback_quanta = 0;
@@ -234,12 +316,20 @@ impl Session {
     }
 
     fn advance_tick(&mut self) {
-        self.world
-            .step(&[Burn {
-                ship_id: self.player_id,
-                acceleration: self.active_burn,
-            }])
-            .expect("frozen valid orders and prevalidated tick capacity");
+        if let Some(mission) = &mut self.mission {
+            mission.step(&mut self.world, self.player_id, self.active_burn);
+            if !mission.running() {
+                self.paused = true;
+                self.playback_quanta = 0;
+            }
+        } else {
+            self.world
+                .step(&[Burn {
+                    ship_id: self.player_id,
+                    acceleration: self.active_burn,
+                }])
+                .expect("frozen valid orders and prevalidated tick capacity");
+        }
         if self.world.tick == self.interval_end {
             self.phase = Phase::Planning;
             self.active_burn = Vector2::ZERO;
@@ -252,9 +342,15 @@ impl Session {
             .tick
             .checked_add(INTERVAL_TICKS)
             .ok_or("Simulation tick capacity exhausted.")?;
+        let shot_target = if let Some(mission) = &mut self.mission {
+            mission.launch_queued(&mut self.world, self.player_id)?
+        } else {
+            None
+        };
         self.active_burn = self.planned_burn;
         self.interval_end = end;
         self.command_log.push(CommandRecord {
+            shot_target,
             start_tick: self.world.tick,
             burn: Burn {
                 ship_id: self.player_id,
@@ -267,6 +363,13 @@ impl Session {
 }
 
 impl Snapshot<'_> {
+    pub fn presentation_world(&self) -> World {
+        self.mission.map_or_else(
+            || self.world.clone(),
+            |mission| mission.presentation_world(self.world),
+        )
+    }
+
     /// Predict the next command boundary without changing the current orders.
     pub fn planning_ship(&self) -> crate::physics::Ship {
         let mut ship = self

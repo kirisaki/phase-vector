@@ -19,7 +19,13 @@ pub struct Host {
 
 impl Default for Host {
     fn default() -> Self {
-        let state = Rc::new(RefCell::new(Session::default()));
+        Self::with_session(Session::default())
+    }
+}
+
+impl Host {
+    pub fn with_session(session: Session) -> Self {
+        let state = Rc::new(RefCell::new(session));
         let output = Rc::new(RefCell::new(Vec::new()));
         let mut lua = Lua::core();
         lua.enter(|ctx| {
@@ -57,6 +63,36 @@ impl Default for Host {
                 }),
             )
             .expect("static table key");
+            let fire_state = state.clone();
+            game.set(
+                ctx,
+                "fire",
+                Callback::from_fn(&ctx, move |ctx, _, mut stack| {
+                    let (x, y): (f64, f64) = stack.consume(ctx)?;
+                    fire_state
+                        .borrow_mut()
+                        .dispatch(Command::QueueShot(Vector2::new(x, y)))
+                        .map_err(|e| {
+                            piccolo::Error::from_value(Value::String(ctx.intern(e.as_bytes())))
+                        })?;
+                    stack.replace(ctx, true);
+                    Ok(CallbackReturn::Return)
+                }),
+            )
+            .expect("static key");
+            let aim_state = state.clone();
+            game.set(
+                ctx,
+                "aim",
+                Callback::from_fn(&ctx, move |ctx, _, mut stack| {
+                    let solution = aim_state.borrow().aim().map_err(|e| {
+                        piccolo::Error::from_value(Value::String(ctx.intern(e.as_bytes())))
+                    })?;
+                    stack.replace(ctx, (solution.target.x, solution.target.y));
+                    Ok(CallbackReturn::Return)
+                }),
+            )
+            .expect("static key");
             let speed_state = state.clone();
             let arrival_state = state.clone();
             game.set(
@@ -126,6 +162,41 @@ impl Default for Host {
                     active.set(ctx, "x", view.active_burn.x)?;
                     active.set(ctx, "y", view.active_burn.y)?;
                     snapshot.set(ctx, "active_burn", active)?;
+                    if let Some(mission) = view.mission {
+                        let table = Table::new(&ctx);
+                        table.set(ctx, "outcome", mission.outcome.label())?;
+                        table.set(ctx, "shots", mission.shots.len() as f64)?;
+                        table.set(
+                            ctx,
+                            "deadline_seconds",
+                            mission.config.deadline_tick as f64 * 0.25,
+                        )?;
+                        table.set(
+                            ctx,
+                            "ai_reason",
+                            ctx.intern(mission.decision.reason.as_bytes()),
+                        )?;
+                        table.set(ctx, "evasions", mission.decision.evasions)?;
+                        table.set(
+                            ctx,
+                            "observed_attacks",
+                            mission.sensors.threats.len() as f64,
+                        )?;
+                        table.set(
+                            ctx,
+                            "contact_sample_tick",
+                            mission.sensors.contact.sampled_tick as f64,
+                        )?;
+                        table.set(
+                            ctx,
+                            "contact_received_tick",
+                            mission.sensors.contact.received_tick as f64,
+                        )?;
+                        table.set(ctx, "contact_x", mission.sensors.contact.position.x)?;
+                        table.set(ctx, "contact_y", mission.sensors.contact.position.y)?;
+                        table.set(ctx, "queued", mission.queued.is_some())?;
+                        snapshot.set(ctx, "mission", table)?;
+                    }
                     let ships = Table::new(&ctx);
                     for (index, ship) in view.world.ships.iter().enumerate() {
                         ships.set(ctx, (index + 1) as i64, ship_table(ctx, ship)?)?;

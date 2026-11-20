@@ -25,6 +25,9 @@ See the [PoC specification](docs/poc-spec.md),
 [physics and time model](docs/step-2-physics.md), and
 [provisional combat scale](docs/combat-scale.md).
 
+The step-3 mission core and shared Lua API are now implemented; browser mission
+controls are being integrated separately. See [blockade rules and assumptions](docs/step-3-blockade.md).
+
 ## Build and run locally
 
 Install Git, [rustup](https://rustup.rs/), and Python 3.10 or newer. Rust 1.100.0,
