@@ -79,6 +79,8 @@ def main():
             expect(page.locator('#range-label')).to_have_text('RANGE / 240,000 km')
             expect(page.locator('#speed [aria-pressed="true"]')).to_have_text('32×')
             expect(page.locator('#next-turn')).to_be_enabled()
+            expect(page.locator('#next-turn')).to_have_text('Skip')
+            expect(page.locator('#commit')).to_be_enabled()
             expect(page.locator('#tactical-map')).to_be_visible()
             expect(page.locator('#console-panel')).to_be_hidden()
             expect(page.locator('#console-toggle')).to_have_attribute('aria-expanded', 'false')
@@ -139,6 +141,7 @@ def main():
             page.mouse.move(destination['x'], destination['y'], steps=5)
             expect(page.locator('#toggle')).to_be_disabled()
             expect(page.locator('#next-turn')).to_be_disabled()
+            expect(page.locator('#commit')).to_be_disabled()
             assert float(page.locator('#route-cost').inner_text().replace(',', '')) > 0
             expect(page.locator('#burn-x')).to_have_value('0')
             assert read_state()['map']['metres_per_unit'] == frozen_zoom
@@ -268,6 +271,7 @@ def main():
             assert page.locator('#tactical-map').bounding_box() == numeric_map_box
             expect(page.locator('#toggle')).to_be_disabled()
             expect(page.locator('#next-turn')).to_be_disabled()
+            expect(page.locator('#commit')).to_be_disabled()
             page.locator('#apply-burn').click()
             lua('math.abs(game.state().planned_burn.x - game.state().ship.max_acceleration) < 1e-9', 'true')
             expect(page.locator('#railgun-label')).to_contain_text('660 km/s · reference flight 363.6 s')
@@ -295,7 +299,27 @@ def main():
             for start in range(0, paused_tick, 400):
                 lua(f"for i=1,{min(400, paused_tick - start)} do game.command('step') end")
             assert read_state()['world'] == state['world']
-            # Step clips at a boundary; Next turn pauses and preserves the order.
+            # Commit animates the current interval and stops exactly at its boundary.
+            lua("game.command('reset'); game.burn(game.state().ship.max_acceleration, 0)")
+            page.locator('#console-close').click()
+            commit_map_box = page.locator('#tactical-map').bounding_box()
+            page.locator('[data-speed="1"]').click()
+            page.locator('#commit').click()
+            expect(page.locator('#commit')).to_have_attribute('aria-pressed', 'true')
+            page.wait_for_function('window.readPhaseVectorState().world.tick > 0')
+            assert read_state()['world']['tick'] < interval_ticks
+            page.locator('#commit').click()
+            assert len(read_state()['command_log']) == 1
+            page.locator('[data-speed="128"]').click()
+            page.wait_for_function('window.readPhaseVectorState().paused', timeout=30000)
+            expect(page.locator('#time')).to_have_text(f'{interval_seconds:.2f}')
+            expect(page.locator('#commit')).to_have_attribute('aria-pressed', 'false')
+            stopped = read_state()['world']
+            page.wait_for_timeout(250)
+            assert read_state()['world'] == stopped
+            assert page.locator('#tactical-map').bounding_box() == commit_map_box
+            # Step clips at a boundary; Skip pauses and preserves the order.
+            page.locator('#console-toggle').click()
             lua("game.command('reset'); game.burn(game.state().ship.max_acceleration, 0); for i=1,game.state().timing.interval_ticks-1 do game.command('step') end")
             page.locator('#step').click()
             expect(page.locator('#time')).to_have_text(f'{interval_seconds:.2f}')
@@ -367,7 +391,7 @@ def main():
                 page.wait_for_function('Math.abs(document.body.getBoundingClientRect().height - innerHeight) < 1')
                 expect(page.locator('#tactical-map')).to_be_visible()
                 assert page.evaluate('document.documentElement.scrollWidth <= innerWidth && document.documentElement.scrollHeight <= innerHeight'), 'Page overflow'
-                for selector in ['#console-toggle', '[data-view="overview"]', '[data-view="friendly"]', '[data-view="contact"]', '#zoom-in', '#zoom-out', '#toggle', '#step', '#next-turn', '[data-speed="1"]', '[data-speed="128"]', '[data-speed="32"]', '[data-speed="64"]']:
+                for selector in ['#console-toggle', '[data-view="overview"]', '[data-view="friendly"]', '[data-view="contact"]', '#zoom-in', '#zoom-out', '#toggle', '#step', '#commit', '#next-turn', '[data-speed="1"]', '[data-speed="128"]', '[data-speed="32"]', '[data-speed="64"]']:
                     box = page.locator(selector).bounding_box()
                     assert box and box['x'] >= 0 and box['y'] >= 0 and box['x'] + box['width'] <= width + 1 and box['y'] + box['height'] <= height + 1, (width, height, selector, box)
                 page.mouse.wheel(0, 1000)

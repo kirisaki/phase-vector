@@ -177,6 +177,7 @@ impl Host {
                     }
                     snapshot.set(ctx, "timing", timing)?;
                     snapshot.set(ctx, "paused", view.paused)?;
+                    snapshot.set(ctx, "stop_at_boundary", view.stop_at_boundary)?;
                     snapshot.set(ctx, "phase", view.phase.label())?;
                     snapshot.set(ctx, "ticks", view.world.tick as f64)?;
                     snapshot.set(ctx, "time_seconds", view.time_seconds)?;

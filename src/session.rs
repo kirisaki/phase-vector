@@ -52,7 +52,7 @@ impl Command {
             "play" | "resume" => Ok(Self::Resume),
             "step" => Ok(Self::Step),
             "step_forward" => Ok(Self::StepForward),
-            "next_turn" => Ok(Self::NextTurn),
+            "skip" | "next_turn" => Ok(Self::NextTurn),
             "reset" | "retry" => Ok(Self::Reset),
             "mission" => Ok(Self::StartMission),
             "sandbox" => Ok(Self::Sandbox),
@@ -78,6 +78,7 @@ pub struct Session {
     player_id: u32,
     phase: Phase,
     paused: bool,
+    stop_at_boundary: bool,
     planned_burn: Vector2,
     active_burn: Vector2,
     interval_end: u64,
@@ -94,6 +95,7 @@ pub struct Snapshot<'a> {
     pub player_id: u32,
     pub phase: Phase,
     pub paused: bool,
+    pub stop_at_boundary: bool,
     pub speed: u32,
     pub planned_burn: Vector2,
     pub active_burn: Vector2,
@@ -124,6 +126,7 @@ impl Session {
             player_id,
             phase: Phase::Planning,
             paused: true,
+            stop_at_boundary: false,
             planned_burn: Vector2::ZERO,
             active_burn: Vector2::ZERO,
             speed: DEFAULT_SPEED,
@@ -193,6 +196,7 @@ impl Session {
             player_id: self.player_id,
             phase: self.phase,
             paused: self.paused,
+            stop_at_boundary: self.stop_at_boundary,
             speed: self.speed,
             planned_burn: self.planned_burn,
             active_burn: self.active_burn,
@@ -266,9 +270,11 @@ impl Session {
                     self.begin_interval()?;
                 }
                 self.paused = false;
+                self.stop_at_boundary = matches!(command, Command::Commit);
             }
             Command::Pause => {
                 self.paused = true;
+                self.stop_at_boundary = false;
                 self.playback_quanta = 0;
             }
             Command::Step | Command::StepForward => {
@@ -296,6 +302,7 @@ impl Session {
                 }
                 self.paused = true;
                 self.playback_quanta = 0;
+                self.stop_at_boundary = false;
                 // Complete every physical tick and stop before starting another interval.
                 while self.world.tick < self.interval_end && !self.finished() {
                     self.advance_tick()?;
@@ -347,6 +354,7 @@ impl Session {
             mission.step(&mut self.world, self.player_id, self.active_burn);
             if !mission.running() {
                 self.paused = true;
+                self.stop_at_boundary = false;
                 self.playback_quanta = 0;
             }
         } else {
@@ -360,6 +368,11 @@ impl Session {
         if self.world.tick == self.interval_end {
             self.phase = Phase::Planning;
             self.active_burn = Vector2::ZERO;
+            if self.stop_at_boundary {
+                self.paused = true;
+                self.stop_at_boundary = false;
+                self.playback_quanta = 0;
+            }
         }
         Ok(())
     }

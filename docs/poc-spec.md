@@ -48,7 +48,8 @@ gun solver whose target is a world point and whose flight time is solved.
 - Draft orders may be edited while running or paused. Changes apply only at the
   next 120-second command boundary; an active interval's order is immutable.
 - A ring around the friendly ship signals each applied command interval,
-  including coasting. Next turn advances to the next boundary and pauses.
+  including coasting. Commit plays at the selected speed to the next boundary
+  and pauses; Skip immediately simulates to that boundary and pauses.
 
 ## Blockade mission
 

@@ -338,7 +338,7 @@ fn running_edits_apply_only_at_the_next_boundary_and_repeat_with_replay() {
 }
 
 #[test]
-fn stepping_from_a_boundary_is_paused_and_commit_alias_does_not_restart_an_interval() {
+fn stepping_from_a_boundary_is_paused_and_playback_commands_do_not_restart_an_interval() {
     let mut s = Session::default();
     s.dispatch(C::StepForward).unwrap();
     assert!(s.snapshot().paused);
@@ -351,4 +351,100 @@ fn stepping_from_a_boundary_is_paused_and_commit_alias_does_not_restart_an_inter
         INTERVAL_SECONDS - STEP_FORWARD_SECONDS
     );
     assert!(!s.snapshot().paused);
+}
+
+#[test]
+fn commit_stops_at_the_same_boundary_as_skip_at_every_speed() {
+    let mut base = Session::blockade();
+    base.dispatch(C::PlanBurn(V::new(MAX_ACCELERATION, 0.0)))
+        .unwrap();
+    for _ in 0..5 {
+        base.dispatch(C::QueueShot(base.aim().unwrap().target))
+            .unwrap();
+    }
+    let mut skipped = base.clone();
+    skipped.dispatch(C::named("skip").unwrap()).unwrap();
+    for speed in [1, 32, 64, 128] {
+        let mut played = base.clone();
+        played.dispatch(C::SetSpeed(speed as f64)).unwrap();
+        played.dispatch(C::Commit).unwrap();
+        for _ in 0..(INTERVAL_TICKS * u64::from(PULSES_PER_TICK)).div_ceil(speed) + 20 {
+            played.pulse();
+        }
+        assert!(played.snapshot().paused);
+        assert!(!played.snapshot().stop_at_boundary);
+        assert_eq!(played.world().tick, INTERVAL_TICKS);
+        assert_eq!(played.world(), skipped.world());
+        assert_eq!(played.mission(), skipped.mission());
+        assert_eq!(
+            played.snapshot().command_log,
+            skipped.snapshot().command_log
+        );
+        assert_eq!(played.mission().unwrap().shots.len(), 4);
+        assert_eq!(played.mission().unwrap().queued.len(), 1);
+    }
+}
+
+#[test]
+fn commit_mid_interval_and_repeated_clicks_do_not_extend_or_replace_the_active_order() {
+    let mut s = Session::default();
+    s.dispatch(C::PlanBurn(V::new(MAX_ACCELERATION, 0.0)))
+        .unwrap();
+    s.dispatch(C::StepForward).unwrap();
+    let mut reference = s.clone();
+    reference.dispatch(C::NextTurn).unwrap();
+    s.dispatch(C::Commit).unwrap();
+    s.dispatch(C::PlanBurn(V::ZERO)).unwrap();
+    for speed in [1.0, 32.0, 64.0, 128.0] {
+        s.dispatch(C::SetSpeed(speed)).unwrap();
+        s.pulse();
+        s.dispatch(C::Commit).unwrap();
+    }
+    assert_eq!(s.snapshot().command_log.len(), 1);
+    while !s.snapshot().paused {
+        s.pulse();
+    }
+    assert_eq!(s.world(), reference.world());
+    assert_eq!(s.snapshot().planned_burn, V::ZERO);
+    s.dispatch(C::Commit).unwrap();
+    s.dispatch(C::NextTurn).unwrap();
+    assert_eq!(s.world().tick, 2 * INTERVAL_TICKS);
+    assert!(!s.snapshot().stop_at_boundary);
+    assert_eq!(
+        s.world().ships[0].velocity,
+        reference.world().ships[0].velocity
+    );
+}
+
+#[test]
+fn pause_play_reset_and_lua_share_the_commit_stop_mode() {
+    let mut host = phase_vector::repl::Host::default();
+    host.evaluate("game.command('commit')").unwrap();
+    assert_eq!(
+        host.evaluate("game.state().stop_at_boundary").unwrap(),
+        "true"
+    );
+    host.evaluate("game.command('pause')").unwrap();
+    assert_eq!(
+        host.evaluate("game.state().stop_at_boundary").unwrap(),
+        "false"
+    );
+    let frozen = host.state.borrow().world().clone();
+    host.state.borrow_mut().pulse();
+    assert_eq!(host.state.borrow().world(), &frozen);
+    host.evaluate("game.command('commit'); game.command('play'); game.speed(128)")
+        .unwrap();
+    while host.state.borrow().world().tick <= INTERVAL_TICKS {
+        host.state.borrow_mut().pulse();
+    }
+    assert!(!host.state.borrow().snapshot().paused);
+    assert!(!host.state.borrow().snapshot().stop_at_boundary);
+    host.evaluate("game.command('commit'); game.command('skip')")
+        .unwrap();
+    assert_eq!(host.state.borrow().world().tick, 2 * INTERVAL_TICKS);
+    assert!(host.state.borrow().snapshot().paused);
+    host.evaluate("game.command('commit'); game.command('reset')")
+        .unwrap();
+    assert!(!host.state.borrow().snapshot().stop_at_boundary);
+    assert!(host.state.borrow().snapshot().paused);
 }

@@ -51,7 +51,10 @@
                   <button type="button" data-speed="64" aria-pressed="false" disabled>64×</button>
                   <button type="button" data-speed="128" aria-pressed="false" disabled>128×</button>
                 </div>
-                <button id="next-turn" title="Advance to the next command boundary and pause" disabled>Next turn</button>
+                <div class="buttons" role="group" aria-label="Turn controls">
+                  <button id="commit" title="Confirm orders and play to the next turn, then pause" aria-pressed="false" disabled>Commit</button>
+                  <button id="next-turn" title="Skip to the next turn and pause" disabled>Skip</button>
+                </div>
               </div>
             </div>
             <section id="mission-controls" aria-label="Blockade mission" hidden>

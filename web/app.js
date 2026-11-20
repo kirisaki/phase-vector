@@ -89,7 +89,9 @@ function refresh() {
   }
   element('step').textContent = `+${state.timing.step_forward_seconds} s`;
   element('step').setAttribute('aria-label', `Advance up to ${state.timing.step_forward_seconds} seconds`);
-  element('next-turn').title = `Advance to the next ${state.timing.interval_seconds}-second boundary and pause`;
+  element('next-turn').title = `Skip to the next ${state.timing.interval_seconds}-second turn boundary and pause`;
+  element('commit').title = `Confirm orders and play at ${state.speed}× to the next ${state.timing.interval_seconds}-second turn boundary, then pause`;
+  element('commit').setAttribute('aria-pressed', String(state.stop_at_boundary));
   element('burn-fields').querySelector('legend').textContent = `Constant acceleration for the next ${state.timing.interval_seconds} s`;
   const planning = state.phase === 'planning';
   const plan = JSON.stringify(state.planned_burn);
@@ -106,10 +108,11 @@ function refresh() {
   element('ticks').textContent = state.world.tick;
   element('time').textContent = state.time_seconds.toFixed(2);
   element('command-number').textContent = `COMMAND ${String(state.command_number).padStart(2, '0')}`;
-  element('window-time').textContent = finished ? 'Mission complete' : `Next order: ${planning ? 'now' : state.remaining_seconds.toFixed(2) + ' s'}`;
+  element('window-time').textContent = finished ? 'Mission complete' : state.stop_at_boundary ? `Auto-pause: ${state.remaining_seconds.toFixed(2)} s` : `Next order: ${planning ? 'now' : state.remaining_seconds.toFixed(2) + ' s'}`;
   element('toggle').textContent = state.paused ? 'Play' : 'Pause';
   element('toggle').disabled = !ready || finished || (state.paused && (dirtyPlan || routeEditor.dragging || missionControls.dragging));
   element('step').disabled = !ready || finished || !state.paused || dirtyPlan || routeEditor.dragging || missionControls.dragging;
+  element('commit').disabled = !ready || finished || dirtyPlan || routeEditor.dragging || missionControls.dragging;
   element('next-turn').disabled = !ready || finished || dirtyPlan || routeEditor.dragging || missionControls.dragging;
   element('burn-fields').disabled = !ready || finished;
   for (const button of speedButtons) {
@@ -149,7 +152,8 @@ function invoke(action) {
 
 element('toggle').addEventListener('click', () => invoke(() => command(JSON.parse(state_json()).paused ? 'play' : 'pause')));
 element('step').addEventListener('click', () => invoke(() => command('step_forward')));
-element('next-turn').addEventListener('click', () => invoke(() => command('next_turn')));
+element('commit').addEventListener('click', () => invoke(() => command('commit')));
+element('next-turn').addEventListener('click', () => invoke(() => command('skip')));
 for (const button of speedButtons) {
   button.addEventListener('click', () => invoke(() => set_speed(Number(button.dataset.speed))));
 }

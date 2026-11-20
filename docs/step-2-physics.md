@@ -54,13 +54,18 @@ Drafts can be edited while running or paused; they never modify the active
 interval. A changed vector replaces the next order and then repeats until
 changed again. The passive second ship coasts.
 
-`play`, `resume`, and the compatibility command `commit` start or resume playback.
-Repeated calls during execution do not restart the interval or duplicate its
-log record. At a paused boundary, the next Play or step applies the current draft.
+`play` and `resume` start continuous playback. `commit` plays at the selected
+speed until the next command boundary, then pauses before applying another
+interval. Repeated calls during execution do not restart the interval, extend
+its stop time, or duplicate its log record. The `stop_at_boundary` snapshot flag
+exposes the active Commit mode to both UI and Lua. Speed changes preserve the
+stop; Pause cancels it, and Play selects continuous playback again. Automatic
+stopping discards leftover playback quanta so a fast pulse cannot cross the
+requested boundary. At a paused boundary, Play, Commit, or a step applies the draft.
 
 The UI's +10 s action (`step_forward`) runs up to 40 fixed ticks while paused,
 clipped to the current interval's end. The Lua `step` command advances one tick.
-Both can start a new interval without unpausing. Next turn (`next_turn`) finishes
+Both can start a new interval without unpausing. Skip (`skip`, with `next_turn` retained as an alias) finishes
 the current interval, or starts one at a boundary, and always stops paused at its
 end. These actions process all physical ticks, including contacts and delta-v.
 
@@ -124,7 +129,7 @@ Candidate trajectories replace the applied preview during a drag. Pointer
 capture supports mouse/touch dragging outside the circle or canvas. Keyboard
 arrows immediately apply adjustments, Shift makes them finer, and Home plans
 coasting. Telemetry and preview metrics remain in the normal flight controls.
-Play from pause, stepping, and Next turn are disabled during a drag; Pause is
+Play from pause, stepping, Commit, and Skip are disabled during a drag; Pause is
 still available while running. Movement inside an interval does not cancel a
 gesture. At a command boundary the chosen direction and reachable-disk fraction
 are rebased onto the next interval. An external order change cancels a stale

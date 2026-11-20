@@ -84,6 +84,7 @@ def main():
             page.mouse.move(point['x'], point['y'])
             page.mouse.down()
             expect(page.locator('#next-turn')).to_be_disabled()
+            expect(page.locator('#commit')).to_be_disabled()
             page.mouse.move(point['x'] - 30, point['y'] + 20, steps=4)
             page.mouse.up()
             page.locator('#queue-shot').click()
@@ -125,7 +126,8 @@ def main():
                 while state()['world']['tick'] <= count * reload_ticks:
                     page.locator('#step').click()
                 assert len(state()['mission']['shots']) == count + 1
-            next_turn()
+            page.locator('#commit').click()
+            page.wait_for_function('readState().paused', timeout=30000)
             assert state()['world']['tick'] == timing['interval_ticks']
             assert [shot['launch_tick'] for shot in state()['mission']['shots']] == [i * reload_ticks for i in range(4)]
             remaining_slots = round((state()['mission']['deadline_seconds'] - state()['time_seconds']) / state()['mission']['reload_seconds'])
@@ -140,12 +142,16 @@ def main():
             page.evaluate("wasm.command('reset')")
             page.wait_for_timeout(200)
             # No attack must lose; the terminal state freezes all gameplay commands.
-            for _ in range(10):
+            for _ in range(9):
                 next_turn()
+            page.locator('[data-speed="128"]').click()
+            page.locator('#commit').click()
+            page.wait_for_function('readState().mission.outcome !== "running"', timeout=30000)
+            assert not state()['stop_at_boundary']
             assert state()['mission']['outcome'] == 'breakthrough'
             assert abs(state()['mission']['ended_seconds'] - 1173.333333) < 0.001
             expect(page.locator('#mission-status')).to_contain_text('Defeat')
-            for control in ['toggle', 'step', 'next-turn', 'queue-shot']:
+            for control in ['toggle', 'step', 'commit', 'next-turn', 'queue-shot']:
                 expect(page.locator('#' + control)).to_be_disabled()
             expect(page.locator('#burn-fields')).to_have_attribute('disabled', '')
             end = state()['world']
@@ -203,7 +209,7 @@ def main():
                 assert page.evaluate('document.documentElement.scrollWidth <= innerWidth && document.documentElement.scrollHeight <= innerHeight')
                 box = page.locator('#tactical-map').bounding_box()
                 assert box['height'] >= 110 and box['width'] >= 200, box
-                for control in ['queue-shot', 'track-aim', 'next-turn']:
+                for control in ['queue-shot', 'track-aim', 'commit', 'next-turn']:
                     page.locator('#' + control).scroll_into_view_if_needed()
                     expect(page.locator('#' + control)).to_be_in_viewport()
                 if width == 390:

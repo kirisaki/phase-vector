@@ -135,7 +135,8 @@ share the status area; longer messages can be scrolled inside it.
 | Overview / Own ship / Contact | Overview automatically fits both ships; Own ship and Contact follow one ship at a fixed zoom |
 | Map − / + | Set a manual zoom; select Overview again to resume automatic fitting |
 | Play / Pause | Start or stop playback; the applied thrust vector repeats every 120 seconds until changed |
-| Next turn | Execute to the next 120-second boundary and pause, preserving the queued order |
+| Commit | Confirm orders and play at the selected speed to the next 120-second boundary, then pause |
+| Skip | Immediately simulate to the next 120-second boundary and pause, preserving the queued order |
 | +10 s | Advance 10 simulated seconds while paused, stopping at the next planning boundary if sooner |
 | Playback speed buttons | Select 1×, 32×, 64×, or 128× (default 32×) beside Play / Pause and Step; the active speed is highlighted and follows Lua changes |
 | Show / Hide Lua console | Toggle the initially hidden REPL; input, output, and Lua globals are retained. Close or Escape returns focus to the toggle |
@@ -181,9 +182,11 @@ interval and continues automatically across subsequent 120-second boundaries.
 The last applied thrust direction and magnitude repeat; they do not reset to
 coasting. A new map or numeric order can be queued while running or paused and
 takes effect at the next boundary. The active interval remains unchanged.
-At a paused boundary, Play or stepping applies the latest order immediately.
+Commit plays just to the next boundary and pauses before applying the following
+interval's orders. Its highlighted button and countdown show the automatic stop.
+At a paused boundary, Play, Commit, or stepping applies the latest order immediately.
 Position, velocity, delta-v, and projectiles persist. Unapplied numeric edits
-block Play, stepping, and Next turn, but never prevent pausing playback.
+block Play, Commit, stepping, and Skip, but never prevent pausing playback.
 
 A pale ring expands from the friendly ship whenever a new interval's order is
 applied, including a zero-thrust order. This marks the **120-second command
@@ -242,7 +245,7 @@ Releasing a graphical drag replaces the current draft, including any unapplied
 numeric input. Escape, interrupted touch, or loss of window focus cancels only
 the current gesture and preserves the previous draft and numeric input. The
 telemetry and preview metrics remain visible throughout. Play from pause, stepping,
-and Next turn are disabled during a drag; Pause remains available while running.
+Commit, and Skip are disabled during a drag; Pause remains available while running.
 A drag that crosses a command boundary keeps its direction and fraction of the
 reachable disk, rebased onto the next interval. External order changes through
 Lua cancel a stale drag, retaining the last applied plan. Releasing the handle queues an order
@@ -260,7 +263,8 @@ game.command("step"); return game.state().time_seconds
 game.command("step_forward") -- Same 10-second advance as the UI
 game.speed(64)
 game.command("play")
-game.command("next_turn")
+game.command("commit") -- Animate to the next turn and pause
+game.command("skip") -- Immediately simulate to the next turn and pause
 game.command("reset")
 ```
 
@@ -292,9 +296,14 @@ testing.
 `game.command("step")` retains the diagnostic single-tick (0.25 s) advance;
 `game.command("step_forward")` matches the UI's +10 s button. Both require paused
 playback and process all physical ticks without crossing a command boundary.
-They can start the next interval while staying paused. `play`, `resume`, and
-`commit` are equivalent playback commands; repeated calls do not restart an
-active interval or change its orders.
+They can start the next interval while staying paused. `play` and `resume` select
+continuous playback. `commit` starts or resumes playback with an automatic stop
+at the next command boundary. Repeated Commit calls during an active interval
+do not extend its stop time or change its frozen orders. Speed changes preserve
+the automatic stop. `pause` cancels the automatic stop; use Commit to continue
+only to the boundary or Play to continue across turns. `skip` immediately
+simulates to that boundary and pauses; `next_turn` remains its compatible alias.
+`game.state().stop_at_boundary` reports whether Commit playback is active.
 Invalid commands,
 syntax errors, and runtime errors appear in the console. One evaluation has a
 20,000-fuel budget to interrupt accidental infinite loops. Effects performed
