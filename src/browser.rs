@@ -9,10 +9,15 @@ use wasm_bindgen::prelude::*;
 use getrandom as _;
 use getrandom03 as _;
 
-use crate::{map::MapView, physics::Vector2, repl::Host};
+use crate::{
+    map::MapView,
+    physics::Vector2,
+    repl::Host,
+    session::{Command, Session},
+};
 
 thread_local! {
-    static HOST: RefCell<Host> = RefCell::new(Host::default());
+    static HOST: RefCell<Host> = RefCell::new(Host::with_session(Session::blockade()));
     static MAP: RefCell<MapView> = RefCell::new(MapView::default());
     static FRAMES: RefCell<u32> = const { RefCell::new(0) };
     static ROUTE_EDITING: RefCell<bool> = const { RefCell::new(false) };
@@ -48,6 +53,31 @@ pub fn plan_arrival(x: f64, y: f64) -> Result<(), JsValue> {
 }
 
 #[wasm_bindgen]
+pub fn queue_shot(x: f64, y: f64) -> Result<(), JsValue> {
+    HOST.with_borrow(|host| {
+        host.state
+            .borrow_mut()
+            .dispatch(Command::QueueShot(Vector2::new(x, y)))
+            .map_err(|e| JsValue::from_str(&e))
+    })
+}
+
+#[wasm_bindgen]
+pub fn preview_shot(x: f64, y: f64) -> Result<String, JsValue> {
+    HOST.with_borrow(|host| {
+        let session = host.state.borrow();
+        let view = session.snapshot();
+        let solution = crate::mission::solve_shot(
+            &view.planning_ship(),
+            Vector2::new(x, y),
+            (view.order_start_seconds / crate::physics::STEP_SECONDS) as u64,
+        )
+        .map_err(|e| JsValue::from_str(&e))?;
+        Ok(serde_json::to_string(&solution).expect("serializable shot"))
+    })
+}
+
+#[wasm_bindgen]
 pub fn preview_arrival(x: f64, y: f64) -> Result<String, JsValue> {
     HOST.with_borrow(|host| {
         let session = host.state.borrow();
@@ -71,11 +101,38 @@ pub fn state_json() -> String {
     HOST.with_borrow(|host| {
         let session = host.state.borrow();
         let snapshot = session.snapshot();
+        let visible = snapshot.presentation_world();
         let mut value = serde_json::to_value(&snapshot).expect("serializable session");
+        value["world"] = serde_json::to_value(&visible).expect("serializable visible world");
+        value["mission"] = serde_json::Value::Null;
+        if let Some(mission) = snapshot.mission {
+            for ship in value["world"]["ships"].as_array_mut().expect("ship array") {
+                if ship["id"] == mission.config.enemy_id {
+                    let fields = ship.as_object_mut().expect("ship object");
+                    fields.remove("remaining_dv");
+                    fields.remove("spent_dv");
+                }
+            }
+            let contact = &mission.sensors.contact;
+            let position = contact.position_at(snapshot.world.tick);
+            let seconds = crate::physics::STEP_SECONDS;
+            let queued_solution = mission.queued.as_ref().and_then(|order|
+                crate::mission::solve_shot(&snapshot.planning_ship(), order.target, order.launch_tick).ok());
+            value["mission"] = serde_json::json!({
+                "outcome": mission.outcome, "ended_seconds": mission.ended_seconds,
+                "goal": mission.config.goal, "goal_radius": mission.config.goal_radius,
+                "deadline_seconds": mission.config.deadline_tick as f64 * seconds,
+                "ready_seconds": mission.ready_tick as f64 * seconds,
+                "shots": mission.shots, "queued": mission.queued,
+                "queued_solution": queued_solution, "aim": session.aim().ok(),
+                "contact": contact, "contact_age": (snapshot.world.tick - contact.sampled_tick) as f64 * seconds,
+                "prediction": [position, position + contact.velocity * 360.0],
+            });
+        }
         value["maneuver"] =
             serde_json::to_value(route_preview(&snapshot)).expect("serializable route");
         value["map"] = MAP.with_borrow(|map| {
-            serde_json::to_value(map.frame(snapshot.world, snapshot.player_id))
+            serde_json::to_value(map.frame(&visible, snapshot.player_id))
                 .expect("serializable map")
         });
         serde_json::to_string(&value).expect("serializable browser state")
@@ -90,7 +147,7 @@ pub fn set_map_view(name: &str, aspect: f64) -> Result<(), JsValue> {
         MAP.with_borrow_mut(|map| {
             map.focus(name).map_err(|e| JsValue::from_str(&e))?;
             // Fit before publishing the new view to SVG pointer controls.
-            map.update_auto_zoom(view.world, view.player_id, aspect, 0.0);
+            map.update_auto_zoom(&view.presentation_world(), view.player_id, aspect, 0.0);
             Ok(())
         })
     })
@@ -163,11 +220,12 @@ fn draw_world(mut gizmos: Gizmos, windows: Query<&Window>, time: Res<Time>) {
     HOST.with_borrow(|host| {
         let session = host.state.borrow();
         let view = session.snapshot();
+        let visible = view.presentation_world();
         let frame = MAP.with_borrow_mut(|map| {
             if !ROUTE_EDITING.with_borrow(|editing| *editing) {
-                map.update_auto_zoom(view.world, view.player_id, aspect, time.delta_secs_f64());
+                map.update_auto_zoom(&visible, view.player_id, aspect, time.delta_secs_f64());
             }
-            map.frame(view.world, view.player_id)
+            map.frame(&visible, view.player_id)
         });
         let spacing = frame.grid_metres / frame.metres_per_unit;
         let offset_x = (-frame.center.x).rem_euclid(frame.grid_metres) / frame.metres_per_unit;
@@ -208,7 +266,7 @@ fn draw_world(mut gizmos: Gizmos, windows: Query<&Window>, time: Res<Time>) {
             }
             // The SVG overlay draws the planned route with continuous pixel-spaced dots.
         }
-        for ship in &view.world.ships {
+        for ship in &visible.ships {
             let local = frame.project(ship.position);
             if !on_screen(local) {
                 continue;

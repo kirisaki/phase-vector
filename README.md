@@ -4,29 +4,31 @@ A browser-based 2D space tactics proof of concept. Place attacks at an enemy's
 future position and prevent a breakthrough through hits, evasive course changes,
 and delta-v expenditure.
 
-**[Open the physics sandbox](https://kirisaki.github.io/phase-vector/)**
+**[Play the blockade](https://kirisaki.github.io/phase-vector/)**
 
 ## Status
 
-**Step 2: physics and WEGO execution.** Two ships move with inertia, bounded
-acceleration, and finite delta-v. Drag the burn handle around the friendly ship
-to plan a constant thrust vector for 120 seconds, then press Play for continuous 120-second orders. Bevy draws
-the authoritative physical state; an SVG overlay shows the dotted friendly route. The UI and Lua
-use the same validated command API.
+**Step 3: blockade mission.** One friendly ship must stop a non-firing enemy
+from reaching its exit before 1,200 seconds. Fire an unguided railgun at a future
+point; the enemy reacts only to delivered attack observations and tries to
+recover its course. Win by disabling it or delaying it past the deadline.
 
-This is a physics sandbox. The second ship coasts without an AI. Mission rules,
-weapons, observations, scoring, and enemy predictions remain steps 3–6. The
-friendly endpoint editor is an early, limited subset of step 4.
-Projectile contacts are implemented and tested in the physics core; firing UI
-and hit consequences are not implemented yet.
+Physics and continuous 120-second command cycles remain independent of rendering.
+Plan thrust directly on the map and queue a single shot for the next boundary,
+while running or paused. Enemy markers, camera framing, and the amber prediction
+use delayed observations. The Lua console exposes true state separately for
+diagnostics. The UI and Lua share the same validated command API.
+
+This milestone includes minimal aiming, prediction, result metrics, and retry
+controls to play and verify the mission. Arbitrary shot arrival times, multiple
+future reservations, a time slider, formal scoring, and paused parameter editing
+remain steps 4–5. Tuning is provisional; the current enemy is conservative.
 
 See the [PoC specification](docs/poc-spec.md),
 [stack decisions](docs/step-1-stack.md),
-[physics and time model](docs/step-2-physics.md), and
-[provisional combat scale](docs/combat-scale.md).
-
-The step-3 mission core and shared Lua API are now implemented; browser mission
-controls are being integrated separately. See [blockade rules and assumptions](docs/step-3-blockade.md).
+[physics and time model](docs/step-2-physics.md),
+[provisional combat scale](docs/combat-scale.md), and
+[blockade rules and assumptions](docs/step-3-blockade.md).
 
 ## Build and run locally
 
@@ -104,15 +106,15 @@ this development server on loopback or a trusted LAN; Vite and its dependencies
 are not shipped in the published site. Do not use `npm audit fix --force` to
 downgrade Vite automatically.
 
-## Sandbox controls
+## Mission controls
 
 The application fills the available browser viewport without page scrolling or
 visible scrollbars. The map uses the remaining space above the controls; short,
 wide viewports place the controls beside it. On narrow or short screens, opening
 the Lua console replaces the map area until closed. Console history remains
-scrollable by touch, wheel, or keyboard. Very short viewports (such as when the
-software keyboard is open) also allow scrolling within the flight controls so
-inputs remain reachable. Browser chrome stays visible; no fullscreen permission
+scrollable by touch, wheel, or keyboard. Compact viewports also allow scrolling
+within the flight controls so inputs remain reachable while the map keeps a
+minimum visible height. Browser chrome stays visible; no fullscreen permission
 is requested. The layout follows visual-viewport changes and device safe areas.
 Clock, telemetry, and status rows reserve their space so planning, playback,
 pause/resume, and changing digits do not resize the map. Numeric-edit warnings
@@ -120,6 +122,11 @@ share the status area; longer messages can be scrolled inside it.
 
 | Control | Behavior |
 | --- | --- |
+| Aim crosshair | Drag the future target point on the map; arrows move it by 100 km (Shift: 10 km), Home restores observed lead tracking |
+| Track lead | Follow the constant-velocity intercept from the last received enemy observation; this is a prediction, not a guaranteed hit |
+| Queue shot / Replace shot | Reserve one shot at the next 120-second boundary; subsequent aim movement does not change the reservation until Replace is pressed |
+| Cancel shot | Remove an unlaunched reservation; flying rounds remain ballistic |
+| Retry | Available after victory or defeat; restore the complete initial scenario |
 | Ship-centered Burn handle | Available while running or paused; drag directly without switching modes or changing the camera |
 | Drag / release | Preview the burn, delta-v cost, remaining delta-v, and arrival velocity; release to queue the next interval; the current interval keeps its active order |
 | Drag outside the ring | Clamp the handle to the reachable circle in the cursor's direction |
@@ -136,6 +143,23 @@ share the status area; longer messages can be scrolled inside it.
 | Run Lua | Evaluate input; Ctrl+Enter or Command+Enter also submits |
 | Example buttons | Fill the console input without executing it |
 | Reload page | Start a new simulation and Lua session |
+
+The red **EXIT** circle marks the enemy's destination. Prevent entry until the
+1,200-second deadline. A hit wins immediately; fuel exhaustion or a temporary
+course deviation alone does not win. Terminal results freeze time and report the
+reason, event time, shot count, and friendly delta-v spent. Exact simultaneous
+impact/entry favors disablement; entry at the deadline beats timeout. No formal
+points formula is implemented yet.
+
+The gun has unlimited ammunition and a 120-second reload. Each reservation fires
+once at the next command boundary, using the firing ship's velocity plus a fixed
+660 km/s muzzle velocity. The preview solves direction and flight time for the
+chosen world point. Unreachable points are rejected. Pending previews are
+recomputed from the predicted launch state; the actual launch solves again.
+Already flying rounds are unaffected by later maneuvers. The white dashed line
+shows the aim; a brighter dashed line retains the reserved shot. Thin white
+trails show launched rounds. Amber dots show a 360-second constant-observed-velocity
+prediction. Enemy fuel and AI decisions are absent from the normal view.
 
 The initial state is paused, with unlimited planning time. Play starts the first
 interval and continues automatically across subsequent 120-second boundaries.
@@ -157,8 +181,8 @@ km/s. The grid spacing changes with zoom and is labeled on the map. Symbols and
 velocity-direction arrows are enlarged for readability; collision radii remain
 physical and are visible as rings at close zoom.
 
-Overview automatically adjusts zoom as the ships move, using the actual viewport
-aspect ratio and keeping space around both ships. `Overview · Auto` indicates
+Overview automatically adjusts zoom as the friendly ship and observed contact
+move, using the actual viewport aspect ratio and keeping space around both ships. `Overview · Auto` indicates
 that this is enabled. Zoom changes ease over real frame time, independently of
 playback speed; a large jump or resize zooms out immediately if needed to keep
 both ships visible. Manual −/+ zoom suspends automatic fitting until Overview is
@@ -239,9 +263,12 @@ Unreachable endpoints return an error without changing the existing plan.
 `game.state().scale` exposes `light_speed_mps`, `railgun_speed_mps`,
 `reference_range_m`, and `reference_flight_seconds`. Changing these Lua tables
 does not modify the Rust state.
-`game.command("reset")` is a developer REPL command that restores planning at
-tick zero with full delta-v and 32× playback while retaining Lua globals; there is no reset button
-in the normal controls.
+`game.command("reset")` (also `retry`) restores the current scenario at tick zero
+with full delta-v and 32× playback while retaining Lua globals. The normal Retry
+button is enabled after mission completion. `game.command("sandbox")` selects
+the original physics sandbox; `game.command("mission")` starts a new blockade.
+The URL query `?sandbox=1` also starts the sandbox for development and regression
+testing.
 `game.command("step")` retains the diagnostic single-tick (0.25 s) advance;
 `game.command("step_forward")` matches the UI's +10 s button. Both require paused
 playback and process all physical ticks without crossing a command boundary.
@@ -255,12 +282,31 @@ before an error or budget exhaustion are retained; there is no transaction rollb
 Input is limited to 4,096 UTF-8 bytes, printed output to 64 lines per evaluation,
 each displayed value to 1,024 characters, and visible history to 100 entries.
 
+Mission commands and privileged diagnostics:
+
+```lua
+game.fire(game.aim()) -- Queue the observed-lead target at the next boundary
+game.command("cancel_shot")
+game.fire(120000000, -13600000) -- Fixed world target in metres
+return game.state().mission.outcome, game.state().mission.shots
+return game.state().mission.ai_reason, game.state().mission.evasions
+return game.state().mission.contact.sampled_tick, game.state().mission.contact.received_tick
+return game.state().mission.threats[1] -- Delivered projectile track, if available
+```
+
+`game.state().ships` is authoritative diagnostic state. `mission.contact` and
+`mission.threats` are detached delivered observations with `id`, `x/y`, `vx/vy`,
+`radius`, `sampled_tick`, and `received_tick`. `ai_ax`, `ai_ay`, and
+`ai_hold_until_tick` expose the current enemy order. Editing these returned Lua
+tables does not change the simulation. There is no general parameter editor yet.
+
 ## Verification
 
 ```sh
 cargo fmt --all -- --check
 cargo clippy --locked --all-targets -- -D warnings
 cargo test --locked
+cargo run --locked --example blockade_trials
 cargo clippy --locked --target wasm32-unknown-unknown -- -D warnings
 python3 scripts/build_web.py
 ```
@@ -283,9 +329,10 @@ python3 -m venv .venv
 python -m pip install -r requirements-browser.txt
 python -m playwright install --with-deps chromium
 python scripts/browser_smoke.py
+python scripts/mission_smoke.py
 ```
 
-The smoke test opens Chromium and fulfills browser requests from `dist/` at a
+The sandbox smoke test opens Chromium and fulfills browser requests from `dist/` at a
 virtual HTTPS `/phase-vector/` URL. It checks engine startup, a visible scene
 change after commands, delta-v consumption, exact interval boundaries, queued
 orders, and identical results from playback and manual stepping. A pointer-authored
@@ -304,10 +351,17 @@ rebuild and then run the same browser interactions against the development serve
 python scripts/browser_smoke.py --url http://127.0.0.1:5173/ --rebuild
 ```
 
+The mission smoke test uses the default game and checks observed prediction,
+mouse/touch target dragging, queue/cancel, running reservations, boundary firing,
+ballistic persistence, no-attack defeat, seven-shot non-hit timeout victory,
+terminal locks, retry, and desktop/phone layouts. It also accepts `--url` and
+`--executable-path`.
+
 This requires the build tools on `PATH`. To exercise the real hosted site:
 
 ```sh
 python scripts/browser_smoke.py --url https://kirisaki.github.io/phase-vector/
+python scripts/mission_smoke.py --url https://kirisaki.github.io/phase-vector/
 ```
 
 ## CI and GitHub Pages
@@ -352,13 +406,23 @@ not require a game server or custom domain.
   separation, giving a stationary-target flight time of about 363.636 seconds.
   Ships start at 75 / 37.5 km/s with 5 G maximum acceleration (using standard
   gravity), 60 km/s delta-v each, and the retained 0.5 km collision radii.
-  Ship motion uses a Newtonian approximation. Firing and light-delayed
-  observations are not implemented yet.
-- Step 2 supports one constant burn per interval. There is no mission deadline,
-  enemy evasion, firing UI, victory condition, or observation model yet. Use the local
-  map views to inspect maneuvers at the current engagement scale.
+  Ship motion uses a Newtonian approximation. Sensor samples arrive after 1 s
+  processing plus rounded-up light travel time measured at sampling. Moving
+  receivers, noise, occlusion, and relativistic effects are not modeled.
+- The enemy reacts autonomously once per second, within player command intervals.
+  Its 120 s threat horizon is independent of projectile flight time. A conservative
+  75 km safety corridor and 120 s committed evasion are tuning assumptions.
+- The normal view extrapolates the latest received enemy track. The initial track
+  is supplied by the briefing. Lua inspection intentionally exposes true state.
+- One constant burn repeats each interval; a shot reservation fires only once.
+  Arbitrary arrival times and multiple future reservations remain step 4.
 - Projectiles have no expiry or map culling. Contacts consume projectiles and
-  record events; ship disablement will be defined by step-3 mission rules.
+  record events; hitting the enemy ends the mission with disablement. Terminal
+  physics is frozen at the end of the event tick; result time includes its fraction.
+- Goal circles have a minimum display radius of 3 px for readability; physical
+  entry uses the specified 1,000 km radius. Symbols are also enlarged.
+- Mission scoring and paused parameter edits remain step 5. The default balance
+  demonstrates placement-dependent denial and is not final difficulty tuning.
 - First-load size and performance are not final. Browser errors are shown in the
   page; details are also available in the browser developer console.
 

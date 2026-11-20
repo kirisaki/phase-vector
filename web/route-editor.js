@@ -83,9 +83,11 @@ export function createRouteEditor(onChange) {
     area.setAttribute('cx', cx); area.setAttribute('cy', cy);
     area.setAttribute('r', control.radius);
 
-    area.style.display = '';
-    handle.style.display = '';
-    handle.tabIndex = 0;
+    area.style.display = finished() ? 'none' : '';
+    handle.style.display = finished() ? 'none' : '';
+    handle.tabIndex = finished() ? -1 : 0;
+    handle.style.pointerEvents = area.style.pointerEvents = finished() ? 'none' : '';
+    handle.setAttribute('aria-disabled', String(Boolean(finished())));
     // Leave the ship itself visible at zero thrust, while retaining the hit target.
     handle.querySelector('.handle-dot').style.display = Math.hypot(x - cx, y - cy) > 2 ? '' : 'none';
     el('map-coast-route').setAttribute('d', dragging ? path([context.maneuver.points[0], coast]) : '');
@@ -130,14 +132,16 @@ export function createRouteEditor(onChange) {
     el('route-remaining').textContent = candidate ? km(candidate.remaining_dv) : '—';
     el('route-velocity').textContent = candidate ? `${km(candidate.arrival_velocity.x)}, ${km(candidate.arrival_velocity.y)}` : '—';
     el('route-feedback').dataset.invalid = String(dragging && !valid);
-    el('route-feedback').textContent = error || (dirtyNumeric ? 'Apply edited numeric values to update the next order.' : '') || (
+    el('route-feedback').textContent = (finished() ? 'Mission complete. Retry to plan another blockade.' : '') || error || (dirtyNumeric ? 'Apply edited numeric values to update the next order.' : '') || (
       !valid && dragging ? 'Unreachable: outside the acceleration and delta-v limits.' :
       `Drag Burn · Applies ${planning ? 'on Play' : 'at ' + number.format(state.order_start_seconds) + ' s'} · Repeats every 120 s. ` +
       (planning ? 'Home: coast.' : `Active: ${number.format(state.active_burn.x)}, ${number.format(state.active_burn.y)} m/s².`));
   }
 
+  const finished = () => state?.mission && state.mission.outcome !== 'running';
+
   function begin() {
-    if (!ready || !state || dragging) return false;
+    if (!ready || !state || dragging || finished()) return false;
     context = state;
     fingerprint = identity(state);
     target = state.maneuver.endpoint;
@@ -249,7 +253,7 @@ export function createRouteEditor(onChange) {
         lastCommand = command;
         svg.dataset.commandTick = command === undefined ? '' : String(command);
       }
-      if (dragging && !rebaseGesture(state)) finish(false);
+      if (dragging && (finished() || !rebaseGesture(state))) finish(false);
       render();
     },
   };

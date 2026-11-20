@@ -1,7 +1,6 @@
 # Step 3: blockade mission
 
-The mission core and shared command API are implemented. The browser mission
-view described here is the next integration change.
+The mission core, shared command API, and browser mission controls are implemented.
 
 ## Rules and scope
 
@@ -61,9 +60,10 @@ ship-to-ship collision, guided weapon, or enemy gun.
 ## Information boundary
 
 `observation::Sensors` is the only adapter that samples the true world. Pending
-packets are private. Delivery occurs only after processing plus light travel;
-samples are tagged with acquisition and receipt ticks. The initial enemy track
-comes from the mission briefing. The PoC assumes unobstructed detection of all
+packets are private. Delivery occurs only after processing plus light travel.
+Propagation delay uses the distance at sampling; moving-receiver corrections
+are outside this PoC. Samples are tagged with acquisition and receipt ticks.
+The initial enemy track comes from the mission briefing. The PoC assumes unobstructed detection of all
 friendly projectiles. It does not model noise, occlusion, or passive emissions.
 
 Enemy AI receives only its own ship, goal, cruise speed, delivered projectile
@@ -106,6 +106,18 @@ shots and seven shots placed 10,000 km away in Y. With the current tuning, the
 lead pattern wins by timeout without hits; the displaced pattern loses by
 breakthrough. Both fire the same number of shots and the enemy still has fuel.
 The demonstration validates placement-dependent delay, not optimal tactics.
+
+`scripts/mission_smoke.py` plays the default mission in Chromium, including a
+no-attack defeat and the seven-shot non-hit victory. It exercises mouse/touch
+aiming, queue/cancel, running edits, launch boundaries, frozen outcomes, and retry.
+The browser renders the default blockade; `?sandbox=1` retains the original
+sandbox for `scripts/browser_smoke.py` regression checks.
+
+The Aim crosshair edits a world-space point without changing the reserved shot.
+Queue/Replace explicitly stores it; Track lead restores observation-based aiming.
+A reserved point is fixed until replaced, while its direction/flight preview is
+recomputed from the predicted launch state. White trails show flying rounds;
+amber dots indicate a constant-observed-velocity estimate, not the AI's future.
 
 Formal score weighting and general paused parameter editing remain step 5.
 This milestone reports outcome, elapsed time, shot count, and friendly delta-v.

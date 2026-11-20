@@ -194,6 +194,19 @@ impl Host {
                         )?;
                         table.set(ctx, "contact_x", mission.sensors.contact.position.x)?;
                         table.set(ctx, "contact_y", mission.sensors.contact.position.y)?;
+                        table.set(ctx, "contact", track_table(ctx, &mission.sensors.contact)?)?;
+                        let threats = Table::new(&ctx);
+                        for (i, track) in mission.sensors.threats.iter().enumerate() {
+                            threats.set(ctx, (i + 1) as i64, track_table(ctx, track)?)?;
+                        }
+                        table.set(ctx, "threats", threats)?;
+                        table.set(ctx, "ai_ax", mission.decision.acceleration.x)?;
+                        table.set(ctx, "ai_ay", mission.decision.acceleration.y)?;
+                        table.set(
+                            ctx,
+                            "ai_hold_until_tick",
+                            mission.decision.hold_until as f64,
+                        )?;
                         table.set(ctx, "queued", mission.queued.is_some())?;
                         snapshot.set(ctx, "mission", table)?;
                     }
@@ -307,6 +320,26 @@ impl Host {
             lines.join("\n")
         })
     }
+}
+
+fn track_table<'gc>(
+    ctx: Context<'gc>,
+    track: &crate::observation::Track,
+) -> Result<Table<'gc>, piccolo::Error<'gc>> {
+    let table = Table::new(&ctx);
+    for (key, value) in [
+        ("id", track.id as f64),
+        ("sampled_tick", track.sampled_tick as f64),
+        ("received_tick", track.received_tick as f64),
+        ("x", track.position.x),
+        ("y", track.position.y),
+        ("vx", track.velocity.x),
+        ("vy", track.velocity.y),
+        ("radius", track.radius),
+    ] {
+        table.set(ctx, key, value)?;
+    }
+    Ok(table)
 }
 
 fn ship_table<'gc>(ctx: Context<'gc>, ship: &Ship) -> Result<Table<'gc>, piccolo::Error<'gc>> {

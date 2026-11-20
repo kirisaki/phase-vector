@@ -1,5 +1,6 @@
 import init, { start, command, plan_burn, set_speed, set_map_view, zoom_map, run_lua, state_json, rendered_frames } from './pkg/phase_vector.js';
 import { createRouteEditor } from './route-editor.js';
+import { createMissionControls } from './mission.js';
 
 const element = (id) => document.getElementById(id);
 const output = element('console-output');
@@ -16,6 +17,8 @@ const routeEditor = createRouteEditor((applied) => {
   if (applied) { dirtyPlan = false; lastPlan = ''; }
   refresh();
 });
+
+const missionControls = createMissionControls(() => refresh());
 
 const narrowScreen = matchMedia('(max-width: 900px)');
 
@@ -92,17 +95,19 @@ function refresh() {
     dirtyPlan = false;
     lastPlan = plan;
   }
+  const finished = state.mission && state.mission.outcome !== 'running';
   routeEditor.sync(state, ready, dirtyPlan);
-  element('mode').textContent = state.paused ? 'PAUSED' : 'EXECUTING';
+  missionControls.sync(state, ready, dirtyPlan || routeEditor.dragging);
+  element('mode').textContent = finished ? 'COMPLETE' : state.paused ? 'PAUSED' : 'EXECUTING';
   element('ticks').textContent = state.world.tick;
   element('time').textContent = state.time_seconds.toFixed(2);
   element('command-number').textContent = `COMMAND ${String(state.command_number).padStart(2, '0')}`;
-  element('window-time').textContent = `Next order: ${planning ? 'now' : state.remaining_seconds.toFixed(2) + ' s'}`;
+  element('window-time').textContent = finished ? 'Mission complete' : `Next order: ${planning ? 'now' : state.remaining_seconds.toFixed(2) + ' s'}`;
   element('toggle').textContent = state.paused ? 'Play' : 'Pause';
-  element('toggle').disabled = !ready || (state.paused && (dirtyPlan || routeEditor.dragging));
-  element('step').disabled = !ready || !state.paused || dirtyPlan || routeEditor.dragging;
-  element('next-turn').disabled = !ready || dirtyPlan || routeEditor.dragging;
-  element('burn-fields').disabled = !ready;
+  element('toggle').disabled = !ready || finished || (state.paused && (dirtyPlan || routeEditor.dragging || missionControls.dragging));
+  element('step').disabled = !ready || finished || !state.paused || dirtyPlan || routeEditor.dragging || missionControls.dragging;
+  element('next-turn').disabled = !ready || finished || dirtyPlan || routeEditor.dragging || missionControls.dragging;
+  element('burn-fields').disabled = !ready || finished;
   for (const button of speedButtons) {
     button.disabled = !ready;
     button.setAttribute('aria-pressed', String(Number(button.dataset.speed) === state.speed));
@@ -184,6 +189,7 @@ document.querySelectorAll('[data-example]').forEach((button) => {
 
 try {
   await init();
+  if (new URLSearchParams(location.search).get('sandbox') === '1') command('sandbox');
   start();
   const started = performance.now();
   const poll = setInterval(() => {

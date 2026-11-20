@@ -68,7 +68,8 @@ def main():
             page.route('https://phase-vector.test/**', serve)
 
         try:
-            response = page.goto(args.url or 'https://phase-vector.test/phase-vector/')
+            base = args.url or 'https://phase-vector.test/phase-vector/'
+            response = page.goto(base + ('&' if '?' in base else '?') + 'sandbox=1')
             assert response.ok, response.status
             expect(page.locator('body')).to_have_attribute('data-ready', 'true', timeout=90000)
             expect(page.locator('#ticks')).to_have_text('0')

@@ -344,3 +344,51 @@ fn lua_and_ui_share_shot_validation_and_mission_restart() {
         "running"
     );
 }
+
+#[test]
+fn mission_playback_speeds_and_steps_agree_through_terminal_events() {
+    let mut reference = Session::blockade();
+    let target = reference.aim().unwrap().target;
+    reference.dispatch(C::QueueShot(target)).unwrap();
+    while !reference.finished() {
+        reference.dispatch(C::NextTurn).unwrap();
+    }
+    for speed in [1.0, 32.0, 64.0, 128.0] {
+        let mut candidate = Session::blockade();
+        candidate.dispatch(C::QueueShot(target)).unwrap();
+        candidate.dispatch(C::SetSpeed(speed)).unwrap();
+        candidate.dispatch(C::Resume).unwrap();
+        for _ in 0..100_000 {
+            if candidate.finished() {
+                break;
+            }
+            candidate.pulse();
+        }
+        assert!(candidate.finished());
+        assert_eq!(candidate.world(), reference.world());
+        assert_eq!(candidate.mission(), reference.mission());
+        assert_eq!(
+            candidate.snapshot().command_log,
+            reference.snapshot().command_log
+        );
+    }
+}
+
+#[test]
+fn lua_exposes_detached_delivered_observations_and_ai_explanations() {
+    let mut host = phase_vector::repl::Host::with_session(Session::blockade());
+    host.evaluate("game.fire(game.aim()); game.command('step_forward')")
+        .unwrap();
+    assert_eq!(
+        host.evaluate("return #game.state().mission.threats, game.state().mission.contact.vy")
+            .unwrap(),
+        "1\t-37500"
+    );
+    assert_eq!(host.evaluate("local m = game.state().mission; return m.threats[1].sampled_tick < m.threats[1].received_tick, m.contact.sampled_tick < m.contact.received_tick, m.ai_reason ~= nil").unwrap(), "true\ttrue\ttrue");
+    host.evaluate("game.state().mission.threats[1].x = 0")
+        .unwrap();
+    assert_ne!(
+        host.evaluate("game.state().mission.threats[1].x").unwrap(),
+        "0"
+    );
+}

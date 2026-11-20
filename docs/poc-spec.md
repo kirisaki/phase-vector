@@ -8,14 +8,17 @@ enemy or delay its arrival beyond a deadline through forced evasive maneuvers an
 delta-v expenditure.
 
 This document records the requested behavior, not completed functionality.
-The current implementation includes step-2 physics and WEGO, connected to the
-browser and Lua. Mission behavior below remains planned until its corresponding
-milestone is implemented.
+The current implementation includes step-3 blockade rules and observation-limited
+enemy control, connected to the browser and Lua. See [blockade implementation](step-3-blockade.md)
+for adopted rules, tuning, and verification. Later milestone requirements below
+remain planned unless explicitly described as implemented.
 
 An early subset of step 4 now provides friendly 120-second endpoint planning,
 a three-boundary route forecast, arrival-velocity previews, and direct map manipulation with a ship-centered
 burn control. This does not
-implement enemy predictions, a variable-time slider, or the shot solver.
+implement a variable-time slider or arbitrary-arrival-time shot scheduling.
+Step 3 adds an observed constant-velocity enemy forecast and a fixed-boundary
+gun solver whose target is a world point and whose flight time is solved.
 
 ## Scope and implementation approach
 
@@ -101,7 +104,8 @@ implement enemy predictions, a variable-time slider, or the shot solver.
 - Around **10 command opportunities** per mission.
 - Enemy reaction lead time adjustable independently of projectile flight time,
   subject to light propagation and the observation rules. Light crosses the
-  initial range in about 0.801 s; no sensor or reaction policy is implemented yet.
+  initial range in about 0.801 s. Step 3 uses 1-second samples and processing,
+  plus quantized light delay; a 120-second threat horizon controls enemy reaction.
 - Tune parameters against measurable mission outcomes rather than a scripted
   success path.
 
@@ -132,15 +136,18 @@ compilation checks alone do not satisfy this milestone.
 - Step 1 selects Bevy 0.20.1, piccolo 0.3.3, wasm-bindgen, and WebGL2. See
   [the stack decision](step-1-stack.md) for tradeoffs and verification limits.
 - Step 2 selects 0.25-second ticks, SI units, `f64` simulation state, and swept
-  circle contacts. See [physics and time](step-2-physics.md). Mission geometry,
-  observation rules, AI policy, shot solver, and scoring formula remain open.
+  circle contacts. See [physics and time](step-2-physics.md). Step 3 defines
+  mission geometry, observations, AI policy, and the basic gun solver in
+  [blockade rules](step-3-blockade.md). Arbitrary-arrival scheduling and scoring
+  remain open.
 - Reproducibility must be tested independently of rendering and playback speed.
   Bit-identical results across browsers and architectures are not claimed until
   explicitly verified.
 - About ten 120-second intervals suggests an initial mission duration near
-  1,200 seconds. This is a tuning hypothesis, not a fixed deadline requirement.
+  1,200 seconds. Step 3 adopts this provisional deadline.
 - Exact ordering for arrival, impact, and timeout at the same simulation instant
-  must be defined and tested before implementing mission adjudication.
+  is implemented and tested: earlier event wins, exact hit/entry ties favor
+  disablement, and entry/impact at the deadline precedes timeout.
 
 ## Out of scope
 

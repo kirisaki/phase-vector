@@ -4,7 +4,7 @@
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, interactive-widget=resizes-content">
     <meta name="theme-color" content="#070f16">
-    <title>PHASE VECTOR — physics sandbox</title>
+    <title>PHASE VECTOR — blockade</title>
     <link rel="icon" href="data:,">
     <link rel="stylesheet" href="./style.css">
     <script type="module" src="./app.js"></script>
@@ -12,7 +12,7 @@
   <body>
     <header>
       <a class="wordmark" href="./"><span class="mark" aria-hidden="true">↗</span> PHASE VECTOR</a>
-      <span class="badge">02 / PHYSICS &amp; WEGO</span>
+      <span class="badge">03 / BLOCKADE</span>
       <button id="console-toggle" type="button" aria-controls="console-panel" aria-expanded="false">Show Lua console</button>
       <a class="source" href="https://github.com/kirisaki/phase-vector">Source ↗</a>
     </header>
@@ -26,11 +26,16 @@
             <button type="button" data-view="contact" aria-pressed="false" disabled>Contact</button>
             <div class="zoom-buttons"><button id="zoom-out" type="button" aria-label="Zoom out" disabled>−</button><button id="zoom-in" type="button" aria-label="Zoom in" disabled>+</button></div>
           </div>
-          <div class="canvas-wrap"><canvas id="tactical-map" aria-label="Physical positions and velocity vectors of the friendly and passive ships"></canvas><svg id="route-editor" role="group" aria-label="Burn planning on the tactical map" hidden>
+          <div class="canvas-wrap"><canvas id="tactical-map" aria-label="Friendly ship and observed enemy positions with velocity vectors"></canvas><svg id="route-editor" role="group" aria-label="Burn planning on the tactical map" hidden>
               <circle id="command-pulse"/><circle class="reach-area"/>
               <path id="map-coast-route"/><path id="map-planned-route"/><g id="forecast-boundaries"/>
               <path id="arrival-arrow"/><path id="burn-vector"/><text id="burn-label"/>
               <g id="arrival-handle" role="button" tabindex="0" aria-label="Edit burn direction"><circle class="handle-hit" r="22"/><circle class="handle-dot" r="7"/><text x="12" y="-12">+120 s</text></g>
+            </svg><svg id="mission-overlay" role="group" aria-label="Blockade target and observed enemy prediction" hidden>
+              <circle id="mission-goal"/><text id="goal-label">EXIT</text>
+              <path id="enemy-prediction"/><text id="prediction-label">Observed velocity · +360 s</text>
+              <g id="shot-trails"/><path id="queued-shot-line"/><path id="aim-line"/>
+              <g id="aim-handle" role="button" tabindex="0" aria-label="Drag shot target. Arrow keys adjust; Home tracks observed lead."><circle r="22" class="handle-hit"/><path d="M-12 0H12M0 -12V12"/><circle r="7"/><text x="14" y="-12">Aim</text></g>
             </svg><div class="map-caption"><div class="map-scale"><span id="grid-label">GRID / km</span><span id="range-label">RANGE / —</span><span id="railgun-label">RAILGUN / —</span></div><span id="command-number">COMMAND 01</span></div></div>
           <div class="flight-controls" tabindex="0" aria-label="Flight controls">
             <div class="transport">
@@ -49,13 +54,18 @@
                 <button id="next-turn" title="Advance to the next 120-second boundary and pause" disabled>Next turn</button>
               </div>
             </div>
+            <section id="mission-controls" aria-label="Blockade mission" hidden>
+              <div class="mission-readout"><strong id="mission-status" role="status">Prevent breakthrough</strong><span id="mission-metrics"></span></div>
+              <div class="gun-buttons"><button id="queue-shot" disabled>Queue shot</button><button id="track-aim" title="Aim at the observed constant-velocity intercept" disabled>Track lead</button><button id="cancel-shot" disabled>Cancel shot</button><button id="retry" disabled>Retry</button></div>
+              <p id="gun-feedback" role="status"></p>
+            </section>
             <div class="telemetry" aria-label="Friendly ship telemetry"><div>POSITION / km<strong id="position" class="vector"><span>—, </span><span>—</span></strong></div><div>VELOCITY / km/s<strong id="velocity" class="vector"><span>—, </span><span>—</span></strong></div><div>REMAINING Δv / km/s<strong id="dv">—</strong></div><div>SPENT Δv / km/s<strong id="spent-dv">0.000</strong></div></div>
 
             <form id="burn-form"><div class="route-stats"><div><span id="route-cost-label">Δv COST / km/s</span><strong id="route-cost">—</strong></div><div><span>REMAINING / km/s</span><strong id="route-remaining">—</strong></div><div><span>ARRIVAL VELOCITY / km/s</span><strong id="route-velocity">—</strong></div></div>
               <p id="route-feedback" role="status"></p>
               <details id="numeric-burn"><summary>Numeric thrust</summary><fieldset id="burn-fields" disabled><legend>Constant acceleration for the next 120 s</legend><div class="burn-inputs"><label for="burn-x">ax / m/s²<input id="burn-x" type="number" value="0" step="any" required></label><label for="burn-y">ay / m/s²<input id="burn-y" type="number" value="0" step="any" required></label><button id="apply-burn" type="submit">Apply burn</button></div></fieldset></details></form>
           </div>
-          <p class="legend"><span class="cyan">△</span> Friendly <span class="amber">⊕</span> Passive ship · Cyan dots: 3-turn forecast · Gray dashes: coast · Symbols enlarged · Cyan arrows: velocity · Amber arrow: burn · Radius rings visible when zoomed in</p>
+          <p class="legend"><span class="cyan">△</span> Friendly <span class="amber">⊕</span> Observed enemy · Cyan dots: friendly route · Amber dots: observed prediction · White: gun · Symbols enlarged · Cyan arrows: velocity · Amber arrow: burn · Radius rings visible when zoomed in</p>
         </section>
         <section id="console-panel" class="console-panel" aria-labelledby="console-title" tabindex="-1" hidden>
           <div class="panel-heading"><h2 id="console-title">Lua console</h2><button id="console-close" type="button" aria-label="Close Lua console">Close</button></div>
@@ -66,6 +76,8 @@
             <div class="run-row"><span>Ctrl / ⌘ + Enter to run</span><button id="run" type="submit" disabled>Run Lua ↵</button></div>
           </form>
           <details><summary>Try a command</summary><div class="examples">
+            <button type="button" data-example="return game.state().mission.ai_reason">Inspect enemy decision</button>
+            <button type="button" data-example="game.fire(game.aim())">Queue observed lead shot</button>
             <button type="button" data-example="return game.state().phase, game.state().ship.remaining_dv">Read phase &amp; Δv</button>
             <button type="button" data-example="game.burn(49.03325, 0); game.command('play'); game.command('pause')">Play a burn &amp; pause</button>
             <button type="button" data-example="game.command('step_forward'); return game.state().time_seconds">Advance 10 seconds</button>
