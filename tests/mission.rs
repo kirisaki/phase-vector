@@ -87,8 +87,15 @@ fn swept_goal_entry_and_impact_ordering_include_exact_deadline() {
     let exact = event_fixture(V::new(3.5, 0.0), 1.0, None);
     assert_eq!(exact.outcome, Outcome::Breakthrough);
     assert_eq!(exact.ended_seconds, Some(STEP_SECONDS));
+    let exact_hit = event_fixture(V::new(3.6, 0.0), 1.0, Some(3.5));
+    assert_eq!(exact_hit.outcome, Outcome::Disabled);
+    assert_eq!(exact_hit.ended_seconds, Some(STEP_SECONDS));
     assert_eq!(
         event_fixture(V::new(3.6, 0.0), 1.0, None).outcome,
+        Outcome::Timeout
+    );
+    assert_eq!(
+        event_fixture(V::new(3.6, 0.0), 1.0, Some(3.6)).outcome,
         Outcome::Timeout
     );
 }
@@ -171,6 +178,112 @@ fn hidden_projectiles_cannot_affect_ai_before_sensor_delivery() {
     assert_eq!(m.decision.threat_id, Some(0));
     assert!(m.decision.reason.contains("observed"));
     assert!(m.sensors.threats[0].received_tick > m.sensors.threats[0].sampled_tick);
+}
+
+#[test]
+fn unlaunched_reservations_do_not_change_enemy_observations_or_actions() {
+    let mut baseline = Session::blockade();
+    let mut reserved = Session::blockade();
+    for session in [&mut baseline, &mut reserved] {
+        session.dispatch(C::Step).unwrap();
+    }
+    reserved
+        .dispatch(C::QueueShot(reserved.aim().unwrap().target))
+        .unwrap();
+    let launch_tick = reserved.mission().unwrap().queued[0].launch_tick;
+    while reserved.world().tick < launch_tick {
+        baseline.dispatch(C::Step).unwrap();
+        reserved.dispatch(C::Step).unwrap();
+        assert_eq!(reserved.world(), baseline.world());
+        assert_eq!(
+            reserved.mission().unwrap().sensors,
+            baseline.mission().unwrap().sensors
+        );
+        assert_eq!(
+            reserved.mission().unwrap().decision,
+            baseline.mission().unwrap().decision
+        );
+    }
+    assert!(reserved.mission().unwrap().shots.is_empty());
+    reserved.dispatch(C::Step).unwrap();
+    assert_eq!(reserved.mission().unwrap().shots.len(), 1);
+    assert!(reserved.mission().unwrap().sensors.threats.is_empty());
+}
+
+#[test]
+fn recovery_reduces_actual_cross_track_displacement_after_an_evasion() {
+    let mut world = scenario::initial_world();
+    // An oblique attack forces lateral evasion, not just braking along the route.
+    world.ships[0].position.y += scenario::INITIAL_SEPARATION / 2.0;
+    let mut session = Session::with_mission(world, 1, Config::default()).unwrap();
+    session
+        .dispatch(C::QueueShot(session.aim().unwrap().target))
+        .unwrap();
+    let goal_x = session.mission().unwrap().config.goal.x;
+    let mut peak_error = 0.0_f64;
+    let mut returned = false;
+    while !session.finished() {
+        session.dispatch(C::StepForward).unwrap();
+        let mission = session.mission().unwrap();
+        let enemy = &session.world().ships[1];
+        peak_error = peak_error.max((enemy.position.x - goal_x).abs());
+        returned |= mission.decision.reason.contains("Returning");
+        assert!(session.world().projectiles.iter().all(|p| p.owner == 1));
+        assert!(enemy.remaining_dv >= 0.0);
+        assert!(enemy.spent_dv <= scenario::INITIAL_DELTA_V);
+    }
+    assert!(returned);
+    assert!(peak_error > scenario::SHIP_RADIUS);
+    assert!((session.world().ships[1].position.x - goal_x).abs() < peak_error / 2.0);
+}
+
+#[test]
+fn a_queued_hit_disables_the_enemy_and_stops_pending_launches_until_retry() {
+    let mut world = scenario::initial_world();
+    // Fuel exhaustion alone is not victory; a real queued projectile must hit.
+    world.ships[1].remaining_dv = 0.0;
+    let mut session = Session::with_mission(world.clone(), 1, Config::default()).unwrap();
+    let initial = session.mission().unwrap().clone();
+    let aim = session.aim().unwrap();
+    let reload = initial.config.reload_ticks as f64 * STEP_SECONDS;
+    let count = (aim.flight_seconds / reload).ceil() as usize + 1;
+    for _ in 0..count {
+        session.dispatch(C::QueueShot(aim.target)).unwrap();
+    }
+    run_to_end(&mut session);
+    let mission = session.mission().unwrap();
+    assert_eq!(mission.outcome, Outcome::Disabled);
+    assert!((mission.ended_seconds.unwrap() - aim.arrival_seconds).abs() < STEP_SECONDS);
+    assert_eq!(session.world().impacts.len(), 1);
+    assert_eq!(session.world().impacts[0].ship_id, initial.config.enemy_id);
+    assert!(!mission.queued.is_empty());
+    assert!(
+        mission
+            .queued
+            .iter()
+            .all(|q| q.launch_tick > session.world().tick)
+    );
+    let ended = session.world().clone();
+    let mission = mission.clone();
+    for _ in 0..100 {
+        session.pulse();
+    }
+    for command in [
+        C::Resume,
+        C::Commit,
+        C::Step,
+        C::NextTurn,
+        C::QueueShot(aim.target),
+    ] {
+        assert!(session.dispatch(command).is_err());
+    }
+    assert!(session.snapshot().paused);
+    assert_eq!(session.world(), &ended);
+    assert_eq!(session.mission().unwrap(), &mission);
+    session.dispatch(C::Reset).unwrap();
+    assert_eq!(session.world(), &world);
+    assert_eq!(session.mission().unwrap(), &initial);
+    assert!(session.snapshot().command_log.is_empty());
 }
 
 #[test]
