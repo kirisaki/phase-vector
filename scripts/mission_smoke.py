@@ -68,6 +68,8 @@ def main():
 
             current = state()
             timing = current['timing']
+            reload_ticks = round(current['mission']['reload_seconds'] / timing['step_seconds'])
+            assert current['mission']['reload_seconds'] == 30
             assert current['mission']['outcome'] == 'running'
             assert 'remaining_dv' not in current['world']['ships'][1]
             assert 'decision' not in current['mission'] and 'ai_reason' not in current['mission']
@@ -93,28 +95,45 @@ def main():
             page.locator('#queue-shot').click()
             assert state()['mission']['queued'][0]['target'] == original
             page.locator('#cancel-shot').click()
-            # Add three shots, cancel the middle one, and refill its slot without moving others.
-            for _ in range(3):
+            # Queue four rounds with the existing button, cancel one, and refill its slot.
+            for _ in range(4):
                 page.locator('#queue-shot').click()
             orders = state()['mission']['queued']
-            assert [q['launch_tick'] for q in orders] == [0, timing['interval_ticks'], 2 * timing['interval_ticks']]
-            expect(page.locator('#shot-queue .queued-shot')).to_have_count(3)
-            expect(page.locator('#queued-shot-markers text')).to_have_count(3)
+            assert [q['launch_tick'] for q in orders] == [i * reload_ticks for i in range(4)]
+            expect(page.locator('#shot-queue .queued-shot')).to_have_count(4)
+            expect(page.locator('#queued-shot-markers text')).to_have_count(4)
             assert page.locator('#tactical-map').bounding_box() == canvas
             page.get_by_role('button', name=f"Cancel shot {orders[1]['id']}", exact=True).click()
             assert state()['mission']['queued'][1] == orders[2]
             page.locator('#queue-shot').click()
             assert [q['launch_tick'] for q in state()['mission']['queued']] == [q['launch_tick'] for q in orders]
             page.screenshot(path=str(artifacts / 'mission-multiple-queue.png'))
-            for turn in range(3):
-                next_turn()
-                assert len(state()['mission']['shots']) == turn + 1
-                assert len(state()['mission']['queued']) == 2 - turn
-            for _ in range(7):
+            page.locator('#step').click()
+            assert len(state()['mission']['shots']) == 1
+            locked = state()['mission']['queued']
+            assert all(q['locked'] for q in locked)
+            expect(page.locator('#cancel-shot')).to_be_disabled()
+            for order in locked:
+                expect(page.get_by_role('button', name=f"Cancel shot {order['id']}", exact=True)).to_be_disabled()
+            # Even when paused mid-interval, a new shot belongs to the next command interval.
+            page.locator('#queue-shot').click()
+            future = state()['mission']['queued'][-1]
+            assert not future['locked'] and future['launch_tick'] == timing['interval_ticks']
+            page.locator('#cancel-shot').click()
+            assert state()['mission']['queued'] == locked
+            for count in range(1, 4):
+                while state()['world']['tick'] <= count * reload_ticks:
+                    page.locator('#step').click()
+                assert len(state()['mission']['shots']) == count + 1
+            next_turn()
+            assert state()['world']['tick'] == timing['interval_ticks']
+            assert [shot['launch_tick'] for shot in state()['mission']['shots']] == [i * reload_ticks for i in range(4)]
+            remaining_slots = round((state()['mission']['deadline_seconds'] - state()['time_seconds']) / state()['mission']['reload_seconds'])
+            for _ in range(remaining_slots):
                 page.locator('#queue-shot').click()
             expect(page.locator('#queue-shot')).to_be_disabled()
-            expect(page.locator('#gun-feedback')).to_contain_text('No free firing boundary')
-            expect(page.locator('#shot-queue .queued-shot')).to_have_count(7)
+            expect(page.locator('#gun-feedback')).to_contain_text('No free firing slot')
+            expect(page.locator('#shot-queue .queued-shot')).to_have_count(remaining_slots)
             first_id = state()['mission']['queued'][0]['id']
             page.get_by_role('button', name=f'Cancel shot {first_id}', exact=True).click()
             expect(page.locator('#queue-shot')).to_be_enabled()
@@ -206,7 +225,7 @@ def main():
                     client.detach()
                 page.screenshot(path=str(artifacts / f'mission-{width}x{height}.png'))
             assert not errors, errors
-            print('PASS: observed prediction, pointer/touch aiming, multiple queue/individual cancel/full queue, boundary firing, persistence, no-attack defeat, seven-shot non-hit victory, frozen results, retry, and responsive layout')
+            print('PASS: observed prediction, pointer/touch aiming, four-round 30-second salvo/locked orders/individual cancel/full queue, boundary firing, persistence, no-attack defeat, seven-shot non-hit victory, frozen results, retry, and responsive layout')
         except Exception:
             page.screenshot(path=str(artifacts / 'mission-failure.png'), full_page=True)
             raise

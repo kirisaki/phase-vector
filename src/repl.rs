@@ -238,11 +238,23 @@ impl Host {
                             "ai_hold_until_tick",
                             mission.decision.hold_until as f64,
                         )?;
+                        table.set(
+                            ctx,
+                            "reload_seconds",
+                            mission.config.reload_ticks as f64 * crate::physics::STEP_SECONDS,
+                        )?;
                         table.set(ctx, "queued", !mission.queued.is_empty())?;
                         let queue = Table::new(&ctx);
                         for (i, order) in mission.queued.iter().enumerate() {
                             let item = Table::new(&ctx);
                             item.set(ctx, "id", order.id)?;
+                            item.set(
+                                ctx,
+                                "locked",
+                                order.launch_tick
+                                    < (view.order_start_seconds / crate::physics::STEP_SECONDS)
+                                        as u64,
+                            )?;
                             item.set(ctx, "target_x", order.target.x)?;
                             item.set(ctx, "target_y", order.target.y)?;
                             item.set(ctx, "launch_tick", order.launch_tick as f64)?;

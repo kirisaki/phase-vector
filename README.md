@@ -14,8 +14,8 @@ point; the enemy reacts only to delivered attack observations and tries to
 recover its course. Win by disabling it or delaying it past the deadline.
 
 Physics and continuous 120-second command cycles remain independent of rendering.
-Plan thrust directly on the map and queue multiple shots for future command
-boundaries, while running or paused. Enemy markers, camera framing, and the amber prediction
+Plan thrust directly on the map and queue multiple shots for future firing
+slots, while running or paused. Enemy markers, camera framing, and the amber prediction
 use delayed observations. The Lua console exposes true state separately for
 diagnostics. The UI and Lua share the same validated command API.
 
@@ -123,8 +123,8 @@ share the status area; longer messages can be scrolled inside it.
 | --- | --- |
 | Aim crosshair | Drag the future target point on the map; arrows move it by 100 km (Shift: 10 km), Home restores observed lead tracking |
 | Track lead | Follow the constant-velocity intercept from the last received enemy observation; this is a prediction, not a guaranteed hit |
-| Queue shot | Add a shot at the earliest free 120-second boundary after reload; aim movement does not change existing reservations |
-| Cancel / Clear queue | Remove one numbered reservation / all unlaunched reservations; other launch times and flying rounds stay unchanged |
+| Queue shot | Add one shot at the earliest free reload slot, starting from the next editable command boundary; aim movement does not change existing reservations |
+| Cancel / Clear queue | Remove one numbered reservation / all editable reservations; shots committed to the current interval and flying rounds stay unchanged |
 | Retry | Available after victory or defeat; restore the complete initial scenario |
 | Ship-centered Burn handle | Available while running or paused; drag directly without switching modes or changing the camera |
 | Drag / release | Preview the burn, delta-v cost, remaining delta-v, and arrival velocity; release to queue the next interval; the current interval keeps its active order |
@@ -150,19 +150,27 @@ reason, event time, shot count, and friendly delta-v spent. Exact simultaneous
 impact/entry favors disablement; entry at the deadline beats timeout. No formal
 points formula is implemented yet.
 
-The gun has unlimited ammunition and a 120-second reload. Each reservation fires
-once at its reserved command boundary, using the firing ship's velocity plus a fixed
+The gun has unlimited ammunition and a 30-second reload. Each reservation fires
+once at its reserved firing tick, using the firing ship's velocity plus a fixed
 660 km/s muzzle velocity. The preview solves direction and flight time for the
 chosen world point. Unreachable points are rejected. Pending previews are
 recomputed from the predicted launch state; the actual launch solves again.
 Reservations are sorted by launch time and keep stable IDs. With the default
-reload, three initial additions fire at 0, 120, and 240 seconds. Cancellation
+reload, four initial additions fire at 0, 30, 60, and 90 seconds. Each press of
+Queue shot still reserves exactly one round. Cancellation
 leaves other launch times unchanged; the next addition fills the earliest free
 slot. No launch can be queued at or beyond the mission deadline. Future firing
 states assume the draft burn repeats after the frozen current interval, including
 acceleration and delta-v limits. Targets stay fixed; changing a target requires
 cancelling it and adding another shot. The queue lists firing and arrival times;
-unreachable reservations are marked and can be cancelled.
+unreachable reservations are marked and can be cancelled before committing.
+Starting a 120-second interval freezes its reserved shots, including those that
+have not fired yet. Their Cancel buttons are disabled. Running or paused edits
+inside that interval affect only the next command interval and beyond. Clear
+queue removes only editable shots. No shots repeat automatically. Up to 40 rounds
+can initially be queued before the deadline with the current reload setting.
+All shots in an interval are validated before the interval starts; an invalid
+later shot prevents the entire interval from starting until corrected or cancelled.
 Already flying rounds are unaffected by later maneuvers. The white dashed line
 shows the aim; brighter numbered dashed lines retain all reserved shots. Thin white
 trails show launched rounds. Amber dots show a 360-second constant-observed-velocity
@@ -297,11 +305,11 @@ each displayed value to 1,024 characters, and visible history to 100 entries.
 Mission commands and privileged diagnostics:
 
 ```lua
-game.fire(game.aim()) -- Append an observed-lead target at the earliest free boundary
+game.fire(game.aim()) -- Append an observed-lead target at the earliest free reload slot
 game.fire(game.aim()) -- Append another shot one reload later
-game.state().mission.queue -- IDs, target coordinates, launch ticks and seconds
+game.state().mission.queue -- IDs, targets, launch ticks/seconds, and locked status
 game.cancel_shot(game.state().mission.queue[1].id) -- Cancel one reservation
-game.command("cancel_shot") -- Clear all unlaunched reservations
+game.command("cancel_shot") -- Clear editable reservations; active interval stays frozen
 game.fire(120000000, -13600000) -- Fixed world target in metres
 return game.state().mission.outcome, game.state().mission.shots
 return game.state().mission.ai_reason, game.state().mission.evasions
@@ -369,7 +377,7 @@ python scripts/browser_smoke.py --url http://127.0.0.1:5173/ --rebuild
 ```
 
 The mission smoke test uses the default game and checks observed prediction,
-mouse/touch target dragging, queue/cancel, running reservations, boundary firing,
+mouse/touch target dragging, queue/cancel, running reservations, 30-second salvo timing, frozen active shots,
 ballistic persistence, no-attack defeat, seven-shot non-hit timeout victory,
 terminal locks, retry, and desktop/phone layouts. It also accepts `--url` and
 `--executable-path`.
@@ -463,7 +471,7 @@ Shared numerical settings have distinct owners:
 
 Whole-second durations become ticks through `timing::seconds_to_ticks`; the
 playback clock must be an integer multiple of the physics frequency. Equal
-numbers with different meanings remain separate: a 120 s reload or threat
+numbers with different meanings remain separate: a 30 s reload or 120 s threat
 horizon does not inherit the 120 s command interval. Solver tolerances stay
 local with quantity-specific names and units.
 

@@ -17,7 +17,7 @@ An early subset of step 4 now provides friendly 120-second endpoint planning,
 a three-boundary route forecast, arrival-velocity previews, and direct map manipulation with a ship-centered
 burn control. This does not
 implement a variable-time slider or arbitrary-arrival-time shot scheduling.
-Step 3 adds an observed constant-velocity enemy forecast and a fixed-boundary
+Step 3 adds an observed constant-velocity enemy forecast and a reload-slot
 gun solver whose target is a world point and whose flight time is solved.
 
 ## Scope and implementation approach

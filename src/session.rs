@@ -66,7 +66,7 @@ impl Command {
 pub struct CommandRecord {
     pub start_tick: u64,
     pub burn: Burn,
-    pub shot_target: Option<Vector2>,
+    pub shots: Vec<crate::mission::QueuedShot>,
 }
 
 #[derive(Clone, Debug)]
@@ -235,13 +235,13 @@ impl Session {
                     .as_mut()
                     .ok_or("No active mission.")?
                     .queued
-                    .clear();
+                    .retain(|order| order.launch_tick < self.interval_end);
             }
             Command::CancelQueuedShot(id) => {
                 self.mission
                     .as_mut()
                     .ok_or("No active mission.")?
-                    .cancel(id)?;
+                    .cancel(id, self.interval_end)?;
             }
             Command::StartMission => *self = Self::blockade(),
             Command::Sandbox => *self = Self::default(),
@@ -287,7 +287,7 @@ impl Session {
                     if self.finished() {
                         break;
                     }
-                    self.advance_tick();
+                    self.advance_tick()?;
                 }
             }
             Command::NextTurn => {
@@ -298,7 +298,7 @@ impl Session {
                 self.playback_quanta = 0;
                 // Complete every physical tick and stop before starting another interval.
                 while self.world.tick < self.interval_end && !self.finished() {
-                    self.advance_tick();
+                    self.advance_tick()?;
                 }
             }
             Command::SetSpeed(speed) => {
@@ -332,12 +332,18 @@ impl Session {
                 return;
             }
             self.playback_quanta -= PULSES_PER_TICK;
-            self.advance_tick();
+            if self.advance_tick().is_err() {
+                self.paused = true;
+                self.playback_quanta = 0;
+                return;
+            }
         }
     }
 
-    fn advance_tick(&mut self) {
+    fn advance_tick(&mut self) -> Result<(), String> {
         if let Some(mission) = &mut self.mission {
+            // Fire before this tick's acceleration and sensor sample at every reload slot.
+            mission.launch_queued(&mut self.world, self.player_id)?;
             mission.step(&mut self.world, self.player_id, self.active_burn);
             if !mission.running() {
                 self.paused = true;
@@ -355,6 +361,7 @@ impl Session {
             self.phase = Phase::Planning;
             self.active_burn = Vector2::ZERO;
         }
+        Ok(())
     }
 
     fn begin_interval(&mut self) -> Result<(), String> {
@@ -363,15 +370,33 @@ impl Session {
             .tick
             .checked_add(INTERVAL_TICKS)
             .ok_or("Simulation tick capacity exhausted.")?;
-        let shot_target = if let Some(mission) = &mut self.mission {
-            mission.launch_queued(&mut self.world, self.player_id)?
-        } else {
-            None
-        };
+        let shots: Vec<_> = self
+            .mission
+            .as_ref()
+            .map(|mission| {
+                mission
+                    .queued
+                    .iter()
+                    .filter(|order| order.launch_tick < end)
+                    .cloned()
+                    .collect()
+            })
+            .unwrap_or_default();
+        // Validate the complete frozen firing plan before committing any part of it.
+        for order in &shots {
+            crate::mission::solve_shot(
+                &self.snapshot().planning_ship_at(order.launch_tick),
+                order.target,
+                order.launch_tick,
+            )?;
+        }
+        if let Some(mission) = &mut self.mission {
+            mission.launch_queued(&mut self.world, self.player_id)?;
+        }
         self.active_burn = self.planned_burn;
         self.interval_end = end;
         self.command_log.push(CommandRecord {
-            shot_target,
+            shots,
             start_tick: self.world.tick,
             burn: Burn {
                 ship_id: self.player_id,
@@ -393,6 +418,11 @@ impl Snapshot<'_> {
 
     /// Predict the next command boundary without changing the current orders.
     pub fn planning_ship(&self) -> crate::physics::Ship {
+        self.planning_ship_at((self.order_start_seconds / STEP_SECONDS) as u64)
+    }
+
+    /// Predict any future tick using the active burn until the boundary, then the draft.
+    pub fn planning_ship_at(&self, tick: u64) -> crate::physics::Ship {
         let mut ship = self
             .world
             .ships
@@ -400,20 +430,14 @@ impl Snapshot<'_> {
             .find(|s| s.id == self.player_id)
             .unwrap()
             .clone();
-        if self.phase == Phase::Executing {
-            for _ in 0..(self.remaining_seconds / STEP_SECONDS) as u64 {
-                ship.advance(self.active_burn);
-            }
-        }
-        ship
-    }
-
-    /// Predict a future firing boundary using the frozen interval and repeating draft burn.
-    pub fn planning_ship_at(&self, tick: u64) -> crate::physics::Ship {
-        let mut ship = self.planning_ship();
-        let start = (self.order_start_seconds / STEP_SECONDS) as u64;
-        for _ in start..tick {
-            ship.advance(self.planned_burn);
+        let boundary = (self.order_start_seconds / STEP_SECONDS) as u64;
+        for t in self.world.tick..tick {
+            let burn = if self.phase == Phase::Executing && t < boundary {
+                self.active_burn
+            } else {
+                self.planned_burn
+            };
+            ship.advance(burn);
         }
         ship
     }

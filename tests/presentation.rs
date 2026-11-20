@@ -136,3 +136,32 @@ fn browser_and_lua_share_clock_settings_and_boundary_units() {
         INTERVAL_SECONDS
     );
 }
+
+#[test]
+fn current_interval_shot_previews_and_locks_ignore_future_draft_changes() {
+    let mut session = Session::blockade();
+    for _ in 0..5 {
+        session
+            .dispatch(C::QueueShot(session.aim().unwrap().target))
+            .unwrap();
+    }
+    session.dispatch(C::StepForward).unwrap();
+    let map = MapView::default();
+    let before = to_value(State::new(&session.snapshot(), &map)).unwrap();
+    session
+        .dispatch(C::PlanBurn(V::new(
+            phase_vector::scenario::MAX_ACCELERATION,
+            0.0,
+        )))
+        .unwrap();
+    let after = to_value(State::new(&session.snapshot(), &map)).unwrap();
+    for i in 0..3 {
+        assert_eq!(
+            before["mission"]["queued"][i],
+            after["mission"]["queued"][i]
+        );
+        assert_eq!(after["mission"]["queued"][i]["locked"], true);
+    }
+    assert_eq!(after["mission"]["queued"][3]["locked"], false);
+    assert_eq!(after["mission"]["reload_seconds"], 30.0);
+}

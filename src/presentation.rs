@@ -74,6 +74,7 @@ impl VisibleShip {
 pub struct QueuedShotView<'a> {
     #[serde(flatten)]
     pub order: &'a QueuedShot,
+    pub locked: bool,
     pub solution: Option<Solution>,
     pub error: Option<String>,
 }
@@ -86,6 +87,7 @@ pub struct MissionView<'a> {
     pub goal_radius: f64,
     pub deadline_seconds: f64,
     pub ready_seconds: f64,
+    pub reload_seconds: f64,
     pub shots: &'a [Shot],
     pub queued: Vec<QueuedShotView<'a>>,
     pub queue_error: Option<String>,
@@ -110,6 +112,7 @@ impl<'a> State<'a> {
                 goal_radius: mission.config.goal_radius,
                 deadline_seconds: mission.config.deadline_tick as f64 * STEP_SECONDS,
                 ready_seconds: mission.ready_tick as f64 * STEP_SECONDS,
+                reload_seconds: mission.config.reload_ticks as f64 * STEP_SECONDS,
                 shots: &mission.shots,
                 queued: mission
                     .queued
@@ -122,6 +125,8 @@ impl<'a> State<'a> {
                         );
                         QueuedShotView {
                             order,
+                            locked: order.launch_tick
+                                < (snapshot.order_start_seconds / STEP_SECONDS) as u64,
                             error: solution.as_ref().err().cloned(),
                             solution: solution.ok(),
                         }

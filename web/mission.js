@@ -38,7 +38,7 @@ export function createMissionControls(onChange) {
     el('queue-shot').disabled = !solution || done || blocked || dragging;
     el('queue-shot').textContent = 'Queue shot';
     el('track-aim').disabled = done || dragging;
-    el('cancel-shot').disabled = !m.queued.length || done;
+    el('cancel-shot').disabled = !m.queued.some((order) => !order.locked) || done;
     el('retry').disabled = !done;
     el('gun-feedback').textContent = error || failure || (done ? 'Retry restores the initial scenario.' :
       blocked ? 'Apply numeric edits or finish the burn gesture before queuing a shot.' :
@@ -71,7 +71,8 @@ export function createMissionControls(onChange) {
       row.querySelector('span').textContent = `#${order.id} · fire ${decimal(order.launch_tick * state.timing.step_seconds)} s · arrival ${order.solution ? decimal(order.solution.arrival_seconds) + ' s' : 'unreachable'}`;
       row.title = order.error || `Target (${decimal(order.target.x / 1000)}, ${decimal(order.target.y / 1000)}) km`;
       row.classList.toggle('invalid', Boolean(order.error));
-      row.querySelector('button').disabled = done;
+      row.querySelector('button').disabled = done || order.locked;
+      row.querySelector('button').title = order.locked ? 'Committed to the current command interval' : 'Cancel this reservation';
     });
   }
 

@@ -5,7 +5,7 @@ use crate::{
     observation::Sensors,
     physics::{Burn, STEP_SECONDS, Ship, Vector2, World, swept_contact},
     scenario,
-    timing::{INTERVAL_TICKS, seconds_to_ticks},
+    timing::seconds_to_ticks,
     units::METRES_PER_KILOMETRE,
 };
 use serde::Serialize;
@@ -31,7 +31,7 @@ impl Default for Config {
             ),
             goal_radius: 1_000.0 * METRES_PER_KILOMETRE,
             deadline_tick: seconds_to_ticks(1200),
-            reload_ticks: seconds_to_ticks(120),
+            reload_ticks: seconds_to_ticks(30),
             sensor_processing_ticks: seconds_to_ticks(1),
             cruise_speed: scenario::CONTACT_SPEED,
             policy: Policy::default(),
@@ -190,26 +190,19 @@ impl Mission {
         let t = intercept_time(position - ship.position, contact.velocity - ship.velocity)?;
         solve_shot(ship, position + contact.velocity * t, launch_tick)
     }
-    /// Find the earliest free command boundary, preserving every existing reservation.
+    /// Find the earliest reload-compatible tick at or after the editable command boundary.
     pub fn next_launch_tick(&self, from_tick: u64) -> Result<u64, String> {
         if !self.running() {
             return Err("Mission is over; retry to issue orders.".into());
         }
-        let align = |tick: u64| -> Option<u64> {
-            let intervals = tick.saturating_sub(from_tick).div_ceil(INTERVAL_TICKS);
-            from_tick.checked_add(intervals.checked_mul(INTERVAL_TICKS)?)
-        };
-        let exhausted = || "No free firing boundary remains before the deadline.".to_string();
-        let mut tick = align(self.ready_tick).ok_or_else(exhausted)?;
+        let exhausted = || "No free firing slot remains before the deadline.".to_string();
+        let mut tick = from_tick.max(self.ready_tick);
         for order in &self.queued {
             if tick.abs_diff(order.launch_tick) < self.config.reload_ticks {
-                tick = align(
-                    order
-                        .launch_tick
-                        .checked_add(self.config.reload_ticks)
-                        .ok_or_else(exhausted)?,
-                )
-                .ok_or_else(exhausted)?;
+                tick = order
+                    .launch_tick
+                    .checked_add(self.config.reload_ticks)
+                    .ok_or_else(exhausted)?;
             }
         }
         if tick >= self.config.deadline_tick {
@@ -217,12 +210,15 @@ impl Mission {
         }
         Ok(tick)
     }
-    pub fn cancel(&mut self, id: u32) -> Result<(), String> {
+    pub fn cancel(&mut self, id: u32, editable_from: u64) -> Result<(), String> {
         let index = self
             .queued
             .iter()
             .position(|order| order.id == id)
             .ok_or("Unknown queued shot.")?;
+        if self.queued[index].launch_tick < editable_from {
+            return Err("This shot is committed to the active command interval.".into());
+        }
         self.queued.remove(index);
         Ok(())
     }
@@ -262,12 +258,19 @@ impl Mission {
         world: &mut World,
         player_id: u32,
     ) -> Result<Option<Vector2>, String> {
+        if !self.running() {
+            return Ok(None);
+        }
         let Some(order) = self.queued.first() else {
             return Ok(None);
         };
         if order.launch_tick > world.tick || self.ready_tick > world.tick {
             return Ok(None);
         }
+        let ready_tick = world
+            .tick
+            .checked_add(self.config.reload_ticks)
+            .ok_or("Gun reload tick capacity exhausted.")?;
         let ship = world.ships.iter().find(|s| s.id == player_id).unwrap();
         let solution = solve_shot(ship, order.target, world.tick)?;
         let origin = ship.position;
@@ -282,7 +285,7 @@ impl Mission {
             target,
             velocity,
         });
-        self.ready_tick = world.tick + self.config.reload_ticks;
+        self.ready_tick = ready_tick;
         self.queued.remove(0);
         Ok(Some(target))
     }

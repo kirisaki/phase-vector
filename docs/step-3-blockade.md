@@ -27,7 +27,7 @@ the frozen physical state is at the end of that tick.
 | Deadline | 1,200 s (ten command intervals) |
 | No-attack entry time | 1,173.333333 s |
 | Relative muzzle speed / projectile radius | 660 km/s / 1 m |
-| Reload | 120 s; no ammunition-count limit |
+| Reload | 30 s; no ammunition-count limit |
 | Sensor samples / processing latency | Every 1 s / 1 s plus rounded-up light travel time |
 | Stale projectile track retention | 300 s from its last sample |
 | Enemy decision cadence | Every 1 s |
@@ -47,20 +47,28 @@ direction at a fixed relative muzzle speed, including the firing ship's current
 velocity. The default lead point uses only the delivered contact's extrapolated
 position and velocity. It does not read the enemy's future decisions.
 
-`QueueShot` appends at the earliest free player command boundary that satisfies
-reload spacing against fired rounds and all reservations. Initial default slots
-are 0, 120, and 240 seconds. Reservations have stable IDs and fixed target points.
-Cancelling one does not move the others; later additions can fill freed slots.
-The deadline bounds the queue (ten initial slots with default tuning).
-Future launch predictions repeat the draft burn after the frozen current interval
-and account for acceleration and remaining delta-v. Each preview is recalculated
-when the maneuver changes; the target and launch tick remain fixed.
-Editing during execution cannot fire immediately. Launch occurs at the boundary
-before the first acceleration kick. A reservation does not consume a shot until
-launch. Shots are one-shot orders and do not repeat with thrust. Cancel affects
-only unlaunched reservations (`CancelQueuedShot(id)` for one, `CancelShot` for all). Launched projectiles retain their inertial world
-velocity and survive command boundaries. The shot target is recorded beside the
-applied thrust vector for deterministic replay.
+`QueueShot` appends one round at the earliest reload-compatible tick at or after
+the next editable player command boundary. The button and target-placement UX
+are unchanged. Four initial additions fire at 0, 30, 60, and 90 seconds; the
+command interval remains 120 seconds. Reload spacing applies against fired rounds
+and every reservation. IDs and target points are stable. Cancelling an editable
+shot does not move others; later additions can fill freed slots. The deadline
+bounds the queue (40 initial slots with default tuning).
+
+Starting an interval validates and freezes every shot scheduled inside it.
+Current-interval shots cannot be cancelled, even while paused. Clear queue removes
+only shots at or after the next editable boundary. Running edits can add shots
+only for that boundary or later. Future launch predictions use the active burn
+for the remainder of the current interval and the repeating draft thereafter,
+including acceleration and delta-v limits. Maneuver edits recalculate previews,
+without changing reserved targets or launch ticks.
+
+Every physical tick checks due launches before its acceleration kick and sensor
+sample. A reservation counts as a shot only when launched; shots do not repeat
+with thrust. In-flight projectiles retain inertial velocity across intervals.
+The command log records the complete frozen shot list (targets and launch ticks)
+alongside the applied thrust vector, including gaps left by cancellation, for
+deterministic replay. Terminal outcomes stop pending launches.
 
 The current UI/API does not choose an arbitrary arrival time; that remains step 4. There is no blast damage, projectile lifetime,
 ship-to-ship collision, guided weapon, or enemy gun.
