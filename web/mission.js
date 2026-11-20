@@ -19,6 +19,7 @@ export function createMissionControls(onChange) {
   function render() {
     const m = state?.mission;
     el('mission-controls').hidden = !m;
+    el('game-controls').hidden = !m;
     document.body.classList.toggle('mission-active', Boolean(m));
     document.querySelector('.badge').textContent = m ? '03 / BLOCKADE' : '02 / PHYSICS & WEGO';
     if (!m || !ready) { svg.setAttribute('hidden', ''); return; }

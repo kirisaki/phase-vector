@@ -125,7 +125,7 @@ share the status area; longer messages can be scrolled inside it.
 | Track lead | Follow the constant-velocity intercept from the last received enemy observation; this is a prediction, not a guaranteed hit |
 | Queue shot | Add one shot at the earliest free reload slot, starting from the next editable command boundary; aim movement does not change existing reservations |
 | Cancel / Clear queue | Remove one numbered reservation / all editable reservations; shots committed to the current interval and flying rounds stay unchanged |
-| Retry | Available after victory or defeat; restore the complete initial scenario |
+| Retry (mission status, below playback) | Available after victory or defeat; restore the complete initial scenario |
 | Ship-centered Burn handle | Available while running or paused; drag directly without switching modes or changing the camera |
 | Drag / release | Preview the burn, delta-v cost, remaining delta-v, and arrival velocity; release to queue the next interval; the current interval keeps its active order |
 | Drag outside the ring | Clamp the handle to the reachable circle in the cursor's direction |

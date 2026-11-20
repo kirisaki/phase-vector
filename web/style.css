@@ -197,17 +197,17 @@ legend { color: var(--muted); font-size: 11px; margin-bottom: 8px; }
 /* Presentation-clock pulse for each applied command, including coasting. */
 #command-pulse { fill: none; stroke: #e0fff6; stroke-width: 2; pointer-events: none; }
 
-.mission-active .flight-controls { grid-template-areas: 'transport transport' 'mission mission' 'telemetry burn'; }
+.mission-active .flight-controls { grid-template-areas: 'transport transport' 'game game' 'mission mission' 'telemetry burn'; }
 .mission-active .canvas-wrap { min-height: 120px; }
 #mission-controls { grid-area: mission; padding: 7px 12px; border-bottom: 1px solid var(--line); min-width: 0; }
-.mission-readout { display: flex; justify-content: space-between; gap: 8px; font: 11px ui-monospace, monospace; white-space: nowrap; }
+.mission-readout { display: flex; flex: 1; min-width: 0; flex-direction: column; gap: 4px; font: 11px ui-monospace, monospace; white-space: nowrap; }
+#mission-status, #mission-metrics { height: 1.2em; line-height: 1.2; overflow: auto; }
 #mission-status { color: var(--amber); font-weight: 500; overflow: auto; }
 #mission-status[data-outcome='timeout'], #mission-status[data-outcome='disabled'] { color: var(--cyan); }
 #mission-metrics { color: var(--muted); font-size: 10px; }
-.gun-buttons { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); max-width: 420px; gap: 5px; margin-top: 6px; }
+.gun-buttons { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); max-width: 315px; gap: 5px; margin-top: 0; }
 .gun-buttons button { min-width: 0; height: 40px; font-size: 11px; line-height: 12px; padding: 4px 6px; }
 #queue-shot { border-color: var(--amber); color: var(--amber); }
-#retry { margin-left: 0; }
 #gun-feedback { height: 24px; overflow: auto; font: 10px/12px ui-monospace, monospace; color: var(--muted); margin: 5px 0 0; }
 #mission-overlay { position: absolute; inset: 0; width: 100%; height: 100%; pointer-events: none; touch-action: none; overflow: hidden; }
 #mission-overlay path, #mission-goal { fill: none; }
@@ -225,12 +225,12 @@ legend { color: var(--muted); font-size: 11px; margin-bottom: 8px; }
 #aim-handle:focus-visible { outline: none; }
 #aim-handle:focus-visible circle:not(.handle-hit) { stroke: var(--cyan); stroke-width: 3; }
 @container tactical (max-width: 600px) {
-  .mission-active .flight-controls { grid-template-areas: 'transport' 'mission' 'telemetry' 'burn'; }
-  .mission-readout { flex-direction: column; gap: 4px; }
+  .mission-active .flight-controls { grid-template-areas: 'transport' 'game' 'mission' 'telemetry' 'burn'; }
+  #mission-status, #mission-metrics { height: 2.4em; white-space: normal; }
   #mission-controls { padding: 6px 10px; }
 }
-.short-viewport .mission-active .flight-controls { grid-template-areas: 'transport' 'mission' 'telemetry' 'burn'; }
-.short-viewport .mission-readout { flex-direction: column; gap: 4px; }
+.short-viewport .mission-active .flight-controls { grid-template-areas: 'transport' 'game' 'mission' 'telemetry' 'burn'; }
+.short-viewport #mission-status, .short-viewport #mission-metrics { height: 2.4em; white-space: normal; }
 @media (max-width: 600px) {
   .short-viewport .mission-active .canvas-wrap { min-height: 60px; }
 }
@@ -242,3 +242,8 @@ legend { color: var(--muted); font-size: 11px; margin-bottom: 8px; }
 .queued-shot button { min-height: 40px; padding: 4px 8px; }
 .queued-shot.invalid { color: #ffab70; }
 #queued-shot-markers text { fill: #fff; font-size: 11px; }
+
+/* Place game actions beside the result, between playback and weapon controls. */
+#game-controls { grid-area: game; display: flex; min-width: 0; align-items: center; justify-content: space-between; gap: 12px; padding: 8px 12px; border-bottom: 1px solid var(--line); background: #101e27; }
+#retry { min-width: 104px; min-height: 44px; padding: 10px 20px; font-size: 14px; font-weight: 650; white-space: nowrap; color: #071319; background: var(--cyan); border-color: var(--cyan); }
+#retry:hover:not(:disabled) { background: #85eee9; }
