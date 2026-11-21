@@ -35,13 +35,20 @@ the frozen physical state is at the end of that tick.
 | Stale projectile track retention | 300 s from its last sample |
 | Enemy decision cadence | Every 1 s |
 | Enemy threat lookahead | 120 s, independent of projectile flight time |
-| Safety corridor | 75 km plus physical contact radii |
+| Safety corridor | 1,000 km plus physical contact radii |
 | Evasion commitment | 120 s |
 | Cruise recovery response | 120 s |
 
 These are game tuning assumptions. In particular the enemy is a conservative
 controller, not an optimal pilot. The deadline has little slack; this is a
 functional demonstration, not a claim of final difficulty balance.
+
+The warning corridor was widened from 75 km to 1,000 km so modest targeting
+offsets can provoke evasion at the overview scale. Physical hit radii and the
+120-second threat horizon are unchanged. Reaction is not monotonic with corridor
+width: a different avoidance direction can help the enemy recover its schedule.
+The current seven-shot lead trial still prevents breakthrough without a hit;
+the displaced seven-shot trial and the no-attack trial still lose.
 
 ## Gun and command timing
 
@@ -56,7 +63,11 @@ are unchanged. Four initial additions fire at 0, 30, 60, and 90 seconds; the
 command interval remains 120 seconds. Reload spacing applies against fired rounds
 and every reservation. IDs and target points are stable. Cancelling an editable
 shot does not move others; later additions can fill freed slots. The deadline
-bounds the queue (40 initial slots with default tuning).
+bounds firing times. The queue holds at most four unfired reservations, including
+locked shots in the active interval. Flying rounds do not consume queue capacity.
+Launching or cancelling a reservation frees one slot without moving other shots.
+The mission API enforces this limit for both UI and Lua commands. Capacity and
+the full-queue error are exposed to the normal UI; Lua reports `queue_capacity`.
 
 Starting an interval validates and freezes every shot scheduled inside it.
 Current-interval shots cannot be cancelled, even while paused. Clear queue removes
@@ -92,6 +103,13 @@ projectile knowledge expires by sample age, not by consulting hidden truth.
 
 Player-facing enemy positions and velocity predictions use the last delivered
 contact fix. They assume constant observed velocity, not a privileged forecast.
+The enemy's directional ship symbol follows observed velocity, not hull attitude.
+Its speed readout and bright acceleration arrow use the two latest delivered
+fixes, with acquisition times determining the average acceleration. The label
+distinguishes observed slowing, speeding up, turning, and coasting; it does not
+claim knowledge of an AI evasion decision. No acceleration estimate is available
+until fixes with distinct acquisition times arrive. Terminal displays retain the
+last observed speed and hide the acceleration arrow.
 Camera fitting uses that same presented position. Enemy fuel is not exposed in
 the normal view. The Lua REPL intentionally retains privileged true ship state
 for diagnostics, with observation timestamps and AI reasons available separately.
@@ -156,7 +174,13 @@ sandbox for `scripts/browser_smoke.py` regression checks.
 The Aim crosshair edits a world-space point without changing the reserved shot.
 Queue explicitly appends it; Track lead restores observation-based aiming.
 A reserved point is fixed until cancelled, while its direction/flight preview is
-recomputed from the predicted launch state. White trails show flying rounds;
+recomputed from the predicted launch state. At launch, each shot records its
+reservation ID and the target passage time calculated from the actual launch
+state. Flying rounds retain that ID; the latest four launch IDs and simulation
+timestamps appear next to the queue. Dotted white lines extend from each round's
+current position to its target, without a travelled trail. The line disappears
+after target passage; a missed round continues flying with its number visible.
+Target passage is not itself a collision or a hit;
 amber dots indicate a constant-observed-velocity estimate, not the AI's future.
 
 Formal score weighting and general paused parameter editing remain step 5.

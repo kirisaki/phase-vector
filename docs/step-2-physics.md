@@ -48,7 +48,7 @@ fields to violate constructor invariants.
 
 ## WEGO and playback
 
-The session begins paused at a command boundary. Play applies the draft and
+The session begins paused at a command boundary. Auto applies the draft and
 starts simultaneous execution. The current vector is frozen for 480 physical
 ticks. Playback continues across boundaries and repeats the latest draft.
 Drafts can be edited while running or paused; they never modify the active
@@ -61,9 +61,9 @@ speed until the next command boundary, then pauses before applying another
 interval. Repeated calls during execution do not restart the interval, extend
 its stop time, or duplicate its log record. The `stop_at_boundary` snapshot flag
 exposes the active Commit mode to both UI and Lua. Speed changes preserve the
-stop; Pause cancels it, and Play selects continuous playback again. Automatic
+stop; Pause cancels it, and Auto selects continuous playback again. Automatic
 stopping discards leftover playback quanta so a fast pulse cannot cross the
-requested boundary. At a paused boundary, Play, Commit, or a step applies the draft.
+requested boundary. At a paused boundary, Auto, Commit, or a step applies the draft.
 
 The UI's +10 s action (`step_forward`) runs up to 40 fixed ticks while paused,
 clipped to the current interval's end. The Lua `step` command advances one tick.
@@ -134,7 +134,7 @@ Candidate trajectories replace the applied preview during a drag. Pointer
 capture supports mouse/touch dragging outside the circle or canvas. Keyboard
 arrows immediately apply adjustments, Shift makes them finer, and Home plans
 coasting. Telemetry and preview metrics remain in the normal flight controls.
-Play from pause, stepping, Commit, and Skip are disabled during a drag; Pause is
+Auto from pause, stepping, Commit, and Skip are disabled during a drag; Pause is
 still available while running. Movement inside an interval does not cancel a
 gesture. At a command boundary the chosen direction and reachable-disk fraction
 are rebased onto the next interval. An external order change cancels a stale

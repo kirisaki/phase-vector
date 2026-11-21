@@ -51,8 +51,9 @@ button { border: 1px solid #354b59; border-radius: 3px; padding: 8px 11px; min-h
 button:hover:not(:disabled) { border-color: var(--cyan); background: #1b343b; }
 button:disabled { opacity: .4; cursor: default; }
 button:focus-visible, textarea:focus-visible, input:focus-visible, a:focus-visible, summary:focus-visible, [tabindex]:focus-visible { outline: 2px solid var(--cyan); outline-offset: -2px; }
-#commit[aria-pressed="true"] { border-color: var(--cyan); color: var(--cyan); background: #1b343b; }
-#toggle, #run { background: #51d8d0; color: #071319; border-color: #51d8d0; }
+#commit, #run { background: var(--cyan); color: #071319; border-color: var(--cyan); font-weight: 700; }
+#commit:hover:not(:disabled), #run:hover:not(:disabled) { background: #85eee9; }
+#commit[aria-pressed="true"] { background: #a5fff6; box-shadow: inset 0 0 0 2px #267b78; }
 .legend { flex: 0 0 auto; border-top: 1px solid var(--line); margin: 0; padding: 5px 12px; color: var(--muted); font-size: 9px; line-height: 1.5; }
 .legend span:not(:first-child) { margin-left: 10px; }
 .cyan { color: var(--cyan); }
@@ -208,7 +209,8 @@ legend { color: var(--muted); font-size: 11px; margin-bottom: 8px; }
 #mission-metrics { color: var(--muted); font-size: 10px; }
 .gun-buttons { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); max-width: 315px; gap: 5px; margin-top: 0; }
 .gun-buttons button { min-width: 0; height: 40px; font-size: 11px; line-height: 12px; padding: 4px 6px; }
-#queue-shot { border-color: var(--amber); color: var(--amber); }
+#queue-shot { border-color: var(--amber); color: #1c1208; background: var(--amber); font-weight: 700; }
+#queue-shot:hover:not(:disabled) { border-color: #ffd09b; background: #ffd09b; }
 #gun-feedback { height: 24px; overflow: auto; font: 10px/12px ui-monospace, monospace; color: var(--muted); margin: 5px 0 0; }
 #mission-overlay { position: absolute; inset: 0; width: 100%; height: 100%; pointer-events: none; touch-action: none; overflow: hidden; }
 #mission-overlay path, #mission-goal { fill: none; }
@@ -216,13 +218,30 @@ legend { color: var(--muted); font-size: 11px; margin-bottom: 8px; }
 #goal-label { fill: #ff806c; }
 #mission-overlay text { font: 9px ui-monospace, monospace; }
 #enemy-prediction { stroke: var(--amber); stroke-dasharray: 1 5; stroke-linecap: round; }
+#mission-overlay #enemy-symbol { fill: #070f16; stroke: var(--amber); stroke-width: 2; }
+#enemy-velocity { stroke: var(--amber); opacity: .55; stroke-width: 1.5; }
+#enemy-acceleration { stroke: #ffe3ae; stroke-width: 2; }
+#enemy-speed { fill: var(--amber); }
+#enemy-motion { fill: var(--muted); }
+#enemy-contact[data-motion="slowing"] #enemy-motion,
+#enemy-contact[data-motion="speeding"] #enemy-motion,
+#enemy-contact[data-motion="turning"] #enemy-motion { fill: #ffe3ae; }
 #prediction-label { fill: var(--amber); }
 #aim-line { stroke: #ddeaf3; stroke-dasharray: 4 7; opacity: .5; }
 #queued-shot-line { stroke: #fff; stroke-dasharray: 8 4; }
-#shot-trails path { stroke: #dcecf5; opacity: .3; }
-#aim-handle { pointer-events: all; cursor: crosshair; }
+#shot-paths path { stroke: #dcecf5; opacity: .6; stroke-dasharray: 3 5; }
+#shot-labels text { fill: #fff; font-size: 11px; paint-order: stroke; stroke: #070f16; stroke-width: 3px; stroke-linejoin: round; }
+#aim-handle { pointer-events: all; cursor: crosshair; outline: none; }
 #aim-handle path, #aim-handle circle:not(.handle-hit) { fill: none; stroke: white; }
 #aim-handle text { fill: white; pointer-events: none; }
+#aim-grip { display: none; }
+#aim-handle #aim-grip circle { fill: #14232d; stroke: var(--amber); stroke-width: 2; }
+#aim-grip .grip-link { opacity: .5; stroke-dasharray: 2 4; pointer-events: none; }
+#aim-grip .grip-control { cursor: move; }
+#arrival-contact path { stroke: var(--amber); stroke-dasharray: 3 3; }
+#arrival-contact text { fill: var(--amber); paint-order: stroke; stroke: #070f16; stroke-width: 3px; stroke-linejoin: round; }
+@media (any-pointer: coarse), (max-width: 600px) { #aim-grip { display: inline; } }
+@media (max-width: 600px) { #arrival-contact text { display: none; } }
 #aim-handle:focus-visible { outline: none; }
 #aim-handle:focus-visible circle:not(.handle-hit) { stroke: var(--cyan); stroke-width: 3; }
 @container tactical (max-width: 600px) {
@@ -236,7 +255,12 @@ legend { color: var(--muted); font-size: 11px; margin-bottom: 8px; }
   .short-viewport .mission-active .canvas-wrap { min-height: 60px; }
 }
 
-#shot-queue { display: flex; gap: 6px; height: 58px; overflow: auto; margin-top: 6px; align-items: center; }
+#shot-ledger { display: grid; grid-template-columns: minmax(0, 1fr) 124px; gap: 8px; height: 58px; min-width: 0; margin-top: 6px; }
+#shot-queue { display: flex; gap: 6px; min-width: 0; overflow: auto; align-items: center; }
+#shot-history { display: flex; flex-direction: column; justify-content: center; min-width: 0; border-left: 1px solid var(--line); padding-left: 8px; font: 10px/11px ui-monospace, monospace; }
+#shot-history h3 { margin: 0 0 3px; font: 9px/10px ui-monospace, monospace; color: var(--muted); text-transform: uppercase; }
+#launch-list > div { white-space: nowrap; }
+#empty-history { color: var(--muted); }
 #empty-queue { color: var(--muted); font-size: 11px; }
 .queued-shot { flex: 0 0 auto; display: flex; align-items: center; gap: 8px; padding: 4px 6px; border: 1px solid var(--line); font: 10px/14px ui-monospace, monospace; }
 .queued-shot span { max-width: 180px; }
@@ -257,7 +281,7 @@ legend { color: var(--muted); font-size: 11px; margin-bottom: 8px; }
   :root:not(.short-viewport) .map-toolbar > .map-tools { flex: 1; border-bottom: 0; border-left: 1px solid var(--line); }
   :root:not(.short-viewport) #mission-controls { display: grid; grid-template-columns: 300px minmax(0, 1fr); column-gap: 12px; align-items: center; }
   :root:not(.short-viewport) .gun-buttons { grid-column: 1; grid-row: 1; }
-  :root:not(.short-viewport) #shot-queue { grid-column: 2; grid-row: 1; margin-top: 0; }
+  :root:not(.short-viewport) #shot-ledger { grid-column: 2; grid-row: 1; margin-top: 0; }
   :root:not(.short-viewport) #gun-feedback { grid-column: 1 / -1; }
 }
 @container tactical (min-width: 1100px) {
@@ -269,8 +293,22 @@ legend { color: var(--muted); font-size: 11px; margin-bottom: 8px; }
   :root:not(.short-viewport) .mission-readout { grid-area: status; justify-content: center; padding: 8px 12px; background: #101e27; border-bottom: 1px solid var(--line); }
   :root:not(.short-viewport) .retry-action { grid-area: retry; display: flex; align-items: center; justify-content: center; padding: 8px 12px; background: #101e27; border-left: 1px solid var(--line); border-bottom: 1px solid var(--line); }
   :root:not(.short-viewport) .gun-buttons { grid-area: weapons; max-width: none; padding: 8px 12px; align-items: center; border-left: 1px solid var(--line); border-bottom: 1px solid var(--line); }
-  :root:not(.short-viewport) #shot-queue { grid-area: queue; height: auto; min-height: 58px; padding-inline: 12px; border-left: 1px solid var(--line); border-bottom: 1px solid var(--line); }
+  :root:not(.short-viewport) #shot-ledger { grid-area: queue; height: auto; min-height: 58px; padding-inline: 12px; border-left: 1px solid var(--line); border-bottom: 1px solid var(--line); }
   :root:not(.short-viewport) #gun-feedback { grid-area: feedback; height: 28px; margin: 0; padding: 2px 12px; border-bottom: 1px solid var(--line); }
 }
 
 .canvas-wrap[data-navigating="true"], .canvas-wrap[data-navigating="true"] * { cursor: grabbing !important; }
+
+#mission-result { position: fixed; inset: 0; margin: auto; width: min(420px, calc(100vw - 32px)); max-height: calc(100dvh - 32px); overflow: auto; padding: 28px; border: 1px solid var(--cyan); border-top-width: 4px; background: #101e27; color: #d8e4eb; box-shadow: 0 20px 80px #0009; }
+#mission-result::backdrop { background: transparent; }
+#mission-result[data-outcome="defeat"] { border-color: #ff8c80; }
+.result-kicker { margin: 0 0 8px; font: 11px ui-monospace, monospace; letter-spacing: .15em; color: var(--muted); }
+#result-title { margin: 0; font-size: clamp(32px, 8vw, 48px); font-weight: 750; letter-spacing: .06em; color: var(--cyan); }
+#mission-result[data-outcome="defeat"] #result-title { color: #ff8c80; }
+#result-reason { line-height: 1.5; margin: 12px 0 22px; }
+.result-metrics { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; margin: 0 0 24px; }
+.result-metrics dt { font-size: 10px; color: var(--muted); margin-bottom: 6px; }
+.result-metrics dd { margin: 0; font: 13px ui-monospace, monospace; }
+.result-actions { display: flex; gap: 10px; }
+.result-actions button { flex: 1; min-height: 44px; }
+#result-retry { color: #071319; background: var(--cyan); border-color: var(--cyan); font-weight: 650; }

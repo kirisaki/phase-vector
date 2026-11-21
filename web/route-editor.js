@@ -126,7 +126,7 @@ export function createRouteEditor(onChange) {
     el('route-feedback').dataset.invalid = String(dragging && !valid);
     el('route-feedback').textContent = (finished() ? 'Mission complete. Retry to plan another blockade.' : '') || error || (dirtyNumeric ? 'Apply edited numeric values to update the next order.' : '') || (
       !valid && dragging ? 'Unreachable: outside the acceleration and delta-v limits.' :
-      `Drag Burn · Applies ${planning ? 'on Play' : 'at ' + number.format(state.order_start_seconds) + ' s'} · Repeats every ${number.format(state.timing.interval_seconds)} s. ` +
+      `Drag Burn · Applies ${planning ? 'on Auto or Commit' : 'at ' + number.format(state.order_start_seconds) + ' s'} · Repeats every ${number.format(state.timing.interval_seconds)} s. ` +
       (planning ? 'Home: coast.' : `Active: ${number.format(state.active_burn.x)}, ${number.format(state.active_burn.y)} m/s².`));
   }
 

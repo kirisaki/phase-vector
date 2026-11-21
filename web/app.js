@@ -91,7 +91,7 @@ function refresh() {
     ready = true;
     element('engine-status').textContent = 'ENGINE ONLINE';
     document.body.dataset.ready = 'true';
-    log(`Lua ready. Inspect game.state(), plan with game.burn(ax, ay), then press Play. Orders repeat every ${state.timing.interval_seconds} seconds.`, 'hint');
+    log(`Lua ready. Inspect game.state(), plan with game.burn(ax, ay), then press Auto. Orders repeat every ${state.timing.interval_seconds} seconds.`, 'hint');
   }
   element('step').textContent = `+${state.timing.step_forward_seconds} s`;
   element('step').setAttribute('aria-label', `Advance up to ${state.timing.step_forward_seconds} seconds`);
@@ -116,7 +116,8 @@ function refresh() {
   element('time').textContent = state.time_seconds.toFixed(2);
   element('command-number').textContent = `COMMAND ${String(state.command_number).padStart(2, '0')}`;
   element('window-time').textContent = finished ? 'Mission complete' : state.stop_at_boundary ? `Auto-pause: ${state.remaining_seconds.toFixed(2)} s` : `Next order: ${planning ? 'now' : state.remaining_seconds.toFixed(2) + ' s'}`;
-  element('toggle').textContent = state.paused ? 'Play' : 'Pause';
+  element('toggle').textContent = state.paused ? 'Auto' : 'Pause';
+  element('toggle').title = state.paused ? 'Play continuously across turns until paused or the mission ends' : 'Pause playback';
   element('toggle').disabled = !ready || finished || (state.paused && (dirtyPlan || routeEditor.dragging || missionControls.dragging));
   element('step').disabled = !ready || finished || !state.paused || dirtyPlan || routeEditor.dragging || missionControls.dragging;
   element('commit').disabled = !ready || finished || dirtyPlan || routeEditor.dragging || missionControls.dragging;

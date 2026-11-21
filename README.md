@@ -128,7 +128,8 @@ share the status area; longer messages can be scrolled inside it.
 
 | Control | Behavior |
 | --- | --- |
-| Aim crosshair | Drag the future target point on the map; arrows move it by 100 km (Shift: 10 km), Home restores observed lead tracking |
+| Aim crosshair | Drag the future target point; within 12 screen pixels of observed lead, snap to intercept tracking. Hold Shift to bypass snapping. Arrows move it by 100 km (Shift: 10 km); Home restores lead tracking |
+| Fine aim (touch/narrow screens) | Drag the separate round grip to move the target at 35% sensitivity without hiding the crosshair under a finger. Fine aim bypasses snapping |
 | Track lead | Follow the constant-velocity intercept from the last received enemy observation; this is a prediction, not a guaranteed hit |
 | Queue shot | Add one shot at the earliest free reload slot, starting from the next editable command boundary; aim movement does not change existing reservations |
 | Cancel / Clear queue | Remove one numbered reservation / all editable reservations; shots committed to the current interval and flying rounds stay unchanged |
@@ -143,11 +144,11 @@ share the status area; longer messages can be scrolled inside it.
 | Map − / + | Set a manual zoom; select Overview again to resume automatic fitting |
 | Drag empty map space | Pan with the mouse or one finger; keep this world position in view |
 | Two-finger pinch | Zoom around the midpoint and pan; cancels any uncommitted handle drag |
-| Play / Pause | Start or stop playback; the applied thrust vector repeats every 120 seconds until changed |
+| Auto / Pause | Start or stop playback; the applied thrust vector repeats every 120 seconds until changed |
 | Commit | Confirm orders and play at the selected speed to the next 120-second boundary, then pause |
 | Skip | Immediately simulate to the next 120-second boundary and pause, preserving the queued order |
 | +10 s | Advance 10 simulated seconds while paused, stopping at the next planning boundary if sooner |
-| Playback speed buttons | Select 1×, 32×, 64×, or 128× (default 32×) beside Play / Pause and Step; the active speed is highlighted and follows Lua changes |
+| Playback speed buttons | Select 1×, 32×, 64×, or 128× (default 32×) beside Auto / Pause and Step; the active speed is highlighted and follows Lua changes |
 | Show / Hide Lua console | Toggle the initially hidden REPL; input, output, and Lua globals are retained. Close or Escape returns focus to the toggle |
 | Run Lua | Evaluate input; Ctrl+Enter or Command+Enter also submits |
 | Example buttons | Fill the console input without executing it |
@@ -159,6 +160,12 @@ course deviation alone does not win. Terminal results freeze time and report the
 reason, event time, shot count, and friendly delta-v spent. Exact simultaneous
 impact/entry favors disablement; entry at the deadline beats timeout. No formal
 points formula is implemented yet.
+
+A centered result dialog announces VICTORY or DEFEAT with the reason, elapsed
+time, shots fired, and delta-v spent. The battlefield stays visible without
+dimming or blur. Retry restarts immediately; View map, Escape, or a click/tap
+outside the dialog dismisses it so the frozen battlefield can be inspected. The
+inline result and Retry button remain available after dismissal.
 
 The gun has unlimited ammunition and a 30-second reload. Each reservation fires
 once at its reserved firing tick, using the firing ship's velocity plus a fixed
@@ -177,25 +184,42 @@ unreachable reservations are marked and can be cancelled before committing.
 Starting a 120-second interval freezes its reserved shots, including those that
 have not fired yet. Their Cancel buttons are disabled. Running or paused edits
 inside that interval affect only the next command interval and beyond. Clear
-queue removes only editable shots. No shots repeat automatically. Up to 40 rounds
-can initially be queued before the deadline with the current reload setting.
+queue removes only editable shots. No shots repeat automatically. At most four
+unfired reservations may exist, including locked shots in the active interval.
+Flying rounds do not count toward this limit. Each launch or cancellation frees
+one slot; new running orders still apply no earlier than the next command
+boundary. The Queue button displays the current count out of four. The same
+limit is enforced by the UI, Lua, and mission API; ammunition remains unlimited.
 All shots in an interval are validated before the interval starts; an invalid
 later shot prevents the entire interval from starting until corrected or cancelled.
 Already flying rounds are unaffected by later maneuvers. The white dashed line
-shows the aim; brighter numbered dashed lines retain all reserved shots. Thin white
-trails show launched rounds. Amber dots show a 360-second constant-observed-velocity
+shows the aim; brighter numbered dashed lines retain all reserved shots. Flying
+rounds keep their reservation numbers. Dotted white paths show only the remaining
+segment from each round's current position to its target; travelled paths are not
+drawn. After target passage the line disappears, while the round and its number
+continue along their ballistic course. Target passage does not guarantee a hit.
+Recent launches lists the latest four rounds with their actual simulation launch
+times, newest first, even after they leave the map. Amber dots show a 360-second constant-observed-velocity
 prediction. Enemy fuel and AI decisions are absent from the normal view.
 
-The initial state is paused, with unlimited planning time. Play starts the first
+Commit is the cyan primary playback action; Queue is the amber primary weapon
+action. Auto retains continuous playback as a secondary action. An amber diamond
+marks the enemy's estimated position at the proposed shot's arrival time, using
+only the delivered observation and constant velocity. The weapon feedback shows
+the estimated offset between that position and the target. Neither the marker
+nor lead assist anticipates enemy evasion. Dragging preserves the initial grab
+offset so touching the edge of a handle does not make the target jump.
+
+The initial state is paused, with unlimited planning time. Auto starts the first
 interval and continues automatically across subsequent 120-second boundaries.
 The last applied thrust direction and magnitude repeat; they do not reset to
 coasting. A new map or numeric order can be queued while running or paused and
 takes effect at the next boundary. The active interval remains unchanged.
 Commit plays just to the next boundary and pauses before applying the following
 interval's orders. Its highlighted button and countdown show the automatic stop.
-At a paused boundary, Play, Commit, or stepping applies the latest order immediately.
+At a paused boundary, Auto, Commit, or stepping applies the latest order immediately.
 Position, velocity, delta-v, and projectiles persist. Unapplied numeric edits
-block Play, Commit, stepping, and Skip, but never prevent pausing playback.
+block Auto, Commit, stepping, and Skip, but never prevent pausing playback.
 
 A pale ring expands from the friendly ship whenever a new interval's order is
 applied, including a zero-thrust order. This marks the **120-second command
@@ -207,6 +231,14 @@ velocity and delta-v use
 km/s. The grid spacing changes with zoom and is labeled on the map. Symbols and
 velocity-direction arrows are enlarged for readability; collision radii remain
 physical and are visible as rings at close zoom.
+
+The orange enemy ship symbol points along its observed velocity and keeps a
+readable size on phones. Its speed label and faint velocity arrow show motion;
+the arrow uses one pixel per km/s, capped at 72 pixels. A bright arrow and the
+observed slowing/speeding/turning label show acceleration estimated from the two
+latest delivered fixes. The acceleration arrow is enlarged for readability.
+These indicators inherit sensor delay and never read the enemy's hidden orders
+or future decisions. The symbol indicates travel direction, not hull attitude.
 
 Overview automatically adjusts zoom as the friendly ship and observed contact
 move, using the actual viewport aspect ratio and keeping space around both ships. `Overview · Auto` indicates
@@ -264,7 +296,7 @@ Times are fixed in this version; there are no waypoints or multi-burn schedules.
 Releasing a graphical drag replaces the current draft, including any unapplied
 numeric input. Escape, interrupted touch, or loss of window focus cancels only
 the current gesture and preserves the previous draft and numeric input. The
-telemetry and preview metrics remain visible throughout. Play from pause, stepping,
+telemetry and preview metrics remain visible throughout. Auto from pause, stepping,
 Commit, and Skip are disabled during a drag; Pause remains available while running.
 A drag that crosses a command boundary keeps its direction and fraction of the
 reachable disk, rebased onto the next interval. External order changes through
@@ -321,7 +353,7 @@ continuous playback. `commit` starts or resumes playback with an automatic stop
 at the next command boundary. Repeated Commit calls during an active interval
 do not extend its stop time or change its frozen orders. Speed changes preserve
 the automatic stop. `pause` cancels the automatic stop; use Commit to continue
-only to the boundary or Play to continue across turns. `skip` immediately
+only to the boundary or Auto to continue across turns. `skip` immediately
 simulates to that boundary and pauses; `next_turn` remains its compatible alias.
 `game.state().stop_at_boundary` reports whether Commit playback is active.
 Invalid commands,
@@ -393,7 +425,7 @@ The sandbox smoke test opens Chromium and fulfills browser requests from `dist/`
 virtual HTTPS `/phase-vector/` URL. It checks engine startup, a visible scene
 change after commands, delta-v consumption, exact interval boundaries, queued
 orders, and identical results from playback and manual stepping. A pointer-authored
-plan is executed through the actual Play button and its final position, velocity,
+plan is executed through the actual Auto button and its final position, velocity,
 and delta-v are compared with the preview; running edits preserve the active burn.
 Continuous playback, repeated orders, and the interval pulse are also checked. The test also checks
 Lua persistence, validation, error recovery, direct map dragging and release-to-apply,
@@ -470,7 +502,7 @@ not require a game server or custom domain.
   receivers, noise, occlusion, and relativistic effects are not modeled.
 - The enemy reacts autonomously once per second, within player command intervals.
   Its 120 s threat horizon is independent of projectile flight time. A conservative
-  75 km safety corridor and 120 s committed evasion are tuning assumptions.
+  1,000 km safety corridor and 120 s committed evasion are tuning assumptions.
 - The normal view extrapolates the latest received enemy track. The initial track
   is supplied by the briefing. Lua inspection intentionally exposes true state.
 - One constant burn repeats each interval; a shot reservation fires only once.

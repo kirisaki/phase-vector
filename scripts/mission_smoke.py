@@ -55,8 +55,9 @@ def main():
                 page.wait_for_timeout(120)
 
             def retry():
-                page.locator('#retry').click()
+                page.locator('#result-retry' if page.locator('#mission-result').is_visible() else '#retry').click()
                 expect(page.locator('#ticks')).to_have_text('0')
+                expect(page.locator('#mission-result')).to_be_hidden()
                 assert state()['mission']['shots'] == []
                 assert state()['world']['projectiles'] == []
                 assert state()['mission']['queued'] == []
@@ -79,6 +80,30 @@ def main():
             assert page.locator('#mission-goal').get_attribute('r')
             expect(page.locator('#queue-shot')).to_be_enabled()
             expect(page.locator('#retry')).to_be_disabled()
+            # Enemy indicators use delivered motion and stay legible at phone size.
+            expect(page.locator('#enemy-speed')).to_have_text('Enemy · 37.5 km/s')
+            expect(page.locator('#enemy-symbol')).to_have_attribute('transform', 'rotate(90)')
+            page.locator('#queue-shot').click()
+            next_turn()
+            next_turn()
+            expect(page.locator('#enemy-contact')).to_have_attribute('data-motion', 'coasting')
+            assert page.locator('#enemy-acceleration').get_attribute('d') == ''
+            for _ in range(2):
+                page.locator('#step').click()
+            expect(page.locator('#enemy-contact')).to_have_attribute('data-motion', 'slowing')
+            assert page.locator('#enemy-acceleration').get_attribute('d')
+            assert state()['mission']['observed_acceleration']['y'] > 0
+            assert 'ai_reason' not in state()['mission']
+            page.screenshot(path=str(artifacts / 'enemy-slowing-desktop.png'))
+            page.set_viewport_size({'width': 390, 'height': 844})
+            page.wait_for_timeout(300)
+            expect(page.locator('#enemy-symbol')).to_be_in_viewport()
+            expect(page.locator('#enemy-speed')).to_be_in_viewport()
+            assert page.locator('#enemy-symbol').bounding_box()['height'] >= 19
+            page.screenshot(path=str(artifacts / 'enemy-slowing-phone.png'))
+            page.set_viewport_size({'width': 1360, 'height': 1000})
+            page.evaluate("wasm.command('reset')")
+            page.wait_for_timeout(300)
             canvas = page.locator('#tactical-map').bounding_box()
             # Pointer placement and cancellation change a reservation, never launch immediately.
             point = handle_point()
@@ -110,9 +135,22 @@ def main():
             assert state()['mission']['queued'][1] == orders[2]
             page.locator('#queue-shot').click()
             assert [q['launch_tick'] for q in state()['mission']['queued']] == [q['launch_tick'] for q in orders]
+            launch_ids = [q['id'] for q in state()['mission']['queued']]
             page.screenshot(path=str(artifacts / 'mission-multiple-queue.png'))
             page.locator('#step').click()
             assert len(state()['mission']['shots']) == 1
+            expect(page.locator('#shot-labels text')).to_have_text(f'#{launch_ids[0]}')
+            expect(page.locator('#launch-list > div')).to_have_text(f'#{launch_ids[0]} · fired 0.0 s')
+            # The path starts at the moving round, never at its historic launch origin.
+            assert page.evaluate('''async () => {
+                const { mapProjection } = await import(new URL('./map-overlay.js', location.href).href);
+                const s = readState(), svg = document.querySelector('#mission-overlay');
+                const view = mapProjection(svg, s.map), shot = s.mission.shots[0];
+                const projectile = s.world.projectiles.find(p => p.id === shot.projectile_id);
+                const actual = document.querySelector('#shot-paths path').getAttribute('d');
+                return actual === view.path([projectile.position, shot.target]) &&
+                    actual !== view.path([shot.origin, shot.target]);
+            }''')
             locked = state()['mission']['queued']
             assert all(q['locked'] for q in locked)
             expect(page.locator('#cancel-shot')).to_be_disabled()
@@ -132,17 +170,36 @@ def main():
             page.wait_for_function('readState().paused', timeout=30000)
             assert state()['world']['tick'] == timing['interval_ticks']
             assert [shot['launch_tick'] for shot in state()['mission']['shots']] == [i * reload_ticks for i in range(4)]
-            remaining_slots = round((state()['mission']['deadline_seconds'] - state()['time_seconds']) / state()['mission']['reload_seconds'])
+            assert [shot['order_id'] for shot in state()['mission']['shots']] == launch_ids
+            expect(page.locator('#launch-list > div')).to_have_text([
+                f'#{launch_ids[i]} · fired {i * reload_ticks * timing["step_seconds"]:.1f} s'
+                for i in reversed(range(4))
+            ])
+            page.screenshot(path=str(artifacts / 'shot-history-desktop.png'))
+            for width, height in [(390, 844), (320, 568)]:
+                page.set_viewport_size({'width': width, 'height': height})
+                page.wait_for_timeout(300)
+                expect(page.locator('#shot-history')).to_be_in_viewport()
+                assert page.evaluate('document.documentElement.scrollWidth <= innerWidth && document.documentElement.scrollHeight <= innerHeight')
+                page.screenshot(path=str(artifacts / f'shot-history-{width}.png'))
+            page.set_viewport_size({'width': 1360, 'height': 1000})
+            page.wait_for_timeout(300)
+            remaining_slots = state()['mission']['queue_capacity']
+            assert remaining_slots == 4
             for _ in range(remaining_slots):
                 page.locator('#queue-shot').click()
             expect(page.locator('#queue-shot')).to_be_disabled()
-            expect(page.locator('#gun-feedback')).to_contain_text('No free firing slot')
+            expect(page.locator('#queue-shot')).to_have_text('Queue 4/4')
+            expect(page.locator('#gun-feedback')).to_contain_text('Shot queue is full')
             expect(page.locator('#shot-queue .queued-shot')).to_have_count(remaining_slots)
             first_id = state()['mission']['queued'][0]['id']
             page.get_by_role('button', name=f'Cancel shot {first_id}', exact=True).click()
             expect(page.locator('#queue-shot')).to_be_enabled()
             page.evaluate("wasm.command('reset')")
             page.wait_for_timeout(200)
+            expect(page.locator('#launch-list > div')).to_have_count(0)
+            expect(page.locator('#shot-labels text')).to_have_count(0)
+            expect(page.locator('#shot-paths path')).to_have_count(0)
             # No attack must lose; the terminal state freezes all gameplay commands.
             for _ in range(9):
                 next_turn()
@@ -153,6 +210,10 @@ def main():
             assert state()['mission']['outcome'] == 'breakthrough'
             assert abs(state()['mission']['ended_seconds'] - 1173.333333) < 0.001
             expect(page.locator('#mission-status')).to_contain_text('Defeat')
+            expect(page.locator('#mission-result')).to_be_visible()
+            expect(page.locator('#result-title')).to_have_text('DEFEAT')
+            expect(page.locator('#result-reason')).to_contain_text('reached the exit')
+            expect(page.locator('#result-retry')).to_be_focused()
             for control in ['toggle', 'step', 'commit', 'next-turn', 'queue-shot']:
                 expect(page.locator('#' + control)).to_be_disabled()
             expect(page.locator('#burn-fields')).to_have_attribute('disabled', '')
@@ -161,6 +222,15 @@ def main():
             assert state()['world'] == end
             assert page.locator('#tactical-map').bounding_box() == canvas
             page.screenshot(path=str(artifacts / 'mission-defeat.png'))
+            page.set_viewport_size({'width': 320, 'height': 568})
+            expect(page.locator('#result-retry')).to_be_in_viewport()
+            expect(page.locator('#result-view')).to_be_in_viewport()
+            assert page.evaluate('document.documentElement.scrollWidth <= innerWidth && document.documentElement.scrollHeight <= innerHeight')
+            page.screenshot(path=str(artifacts / 'mission-result-phone.png'))
+            page.set_viewport_size({'width': 844, 'height': 390})
+            expect(page.locator('#result-retry')).to_be_in_viewport()
+            page.set_viewport_size({'width': 1360, 'height': 1000})
+            page.wait_for_timeout(300)
             retry()
             # Seven observed-lead shots, no friendly burn: blockade without a hit.
             for turn in range(10):
@@ -171,13 +241,32 @@ def main():
                 if turn == 0:
                     assert len(state()['world']['projectiles']) == 1
                 assert len(state()['mission']['shots']) == min(turn + 1, 7)
+                if turn == 4:
+                    shots = state()['mission']['shots']
+                    expect(page.locator('#launch-list > div')).to_have_text([
+                        f'#{shot["order_id"]} · fired {shot["launch_tick"] * timing["step_seconds"]:.1f} s'
+                        for shot in reversed(shots[-4:])
+                    ])
+                    first = shots[0]
+                    assert state()['time_seconds'] > first['arrival_seconds']
+                    assert any(p['id'] == first['projectile_id'] for p in state()['world']['projectiles'])
+                    expect(page.locator(f'#shot-paths [data-shot-id="{first["order_id"]}"]')).to_have_count(0)
+                    expect(page.locator(f'#shot-labels [data-shot-id="{first["order_id"]}"]')).to_have_text(f'#{first["order_id"]}')
             current = state()
             assert current['mission']['outcome'] == 'timeout', current['mission']
             assert current['world']['impacts'] == []
             expect(page.locator('#mission-status')).to_contain_text('Victory')
+            expect(page.locator('#mission-result')).to_be_visible()
+            expect(page.locator('#result-title')).to_have_text('VICTORY')
+            expect(page.locator('#result-reason')).to_contain_text('missed its deadline')
+            expect(page.locator('#result-shots')).to_have_text('7')
             expect(page.locator('#mission-metrics')).to_contain_text('7 shots')
             assert page.locator('#tactical-map').bounding_box() == canvas
             page.screenshot(path=str(artifacts / 'mission-victory.png'))
+            page.locator('#result-view').click()
+            page.wait_for_timeout(250)
+            expect(page.locator('#mission-result')).to_be_hidden()
+            expect(page.locator('#retry')).to_be_focused()
             # The diagnostic REPL exposes decision reasons and observed tracks separately.
             page.locator('#console-toggle').click()
             page.locator('#lua-input').fill('return game.state().mission.ai_reason, game.state().mission.observed_attacks')
@@ -229,6 +318,35 @@ def main():
                     first_id = state()['mission']['queued'][0]['id']
                     page.get_by_role('button', name=f'Cancel shot {first_id}', exact=True).click()
                     assert len(state()['mission']['queued']) == 1
+                    page.locator('#cancel-shot').click()
+                    # Offset fine control keeps the aim visible and moves at reduced gain.
+                    page.locator('#track-aim').click()
+                    lead = state()['mission']['aim']['target']
+                    grip = page.locator('#aim-grip .grip-control').evaluate('''h => {
+                        const p = new DOMPoint(0, 0).matrixTransform(h.getScreenCTM());
+                        return {x: p.x, y: p.y};
+                    }''')
+                    rect = page.locator('#mission-overlay').bounding_box()
+                    scale = max(2000 / rect['width'], 1200 / rect['height']) * state()['map']['metres_per_unit']
+                    client.send('Input.dispatchTouchEvent', {'type': 'touchStart', 'touchPoints': [grip]})
+                    expect(page.locator('#queue-shot')).to_be_disabled()
+                    client.send('Input.dispatchTouchEvent', {'type': 'touchMove', 'touchPoints': [{'x': grip['x'] - 20, 'y': grip['y'] - 10}]})
+                    page.screenshot(path=str(artifacts / 'fine-aim-touch.png'))
+                    client.send('Input.dispatchTouchEvent', {'type': 'touchEnd', 'touchPoints': []})
+                    page.locator('#queue-shot').click()
+                    fine = state()['mission']['queued'][0]['target']
+                    assert abs(fine['x'] - (lead['x'] - 20 * scale * 0.35)) < scale * 0.01
+                    assert abs(fine['y'] - (lead['y'] + 10 * scale * 0.35)) < scale * 0.01
+                    page.locator('#cancel-shot').click()
+                    page.locator('#track-aim').click()
+                    # A near-intercept drag snaps to observed lead rather than a near miss.
+                    point = handle_point()
+                    client.send('Input.dispatchTouchEvent', {'type': 'touchStart', 'touchPoints': [point]})
+                    client.send('Input.dispatchTouchEvent', {'type': 'touchMove', 'touchPoints': [{'x': point['x'] - 8, 'y': point['y']}]})
+                    client.send('Input.dispatchTouchEvent', {'type': 'touchEnd', 'touchPoints': []})
+                    page.locator('#queue-shot').click()
+                    assert state()['mission']['queued'][0]['target'] == lead
+                    expect(page.locator('#arrival-contact text')).to_contain_text('estimate')
                     page.locator('#cancel-shot').click()
                     client.detach()
                 page.screenshot(path=str(artifacts / f'mission-{width}x{height}.png'))

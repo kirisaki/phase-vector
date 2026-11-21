@@ -43,7 +43,7 @@ gun solver whose target is a world point and whose flight time is solved.
   tunneling. A hit requires the trajectories to intersect at the same time, not
   merely cross the same map location at different times.
 - WEGO execution: each applied order advances all actors simultaneously for
-  **120 simulated seconds**. Play continues across boundaries, repeating the
+  **120 simulated seconds**. Auto continues across boundaries, repeating the
   last thrust vector until changed; Pause provides unlimited planning time.
 - Draft orders may be edited while running or paused. Changes apply only at the
   next 120-second command boundary; an active interval's order is immutable.

@@ -281,10 +281,11 @@ fn draw_world(mut gizmos: Gizmos, windows: Query<&Window>, time: Res<Time>) {
                     ],
                     color,
                 );
-            } else {
+            } else if view.mission.is_none() {
                 gizmos.cross_2d(position, 30.0, color);
             }
-            if velocity.length_squared() > 0.0 {
+            // The mission SVG supplies a pixel-sized enemy symbol and observed vectors.
+            if (friendly || view.mission.is_none()) && velocity.length_squared() > 0.0 {
                 gizmos.arrow_2d(position, position + velocity.normalize() * 70.0, color);
             }
         }
