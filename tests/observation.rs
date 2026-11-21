@@ -7,6 +7,29 @@ use phase_vector::{
 };
 
 #[test]
+fn acceleration_estimate_changes_only_when_distinct_samples_are_delivered() {
+    let mut world = scenario::initial_world();
+    let mut sensors = Sensors::new(&world.ships[1], 0);
+    let processing = seconds_to_ticks(1);
+    assert_eq!(sensors.contact_acceleration(), None);
+    sensors.update(&world, 1, 2, processing);
+    world.tick = SAMPLE_TICKS;
+    world.ships[1].velocity = world.ships[1].velocity + V::new(12.0, -8.0);
+    sensors.update(&world, 1, 2, processing);
+    world.tick = seconds_to_ticks(2);
+    sensors.update(&world, 1, 2, processing);
+    assert_eq!(sensors.contact_acceleration(), None);
+    // A new hidden burn cannot affect the estimate before its observation arrives.
+    world.ships[1].velocity = V::new(9999.0, 9999.0);
+    world.tick = seconds_to_ticks(3) - 1;
+    sensors.update(&world, 1, 2, processing);
+    assert_eq!(sensors.contact_acceleration(), None);
+    world.tick += 1;
+    sensors.update(&world, 1, 2, processing);
+    assert_eq!(sensors.contact_acceleration(), Some(V::new(12.0, -8.0)));
+}
+
+#[test]
 fn contact_delivery_includes_processing_and_quantized_light_travel() {
     let mut world = scenario::initial_world();
     let mut sensors = Sensors::new(&world.ships[1], world.tick);

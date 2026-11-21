@@ -50,6 +50,7 @@ impl Track {
 pub struct Sensors {
     pub contact: Track,
     pub threats: Vec<Track>,
+    previous_contact: Option<Track>,
     pending_contact: Vec<Track>,
     pending_threats: Vec<Track>,
 }
@@ -59,10 +60,18 @@ impl Sensors {
         Self {
             contact: Track::ship(enemy, tick, tick),
             threats: Vec::new(),
+            previous_contact: None,
             pending_contact: Vec::new(),
             pending_threats: Vec::new(),
         }
     }
+    /// Average acceleration between delivered fixes, never an authoritative burn.
+    pub fn contact_acceleration(&self) -> Option<Vector2> {
+        let previous = self.previous_contact.as_ref()?;
+        let seconds = (self.contact.sampled_tick - previous.sampled_tick) as f64 * STEP_SECONDS;
+        Some((self.contact.velocity - previous.velocity) * (1.0 / seconds))
+    }
+
     pub fn update(
         &mut self,
         world: &World,
@@ -76,6 +85,9 @@ impl Sensors {
                 return true;
             }
             if packet.sampled_tick >= self.contact.sampled_tick {
+                if packet.sampled_tick > self.contact.sampled_tick {
+                    self.previous_contact = Some(self.contact.clone());
+                }
                 self.contact = packet.clone();
             }
             false

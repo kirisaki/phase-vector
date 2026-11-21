@@ -42,7 +42,7 @@ impl Default for Policy {
     fn default() -> Self {
         Self {
             reaction_seconds: 120.0,
-            safety_radius: 75.0 * crate::units::METRES_PER_KILOMETRE,
+            safety_radius: 1000.0 * crate::units::METRES_PER_KILOMETRE,
             hold_seconds: 120.0,
             recovery_seconds: 120.0,
         }

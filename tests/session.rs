@@ -355,10 +355,19 @@ fn stepping_from_a_boundary_is_paused_and_playback_commands_do_not_restart_an_in
 
 #[test]
 fn commit_stops_at_the_same_boundary_as_skip_at_every_speed() {
-    let mut base = Session::blockade();
+    // Four reservations include one exactly at the next boundary.
+    let mut base = Session::with_mission(
+        phase_vector::scenario::initial_world(),
+        1,
+        phase_vector::mission::Config {
+            reload_ticks: INTERVAL_TICKS / 3,
+            ..phase_vector::mission::Config::default()
+        },
+    )
+    .unwrap();
     base.dispatch(C::PlanBurn(V::new(MAX_ACCELERATION, 0.0)))
         .unwrap();
-    for _ in 0..5 {
+    for _ in 0..phase_vector::mission::MAX_QUEUED_SHOTS {
         base.dispatch(C::QueueShot(base.aim().unwrap().target))
             .unwrap();
     }
@@ -380,7 +389,7 @@ fn commit_stops_at_the_same_boundary_as_skip_at_every_speed() {
             played.snapshot().command_log,
             skipped.snapshot().command_log
         );
-        assert_eq!(played.mission().unwrap().shots.len(), 4);
+        assert_eq!(played.mission().unwrap().shots.len(), 3);
         assert_eq!(played.mission().unwrap().queued.len(), 1);
     }
 }

@@ -245,6 +245,11 @@ impl Host {
                             mission.config.reload_ticks as f64 * crate::physics::STEP_SECONDS,
                         )?;
                         table.set(ctx, "queued", !mission.queued.is_empty())?;
+                        table.set(
+                            ctx,
+                            "queue_capacity",
+                            crate::mission::MAX_QUEUED_SHOTS as i64,
+                        )?;
                         let queue = Table::new(&ctx);
                         for (i, order) in mission.queued.iter().enumerate() {
                             let item = Table::new(&ctx);

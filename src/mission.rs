@@ -10,6 +10,8 @@ use crate::{
 };
 use serde::Serialize;
 
+pub const MAX_QUEUED_SHOTS: usize = 4;
+
 #[derive(Clone, Debug, PartialEq, Serialize)]
 pub struct Config {
     pub enemy_id: u32,
@@ -65,7 +67,9 @@ pub struct QueuedShot {
 #[derive(Clone, Debug, PartialEq, Serialize)]
 pub struct Shot {
     pub projectile_id: u64,
+    pub order_id: u32,
     pub launch_tick: u64,
+    pub arrival_seconds: f64,
     pub origin: Vector2,
     pub target: Vector2,
     pub velocity: Vector2,
@@ -195,6 +199,7 @@ impl Mission {
         if !self.running() {
             return Err("Mission is over; retry to issue orders.".into());
         }
+        self.check_queue_capacity()?;
         let exhausted = || "No free firing slot remains before the deadline.".to_string();
         let mut tick = from_tick.max(self.ready_tick);
         for order in &self.queued {
@@ -226,6 +231,7 @@ impl Mission {
         if !self.running() {
             return Err("Mission is over; retry to issue orders.".into());
         }
+        self.check_queue_capacity()?;
         if launch_tick < self.ready_tick {
             return Err("Gun is still reloading at the requested launch time.".into());
         }
@@ -251,6 +257,14 @@ impl Mission {
         });
         self.next_order_id = next_id;
         self.queued.sort_by_key(|order| order.launch_tick);
+        Ok(())
+    }
+    fn check_queue_capacity(&self) -> Result<(), String> {
+        if self.queued.len() >= MAX_QUEUED_SHOTS {
+            return Err(format!(
+                "Shot queue is full ({MAX_QUEUED_SHOTS}/{MAX_QUEUED_SHOTS}). Wait for a launch or cancel an editable shot."
+            ));
+        }
         Ok(())
     }
     pub fn launch_queued(
@@ -280,7 +294,9 @@ impl Mission {
             world.launch(player_id, origin, velocity, scenario::PROJECTILE_RADIUS)?;
         self.shots.push(Shot {
             projectile_id,
+            order_id: order.id,
             launch_tick: world.tick,
+            arrival_seconds: solution.arrival_seconds,
             origin,
             target,
             velocity,

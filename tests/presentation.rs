@@ -140,12 +140,15 @@ fn browser_and_lua_share_clock_settings_and_boundary_units() {
 #[test]
 fn current_interval_shot_previews_and_locks_ignore_future_draft_changes() {
     let mut session = Session::blockade();
-    for _ in 0..5 {
+    for _ in 0..phase_vector::mission::MAX_QUEUED_SHOTS {
         session
             .dispatch(C::QueueShot(session.aim().unwrap().target))
             .unwrap();
     }
     session.dispatch(C::StepForward).unwrap();
+    session
+        .dispatch(C::QueueShot(session.aim().unwrap().target))
+        .unwrap();
     let map = MapView::default();
     let before = to_value(State::new(&session.snapshot(), &map)).unwrap();
     session

@@ -91,10 +91,12 @@ pub struct MissionView<'a> {
     pub reload_seconds: f64,
     pub shots: &'a [Shot],
     pub queued: Vec<QueuedShotView<'a>>,
+    pub queue_capacity: usize,
     pub queue_error: Option<String>,
     pub aim: Option<Solution>,
     pub contact: &'a Track,
     pub contact_age: f64,
+    pub observed_acceleration: Option<Vector2>,
     pub prediction: [Vector2; 2],
 }
 
@@ -115,6 +117,7 @@ impl<'a> State<'a> {
                 ready_seconds: mission.ready_tick as f64 * STEP_SECONDS,
                 reload_seconds: mission.config.reload_ticks as f64 * STEP_SECONDS,
                 shots: &mission.shots,
+                queue_capacity: crate::mission::MAX_QUEUED_SHOTS,
                 queued: mission
                     .queued
                     .iter()
@@ -139,6 +142,7 @@ impl<'a> State<'a> {
                     .and_then(|tick| mission.aim(&snapshot.planning_ship_at(tick), tick).ok()),
                 contact,
                 contact_age: (snapshot.world.tick - contact.sampled_tick) as f64 * STEP_SECONDS,
+                observed_acceleration: mission.sensors.contact_acceleration(),
                 prediction: [
                     position,
                     position + contact.velocity * crate::timing::FORECAST_SECONDS,
