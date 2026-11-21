@@ -5,7 +5,7 @@ use serde::Serialize;
 use crate::{
     maneuver::Preview,
     map::{MapFrame, MapView},
-    mission::{Outcome, QueuedShot, Shot, Solution, solve_shot},
+    mission::{Outcome, QueuedShot, Shot, Solution},
     observation::Track,
     physics::{Impact, Projectile, STEP_SECONDS, Ship, Vector2},
     scenario::Scale,
@@ -106,8 +106,7 @@ impl<'a> State<'a> {
         let mission = snapshot.mission.map(|mission| {
             let contact = &mission.sensors.contact;
             let position = contact.position_at(snapshot.world.tick);
-            let launch_tick =
-                mission.next_launch_tick((snapshot.order_start_seconds / STEP_SECONDS) as u64);
+            let launch_tick = snapshot.next_shot_tick();
             MissionView {
                 outcome: mission.outcome,
                 ended_seconds: mission.ended_seconds,
@@ -122,24 +121,17 @@ impl<'a> State<'a> {
                     .queued
                     .iter()
                     .map(|order| {
-                        let solution = solve_shot(
-                            &snapshot.planning_ship_at(order.launch_tick),
-                            order.target,
-                            order.launch_tick,
-                        );
+                        let solution = snapshot.preview_shot_at(order.target, order.launch_tick);
                         QueuedShotView {
                             order,
-                            locked: order.launch_tick
-                                < (snapshot.order_start_seconds / STEP_SECONDS) as u64,
+                            locked: order.launch_tick < snapshot.order_start_tick,
                             error: solution.as_ref().err().cloned(),
                             solution: solution.ok(),
                         }
                     })
                     .collect(),
                 queue_error: launch_tick.as_ref().err().cloned(),
-                aim: launch_tick
-                    .ok()
-                    .and_then(|tick| mission.aim(&snapshot.planning_ship_at(tick), tick).ok()),
+                aim: snapshot.aim().ok(),
                 contact,
                 contact_age: (snapshot.world.tick - contact.sampled_tick) as f64 * STEP_SECONDS,
                 observed_acceleration: mission.sensors.contact_acceleration(),

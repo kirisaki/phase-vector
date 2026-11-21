@@ -101,6 +101,7 @@ pub struct Snapshot<'a> {
     pub active_burn: Vector2,
     pub time_seconds: f64,
     pub remaining_seconds: f64,
+    pub order_start_tick: u64,
     pub order_start_seconds: f64,
     pub command_number: usize,
     pub command_log: &'a [CommandRecord],
@@ -165,23 +166,16 @@ impl Session {
     }
 
     pub fn next_shot_tick(&self) -> Result<u64, String> {
-        self.mission
-            .as_ref()
-            .ok_or("Start a blockade mission to use the gun.")?
-            .next_launch_tick(self.interval_end)
+        self.snapshot().next_shot_tick()
     }
 
     pub fn aim(&self) -> Result<crate::mission::Solution, String> {
-        let tick = self.next_shot_tick()?;
-        self.mission
-            .as_ref()
-            .unwrap()
-            .aim(&self.snapshot().planning_ship_at(tick), tick)
+        self.snapshot().aim()
     }
 
     pub fn preview_shot(&self, target: Vector2) -> Result<crate::mission::Solution, String> {
         let tick = self.next_shot_tick()?;
-        crate::mission::solve_shot(&self.snapshot().planning_ship_at(tick), target, tick)
+        self.snapshot().preview_shot_at(target, tick)
     }
 
     pub fn world(&self) -> &World {
@@ -206,6 +200,7 @@ impl Session {
             } else {
                 (self.interval_end - self.world.tick) as f64 * STEP_SECONDS
             },
+            order_start_tick: self.interval_end,
             order_start_seconds: self.interval_end as f64 * STEP_SECONDS,
             command_number: self.command_log.len() + usize::from(self.phase == Phase::Planning),
             command_log: &self.command_log,
@@ -397,11 +392,8 @@ impl Session {
             .unwrap_or_default();
         // Validate the complete frozen firing plan before committing any part of it.
         for order in &shots {
-            crate::mission::solve_shot(
-                &self.snapshot().planning_ship_at(order.launch_tick),
-                order.target,
-                order.launch_tick,
-            )?;
+            self.snapshot()
+                .preview_shot_at(order.target, order.launch_tick)?;
         }
         if let Some(mission) = &mut self.mission {
             mission.launch_queued(&mut self.world, self.player_id)?;
@@ -422,6 +414,28 @@ impl Session {
 }
 
 impl Snapshot<'_> {
+    /// Shared planning entry points for commands, Lua, and the normal UI.
+    pub fn next_shot_tick(&self) -> Result<u64, String> {
+        self.mission
+            .ok_or("Start a blockade mission to use the gun.")?
+            .next_launch_tick(self.order_start_tick)
+    }
+
+    pub fn aim(&self) -> Result<crate::mission::Solution, String> {
+        let tick = self.next_shot_tick()?;
+        self.mission
+            .unwrap()
+            .aim(&self.planning_ship_at(tick), tick)
+    }
+
+    pub fn preview_shot_at(
+        &self,
+        target: Vector2,
+        tick: u64,
+    ) -> Result<crate::mission::Solution, String> {
+        crate::mission::solve_shot(&self.planning_ship_at(tick), target, tick)
+    }
+
     pub fn presentation_world(&self) -> World {
         self.mission.map_or_else(
             || self.world.clone(),
@@ -431,7 +445,7 @@ impl Snapshot<'_> {
 
     /// Predict the next command boundary without changing the current orders.
     pub fn planning_ship(&self) -> crate::physics::Ship {
-        self.planning_ship_at((self.order_start_seconds / STEP_SECONDS) as u64)
+        self.planning_ship_at(self.order_start_tick)
     }
 
     /// Predict any future tick using the active burn until the boundary, then the draft.
@@ -443,7 +457,7 @@ impl Snapshot<'_> {
             .find(|s| s.id == self.player_id)
             .unwrap()
             .clone();
-        let boundary = (self.order_start_seconds / STEP_SECONDS) as u64;
+        let boundary = self.order_start_tick;
         for t in self.world.tick..tick {
             let burn = if self.phase == Phase::Executing && t < boundary {
                 self.active_burn
