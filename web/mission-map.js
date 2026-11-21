@@ -3,7 +3,7 @@ import { mapProjection } from './map-overlay.js';
 const ns = 'http://www.w3.org/2000/svg';
 
 // Render a supplied observation snapshot and aim preview; never issue gameplay commands.
-export function drawMissionMap(svg, state, { aim, solution, fixedTarget, done }) {
+export function drawMissionMap(svg, state, { aim, solution, arrival, fixedTarget, done }) {
   const el = (id) => svg.querySelector(`#${id}`);
   const handle = el('aim-handle'), m = state.mission;
   const view = mapProjection(svg, state.map), { project, path } = view;
@@ -42,20 +42,17 @@ export function drawMissionMap(svg, state, { aim, solution, fixedTarget, done })
     el('aim-grip').querySelector('.grip-control').setAttribute('transform', `translate(${gripX} ${gripY})`);
   }
   const arrivalContact = el('arrival-contact');
-  arrivalContact.style.display = solution && !done ? '' : 'none';
-  el('prediction-label').style.display = solution && !done ? 'none' : '';
-  if (solution && !done) {
-    const dt = solution.arrival_seconds - state.time_seconds;
-    const position = { x: m.prediction[0].x + m.contact.velocity.x * dt,
-      y: m.prediction[0].y + m.contact.velocity.y * dt };
-    const [x, y] = project(position);
+  arrivalContact.style.display = arrival && !done ? '' : 'none';
+  el('prediction-label').style.display = arrival && !done ? 'none' : '';
+  if (arrival && !done) {
+    const [x, y] = project(arrival.position);
     arrivalContact.setAttribute('transform', `translate(${x} ${y})`);
     arrivalContact.querySelector('path').setAttribute('d', 'M0 -10L10 0L0 10L-10 0Z');
     const label = arrivalContact.querySelector('text');
     label.setAttribute('x', x > view.width - 130 ? -14 : 14);
     label.setAttribute('y', 22);
     label.setAttribute('text-anchor', x > view.width - 130 ? 'end' : 'start');
-    label.textContent = `Enemy +${dt.toFixed(0)} s · estimate`;
+    label.textContent = `Enemy +${arrival.secondsFromNow.toFixed(0)} s · estimate`;
   }
   handle.querySelector('text').textContent = fixedTarget ? 'Aim · fixed' : 'Aim · lead';
   el('shot-paths').replaceChildren();

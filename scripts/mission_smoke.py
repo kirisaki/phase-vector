@@ -231,6 +231,12 @@ def main():
             expect(page.locator('#result-retry')).to_be_in_viewport()
             page.set_viewport_size({'width': 1360, 'height': 1000})
             page.wait_for_timeout(300)
+            # Panel dismissal survives polling without retrying or changing frozen state.
+            page.mouse.click(10, 10)
+            expect(page.locator('#mission-result')).to_be_hidden()
+            page.wait_for_timeout(200)
+            expect(page.locator('#mission-result')).to_be_hidden()
+            assert state()['world'] == end
             retry()
             # Seven observed-lead shots, no friendly burn: blockade without a hit.
             for turn in range(10):

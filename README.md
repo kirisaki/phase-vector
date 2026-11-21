@@ -549,14 +549,20 @@ Small collision fixtures, numerical tolerances in assertions, and pixel sizes
 also keep their own values; they are not scenario tuning.
 
 `session::Snapshot` is authoritative state for commands and Lua diagnostics.
+Its shot planning methods are shared by command validation, Lua, and UI previews;
+command boundaries remain integer ticks throughout prediction and reservation locking.
 `presentation::State` explicitly selects the normal UI's serialized fields,
 using the same observed world as the renderer and camera. This module has no
 browser dependency and is covered by native tests. Keep new normal-view fields
 here rather than serializing the authoritative snapshot in browser bindings.
 
 `web/map-overlay.js` owns the SVG projection shared by burn planning and aiming.
-`web/mission.js` owns targeting gestures and commands; `web/mission-map.js` draws
-the supplied state and preview without issuing commands. Keep the existing
+`web/mission.js` owns targeting gestures and commands. `web/mission-panel.js`
+renders status, reservation/history rows, and the result dialog, forwarding actions
+through controller callbacks. `web/mission-preview.js` computes one observation-only
+arrival estimate for both weapon feedback and the map. `web/mission-map.js` draws
+the supplied state and preview without issuing commands. These are plain modules;
+they do not introduce a separate simulation or command API. Keep the existing
 command-boundary and gesture behavior when changing presentation.
 
 ## License
