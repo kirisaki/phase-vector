@@ -95,6 +95,7 @@ interface Elements {
   'console-output': HTMLElementTagNameMap['div'];
   'repl-form': HTMLElementTagNameMap['form'];
   'lua-input': HTMLElementTagNameMap['textarea'];
+  'lua-highlight': HTMLPreElement;
   'run': HTMLElementTagNameMap['button'];
   'error': HTMLElementTagNameMap['p'];
   'mission-result': HTMLElementTagNameMap['dialog'];

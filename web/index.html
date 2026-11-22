@@ -96,7 +96,10 @@
           <div id="console-output" tabindex="0" role="log" aria-label="Lua output" aria-live="polite"><p class="hint">Connecting to the simulation…</p></div>
           <form id="repl-form">
             <label for="lua-input">Lua expression or statements</label>
-            <textarea id="lua-input" spellcheck="false" rows="3" placeholder="return 1 + 2" disabled>return 1 + 2</textarea>
+            <div class="lua-editor">
+              <pre id="lua-highlight" aria-hidden="true"></pre>
+              <textarea id="lua-input" spellcheck="false" autocapitalize="off" autocorrect="off" autocomplete="off" translate="no" rows="3" placeholder="return 1 + 2" disabled>return 1 + 2</textarea>
+            </div>
             <div class="run-row"><span>Ctrl / ⌘ + Enter to run</span><button id="run" type="submit" disabled>Run Lua ↵</button></div>
           </form>
           <details><summary>Try a command</summary><div class="examples">

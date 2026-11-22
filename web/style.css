@@ -103,6 +103,22 @@ form { padding: 10px 12px; }
 #repl-form { flex: 0 0 auto; border-top: 1px solid var(--line); }
 label { display: block; color: var(--muted); font-size: 11px; margin-bottom: 6px; }
 textarea { display: block; width: 100%; resize: none; height: 90px; border: 1px solid #354b59; border-radius: 3px; background: #071017; color: #e0eef4; font: 16px/1.5 ui-monospace, monospace; padding: 8px; }
+.lua-editor { position: relative; }
+#lua-input, #lua-highlight { font: 16px/1.5 ui-monospace, monospace; font-variant-ligatures: none; letter-spacing: normal; tab-size: 2; white-space: pre-wrap; overflow-wrap: anywhere; word-break: normal; }
+#lua-highlight { position: absolute; inset: 0; margin: 0; padding: 8px; border: 1px solid transparent; border-radius: 3px; overflow: hidden; pointer-events: none; -webkit-user-select: none; user-select: none; color: #e0eef4; background: #071017; }
+#lua-input { position: relative; }
+#lua-input[data-highlighted="true"] { color: transparent; -webkit-text-fill-color: transparent; caret-color: #e0eef4; background: transparent; }
+#lua-input::placeholder { color: var(--muted); -webkit-text-fill-color: var(--muted); }
+#lua-input::selection { background: #5487b080; }
+#lua-input[data-composing="true"] { color: #e0eef4; -webkit-text-fill-color: #e0eef4; background: #071017; }
+.lua-keyword { color: #d8a0ef; }
+.lua-string { color: #a5dda1; }
+.lua-comment { color: #8a9eab; }
+.lua-number { color: #ffba76; }
+@media (forced-colors: active) {
+  #lua-highlight { display: none; }
+  #lua-input[data-highlighted="true"] { color: CanvasText; -webkit-text-fill-color: CanvasText; background: Canvas; caret-color: auto; }
+}
 .run-row { display: flex; justify-content: space-between; align-items: center; gap: 8px; margin-top: 8px; font-size: 10px; color: var(--muted); }
 details { flex: 0 1 auto; max-height: 35%; overflow: auto; overscroll-behavior: contain; padding: 10px 12px; border-top: 1px solid var(--line); font-size: 12px; }
 summary { cursor: pointer; }

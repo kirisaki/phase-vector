@@ -174,6 +174,18 @@ share the status area; longer messages can be scrolled inside it.
 | Example buttons | Fill the console input without executing it |
 | Reload page | Start a new simulation and Lua session |
 
+The Lua input colors keywords, strings, comments, and numbers as you type,
+including long bracket strings/comments and incomplete input. Coloring is lexical;
+the interpreter still reports syntax errors when executed. Native text selection,
+undo/redo, and scrolling remain available. During IME composition the input uses
+plain text, and the execution shortcut waits until composition ends. Forced-color
+mode also uses plain text. Console history is not syntax-highlighted; completion
+and inline error diagnostics are not included.
+
+Browser checks cover tokenization, editing shortcuts, composition event handling,
+and overlay alignment at desktop and phone-sized viewports. Physical phone IMEs
+and Safari have not been verified for highlighting.
+
 The red **EXIT** circle marks the enemy's destination. Prevent entry until the
 1,215-second deadline. A hit wins immediately; fuel exhaustion or a temporary
 course deviation alone does not win. Terminal results freeze time and report the

@@ -10,6 +10,7 @@ from urllib.parse import unquote, urljoin, urlparse
 
 from playwright.sync_api import sync_playwright, expect
 from browser_controls import connect_engine
+from repl_checks import check_repl_highlight
 
 ROOT = Path(__file__).resolve().parents[1]
 
@@ -192,6 +193,8 @@ def main():
             expect(page.locator('#grid-label')).to_have_text(original_grid)
             page.locator('#console-toggle').click()
             expect(page.locator('#lua-input')).to_be_focused()
+
+            check_repl_highlight(page)
 
             def lua(source, expected=None, error=False):
                 page.locator('#lua-input').fill(source)

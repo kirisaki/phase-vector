@@ -4,9 +4,11 @@ import init, { start, command, plan_burn, set_speed, set_map_view, zoom_map, run
 import { createRouteEditor } from './route-editor.js';
 import { createMissionControls } from './mission.js';
 import { createMapNavigation } from './map-navigation.js';
+import { createLuaHighlight } from './lua-highlight.js';
 
 const output = element('console-output');
 const input = element('lua-input');
+const luaHighlight = createLuaHighlight(input, element('lua-highlight'));
 const speedButtons = document.querySelectorAll<HTMLButtonElement>('[data-speed]');
 const viewButtons = document.querySelectorAll<HTMLButtonElement>('[data-view]');
 const kmFormat = new Intl.NumberFormat('en-US', { maximumFractionDigits: 3 });
@@ -62,6 +64,7 @@ function showConsole(open: boolean, moveFocus = true) {
   element('console-toggle').setAttribute('aria-expanded', String(open));
   element('console-toggle').textContent = open ? 'Hide Lua console' : 'Show Lua console';
   syncConsoleLayout();
+  luaHighlight.sync();
   if (moveFocus) {
     (open ? (input.disabled ? element('console-panel') : input) : element('console-toggle')).focus();
   }
@@ -200,13 +203,18 @@ element('repl-form').addEventListener('submit', (event) => {
   refresh();
 });
 input.addEventListener('keydown', (event) => {
+  if (event.isComposing || input.dataset.composing === 'true') return;
   if (event.key === 'Enter' && (event.ctrlKey || event.metaKey)) {
     event.preventDefault();
     element('repl-form').requestSubmit();
   }
 });
 document.querySelectorAll<HTMLElement>('[data-example]').forEach((button) => {
-  button.addEventListener('click', () => { input.value = required(button.dataset.example); input.focus(); });
+  button.addEventListener('click', () => {
+    input.value = required(button.dataset.example);
+    luaHighlight.sync();
+    input.focus();
+  });
 });
 
 try {
