@@ -9,7 +9,7 @@ from playwright.sync_api import sync_playwright, expect
 from map_navigation_checks import check_map_navigation
 from planning_checks import check_planning
 from browser_controls import read_ui_settings, connect_engine
-from diagnostic_checks import check_parameters
+from diagnostic_checks import check_parameters, check_evaluation
 
 ROOT = Path(__file__).resolve().parents[1]
 
@@ -44,6 +44,7 @@ def main():
             expect(page.locator('body')).to_have_attribute('data-ready', 'true', timeout=90000)
             connect_engine(page)
             check_parameters(page)
+            check_evaluation(page)
             ui_settings = read_ui_settings(page)
             fine_gain = ui_settings['AIM']['fineGain']
 
@@ -283,6 +284,7 @@ def main():
             expect(page.locator('#mission-status')).to_contain_text('Defeat')
             expect(page.locator('#mission-result')).to_be_visible()
             expect(page.locator('#result-title')).to_have_text('DEFEAT')
+            expect(page.locator('#result-score')).to_have_text('0')
             expect(page.locator('#result-reason')).to_contain_text('reached the exit')
             expect(page.locator('#result-retry')).to_be_focused()
             for control in ['toggle', 'step', 'commit', 'next-turn', 'queue-shot']:
@@ -351,6 +353,8 @@ def main():
             expect(page.locator('#mission-status')).to_contain_text('Victory')
             expect(page.locator('#mission-result')).to_be_visible()
             expect(page.locator('#result-title')).to_have_text('VICTORY')
+            expect(page.locator('#result-score')).to_have_text('1760')
+            expect(page.locator('#result-run-kind')).to_have_text('Standard')
             expect(page.locator('#result-reason')).to_contain_text('missed its deadline')
             expect(page.locator('#result-shots')).to_have_text('12')
             expect(page.locator('#mission-metrics')).to_contain_text('12 shots')

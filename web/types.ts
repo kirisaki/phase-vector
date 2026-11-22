@@ -20,11 +20,16 @@ export interface QueuedShot {
   planning_error: string | null; locked: boolean; solution: Solution | null; error: string | null;
 }
 export type Outcome = 'running' | 'breakthrough' | 'disabled' | 'timeout';
+export interface Evaluation {
+  total: number; victory_points: number; shot_points: number; fuel_points: number;
+  shots_fired: number; spent_delta_v: number;
+}
 export interface Track {
   id: number; position: Vector2; velocity: Vector2; radius: number;
   sampled_tick: number; received_tick: number;
 }
 export interface Mission {
+  run_kind: 'standard' | 'custom' | 'debug'; evaluation: Evaluation | null;
   outcome: Outcome; ended_seconds: number | null; goal: Vector2; goal_radius: number;
   deadline_seconds: number; ready_seconds: number; reload_seconds: number;
   available_launch_seconds: number[]; shots: Shot[]; queued: QueuedShot[];

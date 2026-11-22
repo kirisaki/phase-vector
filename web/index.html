@@ -101,6 +101,10 @@
           </form>
           <details><summary>Try a command</summary><div class="examples">
             <button type="button" data-example="return game.state().mission.ai_reason">Inspect enemy decision</button>
+            <button type="button" data-example="local p = game.parameters(); return p.reaction_seconds, p.safety_radius_m">Read evasion settings</button>
+            <button type="button" data-example="game.command('pause'); game.configure('reaction_seconds', 60)">Set evasion horizon to 60 s</button>
+            <button type="button" data-example="local s = game.state().mission; return s.run_kind, s.evaluation and s.evaluation.total">Read mission score</button>
+            <button type="button" data-example="game.command('mission')">Restore standard mission</button>
             <button type="button" data-example="game.fire(game.aim())">Queue observed lead shot</button>
             <button type="button" data-example="return game.state().phase, game.state().ship.remaining_dv">Read phase &amp; Δv</button>
             <button type="button" data-example="game.burn(game.state().ship.max_acceleration, 0); game.command('play'); game.command('pause')">Play a burn &amp; pause</button>
@@ -115,6 +119,13 @@
       <p class="result-kicker">MISSION COMPLETE</p>
       <h2 id="result-title"></h2>
       <p id="result-reason"></p>
+      <p class="result-score"><span id="result-score"></span><span>points · <span id="result-run-kind"></span></span></p>
+      <dl class="result-metrics score-breakdown">
+        <div><dt>Victory</dt><dd id="score-victory"></dd></div>
+        <div><dt>Shot economy</dt><dd id="score-shots"></dd></div>
+        <div><dt>Δv economy</dt><dd id="score-fuel"></dd></div>
+      </dl>
+      <p id="result-settings-note"></p>
       <dl class="result-metrics">
         <div><dt>Time</dt><dd id="result-time"></dd></div>
         <div><dt>Shots fired</dt><dd id="result-shots"></dd></div>

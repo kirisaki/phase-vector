@@ -28,12 +28,15 @@ fn main() {
         }
         let m = s.mission().unwrap();
         println!(
-            "{name}: outcome={:?} time={:.3}s shots={} hits={} enemy_dv={:.2}km/s",
+            "{name}: outcome={:?} time={:.3}s shots={} hits={} enemy_dv={:.2}km/s score={}",
             m.outcome,
             m.ended_seconds.unwrap(),
             m.shots.len(),
             s.world().impacts.len(),
             s.world().ships[1].spent_dv / METRES_PER_KILOMETRE,
+            phase_vector::evaluation::evaluate(&s.snapshot())
+                .unwrap()
+                .total,
         );
     }
 }

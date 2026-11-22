@@ -83,6 +83,8 @@ pub struct QueuedShotView<'a> {
 #[derive(Serialize)]
 pub struct MissionView<'a> {
     pub outcome: Outcome,
+    pub run_kind: crate::parameters::RunKind,
+    pub evaluation: Option<crate::evaluation::Evaluation>,
     pub ended_seconds: Option<f64>,
     pub goal: Vector2,
     pub goal_radius: f64,
@@ -112,6 +114,8 @@ impl<'a> State<'a> {
             let launch_tick = snapshot.next_shot_tick();
             MissionView {
                 outcome: mission.outcome,
+                run_kind: snapshot.run_kind,
+                evaluation: crate::evaluation::evaluate(snapshot),
                 ended_seconds: mission.ended_seconds,
                 goal: mission.config.goal,
                 goal_radius: mission.config.goal_radius,

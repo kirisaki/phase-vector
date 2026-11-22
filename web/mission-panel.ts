@@ -1,11 +1,12 @@
 import { ownShip } from './api.js';
-import type { State, Mission, Ship } from './types.js';
+import type { State, Mission } from './types.js';
 import { element as el, query, required } from './dom.js';
 import { RECENT_LAUNCHES } from './ui-settings.js';
 
 interface PanelActions { onCancelShot: (id: number) => void; onRetry: () => void; onConfirmRetry: () => void; onCancelRetry: () => void }
 
 const decimal = (n: number) => n.toFixed(1);
+const runLabels = { standard: 'Standard', custom: 'Custom settings', debug: 'Debug run' };
 
 // Render mission feedback and forward user actions; commands belong to the controller.
 export function createMissionPanel({ onCancelShot, onRetry, onConfirmRetry, onCancelRetry }: PanelActions) {
@@ -13,7 +14,7 @@ export function createMissionPanel({ onCancelShot, onRetry, onConfirmRetry, onCa
   const confirmation = el('retry-confirmation');
   let shownOutcome: Mission['outcome'] | undefined;
 
-  function renderResult(m: Mission, own: Ship) {
+  function renderResult(m: Mission) {
     if (m.outcome === 'running') { result.close(); shownOutcome = undefined; return; }
     const victory = m.outcome !== 'breakthrough';
     result.dataset.outcome = victory ? 'victory' : 'defeat';
@@ -22,8 +23,18 @@ export function createMissionPanel({ onCancelShot, onRetry, onConfirmRetry, onCa
       timeout: 'Blockade successful. The enemy missed its deadline.',
       breakthrough: 'The enemy reached the exit before the deadline.' }[m.outcome];
     el('result-time').textContent = `${decimal(required(m.ended_seconds))} s`;
-    el('result-shots').textContent = String(m.shots.length);
-    el('result-dv').textContent = `${decimal(own.spent_dv / 1000)} km/s`;
+    const score = required(m.evaluation);
+    el('result-shots').textContent = String(score.shots_fired);
+    el('result-dv').textContent = `${decimal(score.spent_delta_v / 1000)} km/s`;
+    el('result-score').textContent = String(score.total);
+    el('result-run-kind').textContent = runLabels[m.run_kind];
+    el('score-victory').textContent = String(score.victory_points);
+    el('score-shots').textContent = String(score.shot_points);
+    el('score-fuel').textContent = String(score.fuel_points);
+    el('result-settings-note').textContent = m.run_kind === 'standard'
+      ? 'Both victory types earn the same base points. Fewer shots and less Δv spent earn more.'
+      : m.run_kind === 'custom' ? 'Custom starting conditions. Retry repeats these settings.'
+      : 'Parameters changed during play. Retry restores the starting settings; this score is diagnostic.';
     if (shownOutcome !== m.outcome) {
       shownOutcome = m.outcome;
       result.showModal();
@@ -110,12 +121,14 @@ export function createMissionPanel({ onCancelShot, onRetry, onConfirmRetry, onCa
     const done = m.outcome !== 'running';
     const titles = { running: 'Prevent breakthrough', breakthrough: 'Defeat · Enemy reached the exit',
       disabled: 'Victory · Enemy disabled', timeout: 'Victory · Deadline exceeded' };
-    el('mission-status').textContent = titles[m.outcome];
+    el('mission-status').textContent = `${titles[m.outcome]}${m.run_kind === 'standard' ? '' : ` · ${runLabels[m.run_kind]}`}`;
     el('mission-status').dataset.outcome = m.outcome;
     const own = ownShip(state);
-    renderResult(m, own);
+    renderResult(m);
     const clock = done ? `Ended ${decimal(required(m.ended_seconds))} s` : `${decimal(Math.max(0, m.deadline_seconds - state.time_seconds))} s left`;
-    el('mission-metrics').textContent = `${clock} · ${m.shots.length} shots · Δv ${decimal(own.spent_dv / 1000)} km/s`;
+    el('mission-metrics').textContent = `${clock} · ${m.shots.length} shots · Δv ${decimal(own.spent_dv / 1000)} km/s${m.evaluation ? ` · ${m.evaluation.total} pts` : ''}`;
+    el('retry-reason').textContent = 'Current progress, queued shots, and draft orders will be discarded. ' +
+      (m.run_kind === 'standard' ? 'Restart with standard settings.' : 'Restore the starting settings and discard any mid-play parameter changes.');
     renderQueue(m, state.timing.step_seconds, done);
     renderLaunches(m, state.timing.step_seconds);
   } };

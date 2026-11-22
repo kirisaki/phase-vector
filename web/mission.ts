@@ -51,7 +51,7 @@ export function createMissionControls(onChange: () => void, onBeforeRetry: () =>
     el('mission-controls').hidden = !m;
     el('game-controls').hidden = !m;
     document.body.classList.toggle('mission-active', Boolean(m));
-    query('.badge').textContent = m ? '04 / PREDICTION' : '02 / PHYSICS & WEGO';
+    query('.badge').textContent = m ? '05 / EVALUATION' : '02 / PHYSICS & WEGO';
     panel.render(state, ready);
     timeline.sync(state, ready, aimEditor.dragging || blocked);
     if (!m || !ready) { svg.setAttribute('hidden', ''); return; }

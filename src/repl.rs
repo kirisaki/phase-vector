@@ -337,6 +337,16 @@ impl Host {
                     if let Some(mission) = view.mission {
                         let table = Table::new(&ctx);
                         table.set(ctx, "run_kind", view.run_kind.label())?;
+                        if let Some(score) = crate::evaluation::evaluate(&view) {
+                            let evaluation = Table::new(&ctx);
+                            evaluation.set(ctx, "total", score.total)?;
+                            evaluation.set(ctx, "victory_points", score.victory_points)?;
+                            evaluation.set(ctx, "shot_points", score.shot_points)?;
+                            evaluation.set(ctx, "fuel_points", score.fuel_points)?;
+                            evaluation.set(ctx, "shots_fired", score.shots_fired as f64)?;
+                            evaluation.set(ctx, "spent_delta_v", score.spent_delta_v)?;
+                            table.set(ctx, "evaluation", evaluation)?;
+                        }
                         table.set(ctx, "parameters", parameters_table(ctx, &mission.config)?)?;
                         table.set(
                             ctx,

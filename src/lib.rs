@@ -2,6 +2,7 @@
 // Copyright (c) 2026 Akihito Kirisaki <kirisaki@klara.works>
 
 pub mod ai;
+pub mod evaluation;
 pub mod maneuver;
 pub mod map;
 pub mod mission;

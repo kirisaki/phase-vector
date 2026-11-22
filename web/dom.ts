@@ -100,6 +100,12 @@ interface Elements {
   'mission-result': HTMLElementTagNameMap['dialog'];
   'result-title': HTMLElementTagNameMap['h2'];
   'result-reason': HTMLElementTagNameMap['p'];
+  'result-score': HTMLSpanElement;
+  'result-run-kind': HTMLSpanElement;
+  'score-victory': HTMLElement;
+  'score-shots': HTMLElement;
+  'score-fuel': HTMLElement;
+  'result-settings-note': HTMLParagraphElement;
   'result-time': HTMLElementTagNameMap['dd'];
   'result-shots': HTMLElementTagNameMap['dd'];
   'result-dv': HTMLElementTagNameMap['dd'];

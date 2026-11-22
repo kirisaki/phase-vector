@@ -97,6 +97,7 @@ pub struct Snapshot<'a> {
     pub world: &'a World,
     pub mission: Option<&'a crate::mission::Mission>,
     pub initial_mission: Option<&'a crate::mission::Config>,
+    pub initial_delta_v: f64,
     pub scale: crate::scenario::Scale,
     pub player_id: u32,
     pub phase: Phase,
@@ -196,6 +197,13 @@ impl Session {
             world: &self.world,
             mission: self.mission.as_ref(),
             initial_mission: self.initial_mission.as_ref(),
+            initial_delta_v: self
+                .initial
+                .ships
+                .iter()
+                .find(|ship| ship.id == self.player_id)
+                .unwrap()
+                .remaining_dv,
             scale: crate::scenario::SCALE,
             player_id: self.player_id,
             phase: self.phase,
