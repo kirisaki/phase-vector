@@ -1,35 +1,14 @@
 import { forecast_at } from './pkg/phase_vector.js';
 
-// Reserve space for the imminent command without losing distant firing plans.
-const NEAR_SHARE = 0.4;
-const SNAP_PIXELS = 5;
-const SNAP_SECONDS = 6;
-const THUMB_SIZE = 14;
-
-function timeScale(now, end, interval) {
-  const boundary = Math.min(end, (Math.floor(now / interval) + 1) * interval);
-  const split = boundary < end ? NEAR_SHARE : 1;
-  return {
-    now, end, boundary, split, interval,
-    time(position) {
-      return position <= split
-        ? now + (boundary - now) * position / split
-        : boundary + (end - boundary) * (position - split) / (1 - split);
-    },
-    position(time) {
-      if (end <= now) return 0;
-      return time <= boundary
-        ? split * (time - now) / (boundary - now)
-        : split + (1 - split) * (time - boundary) / (end - boundary);
-    },
-  };
-}
+import { TIMELINE } from './ui-settings.js';
+import { timeScale, snapTime } from './timeline-scale.js';
 
 // The slider changes a read-only preview and the next shot's firing time.
 // It never advances the simulation or rewrites existing reservations.
 export function createTimeline(onChange) {
   const root = document.getElementById('timeline-controls');
   const slider = document.getElementById('forecast-time');
+  root.style.setProperty('--timeline-thumb-size', `${TIMELINE.thumbPixels}px`);
   const live = document.getElementById('forecast-live');
   const label = document.getElementById('forecast-label');
   const axis = document.getElementById('forecast-axis');
@@ -56,15 +35,7 @@ export function createTimeline(onChange) {
   window.addEventListener('blur', release);
   slider.addEventListener('input', () => {
     if (!scale) return;
-    const position = Number(slider.value);
-    let seconds = scale.time(position);
-    const near = (time) => time >= scale.now && time <= scale.end &&
-      Math.abs(scale.position(time) - position) * Math.max(1, slider.clientWidth - THUMB_SIZE) <= SNAP_PIXELS;
-    // Reload readiness wins over a nearby command tick that may still be blocked.
-    const ready = available.filter(near).sort((a, b) => Math.abs(a - seconds) - Math.abs(b - seconds))[0];
-    const boundary = Math.round(seconds / scale.interval) * scale.interval;
-    if (ready !== undefined) seconds = ready;
-    else if (boundary > scale.now && Math.abs(seconds - boundary) <= SNAP_SECONDS && near(boundary)) seconds = boundary;
+    const seconds = snapTime(scale, Number(slider.value), available, slider.clientWidth);
     select(seconds);
   });
   // Keyboard nudges use real simulation ticks and bypass magnetic snapping.

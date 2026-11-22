@@ -1,6 +1,8 @@
+import { RECENT_LAUNCHES } from './ui-settings.js';
+
 const el = (id) => document.getElementById(id);
 const decimal = (n) => n.toFixed(1);
-const RECENT_LAUNCHES = 4;
+
 
 // Render mission feedback and forward user actions; commands belong to the controller.
 export function createMissionPanel({ onCancelShot, onRetry }) {

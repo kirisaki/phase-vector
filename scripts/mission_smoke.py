@@ -8,6 +8,7 @@ from urllib.parse import unquote, urlparse
 from playwright.sync_api import sync_playwright, expect
 from map_navigation_checks import check_map_navigation
 from planning_checks import check_planning
+from browser_controls import read_ui_settings
 
 ROOT = Path(__file__).resolve().parents[1]
 
@@ -47,6 +48,9 @@ def main():
                 window.wasm = await import(new URL(module, url).href);
                 window.readState = () => JSON.parse(wasm.state_json());
             }""")
+            ui_settings = read_ui_settings(page)
+            fine_gain = ui_settings['AIM']['fineGain']
+
             def state():
                 return page.evaluate('readState()')
 
@@ -145,8 +149,9 @@ def main():
             assert len(state()['mission']['shots']) == 1
             expect(page.locator('#shot-labels text')).to_have_text(f'#{launch_ids[0]}')
             expect(page.locator('#launch-list > div')).to_have_text(f'#{launch_ids[0]} · fired 0.0 s')
-            # The path starts at the moving round, never at its historic launch origin.
-            assert page.evaluate('''async () => {
+            # The camera eases even while paused; wait for DOM and camera state to agree.
+            # The path must start at the moving round, never its historic launch origin.
+            page.wait_for_function('''async () => {
                 const { mapProjection } = await import(new URL('./map-overlay.js', location.href).href);
                 const s = readState(), svg = document.querySelector('#mission-overlay');
                 const view = mapProjection(svg, s.map), shot = s.mission.shots[0];
@@ -259,7 +264,7 @@ def main():
                             }''')
                             page.mouse.move(point['x'], point['y'])
                             page.mouse.down()
-                            page.mouse.move(point['x'], point['y'] - round_index * 900_000 / metres_per_pixel / 0.35, steps=3)
+                            page.mouse.move(point['x'], point['y'] - round_index * 900_000 / metres_per_pixel / fine_gain, steps=3)
                             page.mouse.up()
                         page.locator('#queue-shot').click()
                     assert len(state()['mission']['shots']) == turn * 4
@@ -361,8 +366,8 @@ def main():
                     client.send('Input.dispatchTouchEvent', {'type': 'touchEnd', 'touchPoints': []})
                     page.locator('#queue-shot').click()
                     fine = state()['mission']['queued'][0]['target']
-                    assert abs(fine['x'] - (lead['x'] - 20 * scale * 0.35)) < scale * 0.01
-                    assert abs(fine['y'] - (lead['y'] + 10 * scale * 0.35)) < scale * 0.01
+                    assert abs(fine['x'] - (lead['x'] - 20 * scale * fine_gain)) < scale * 0.01
+                    assert abs(fine['y'] - (lead['y'] + 10 * scale * fine_gain)) < scale * 0.01
                     page.locator('#cancel-shot').click()
                     page.locator('#track-aim').click()
                     # A near-intercept drag snaps to observed lead rather than a near miss.

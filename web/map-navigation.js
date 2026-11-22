@@ -1,8 +1,7 @@
 import { navigate_map, state_json } from './pkg/phase_vector.js';
 import { mapProjection } from './map-overlay.js';
 
-const DRAG_THRESHOLD = 4;
-const MIN_PINCH_SPAN = 8;
+import { NAVIGATION } from './ui-settings.js';
 const editorTarget = '#arrival-handle, .reach-area, #aim-handle';
 
 export function createMapNavigation({ onChange, onError, cancelEditors }) {
@@ -23,7 +22,7 @@ export function createMapNavigation({ onChange, onError, cancelEditors }) {
     const pinch = touches.length === 2;
     const start = pinch ? midpoint(...touches) : pointers.values().next().value;
     gesture = { view, start, anchor: view.unproject(start.x, start.y), scale: state.map.metres_per_unit,
-      span: pinch ? Math.max(MIN_PINCH_SPAN, span(...touches)) : null, moved: false };
+      span: pinch ? Math.max(NAVIGATION.minPinchSpanPixels, span(...touches)) : null, moved: false };
   }
 
   function move() {
@@ -31,9 +30,9 @@ export function createMapNavigation({ onChange, onError, cancelEditors }) {
     const touches = pair();
     const pinch = gesture.span !== null;
     const current = pinch ? midpoint(...touches) : pointers.values().next().value;
-    if (!pinch && !gesture.moved && span(current, gesture.start) < DRAG_THRESHOLD) return;
+    if (!pinch && !gesture.moved && span(current, gesture.start) < NAVIGATION.dragThresholdPixels) return;
     const { view, anchor } = gesture;
-    const scale = pinch ? gesture.scale * gesture.span / Math.max(MIN_PINCH_SPAN, span(...touches)) : gesture.scale;
+    const scale = pinch ? gesture.scale * gesture.span / Math.max(NAVIGATION.minPinchSpanPixels, span(...touches)) : gesture.scale;
     const x = (current.x - view.box.left - view.width / 2) * view.unitsPerPixel;
     const y = (view.height / 2 - (current.y - view.box.top)) * view.unitsPerPixel;
     try {

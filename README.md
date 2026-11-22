@@ -594,6 +594,7 @@ Shared numerical settings have distinct owners:
 | Goal, deadline, reload, sensor processing | `mission::Config::default()` |
 | Sensor sampling/retention and AI decision cadence | Named constants in `observation.rs` and `ai.rs` |
 | Independent threat horizon, safety corridor, evasion/recovery duration | `ai::Policy::default()` |
+| Aim sensitivity, timeline snapping/geometry, navigation and burn gestures, command pulse, history length | `web/ui-settings.js` |
 
 Whole-second durations become ticks through `timing::seconds_to_ticks`; the
 playback clock must be an integer multiple of the physics frequency. Equal
@@ -605,8 +606,11 @@ Tests import these settings for setup and execution boundaries. Browser tests
 read `state_json().timing`, and Lua exposes the same table. Independent analytic
 expectations and selected trial regression anchors in `tests/scale.rs` remain
 literal so an incorrect shared constant cannot silently make a test pass.
-Small collision fixtures, numerical tolerances in assertions, and pixel sizes
-also keep their own values; they are not scenario tuning.
+Browser input helpers read `web/ui-settings.js` and computed slider geometry
+instead of copying sensitivity or thumb dimensions. The slider's CSS dimensions
+and snap calculation share the same thumb size. Expected gameplay outcomes,
+small collision fixtures, assertion tolerances, and test gesture offsets keep
+independent values; they are not scenario tuning.
 
 `session::Snapshot` is authoritative state for commands and Lua diagnostics.
 Its shot planning methods are shared by command validation, Lua, and UI previews;
@@ -617,7 +621,11 @@ browser dependency and is covered by native tests. Keep new normal-view fields
 here rather than serializing the authoritative snapshot in browser bindings.
 
 `web/map-overlay.js` owns the SVG projection shared by burn planning and aiming.
-`web/mission.js` owns targeting gestures and commands. `web/mission-panel.js`
+`web/mission.js` coordinates previews and commands. `web/aim-editor.js` owns the
+draft target, fine aim, keyboard input, and pointer capture/cancellation; it
+notifies the controller without importing WASM. `web/timeline-scale.js` contains
+the pure time mapping and snap policy, while `web/timeline.js` owns selection,
+pointer ownership, forecast caching, and DOM updates. `web/mission-panel.js`
 renders status, reservation/history rows, and the result dialog, forwarding actions
 through controller callbacks. `web/mission-preview.js` computes one observation-only
 arrival estimate for both weapon feedback and the map. `web/mission-map.js` draws

@@ -1,6 +1,7 @@
 import { plan_arrival, preview_arrival, set_route_editing, state_json } from './pkg/phase_vector.js';
 
 import { mapProjection } from './map-overlay.js';
+import { BURN, COMMAND_PULSE } from './ui-settings.js';
 
 const el = (id) => document.getElementById(id);
 const number = new Intl.NumberFormat('en-US', { maximumFractionDigits: 3 });
@@ -18,15 +19,15 @@ export function createRouteEditor(onChange) {
   let lastCommand, pulseStarted = -Infinity;
   function animatePulse(now) {
     const pulse = el('command-pulse');
-    const age = (now - pulseStarted) / 900;
+    const age = (now - pulseStarted) / COMMAND_PULSE.durationMs;
     const active = state && age >= 0 && age < 1;
-    pulse.style.opacity = active ? String((1 - age) * 0.85) : '0';
+    pulse.style.opacity = active ? String((1 - age) * COMMAND_PULSE.opacity) : '0';
     if (active) {
       const view = projection();
       const ship = state.world.ships.find((ship) => ship.id === state.player_id);
       const [x, y] = view.project(ship.position);
       pulse.setAttribute('cx', x); pulse.setAttribute('cy', y);
-      pulse.setAttribute('r', 12 + age * 42);
+      pulse.setAttribute('r', COMMAND_PULSE.startRadiusPixels + age * COMMAND_PULSE.growthPixels);
     }
     requestAnimationFrame(animatePulse);
   }
@@ -44,7 +45,8 @@ export function createRouteEditor(onChange) {
     const [cx, cy] = view.project(ship.position);
     // Size the control for the viewport, never its distance from an edge.
     // Panning clips the circle instead of changing the thrust-to-pixel ratio.
-    const radius = Math.max(24, Math.min(90, view.width / 2 - 10, view.height / 2 - 10));
+    const radius = Math.max(BURN.minRadiusPixels, Math.min(BURN.maxRadiusPixels,
+      view.width / 2 - BURN.edgePaddingPixels, view.height / 2 - BURN.edgePaddingPixels));
     const metresPerPixel = Math.max(maneuver.reachable_radius, 1) / radius;
     return { coast, cx, cy, radius: maneuver.reachable_radius > 0 ? radius : 0,
       metresPerPixel, ship };
@@ -225,7 +227,7 @@ export function createRouteEditor(onChange) {
     event.preventDefault();
     if (event.key === 'Home') choose(context.maneuver.coast_endpoint);
     else {
-      const step = Math.max(context.maneuver.reachable_radius, 1) * (event.shiftKey ? 0.002 : 0.02);
+      const step = Math.max(context.maneuver.reachable_radius, 1) * (event.shiftKey ? BURN.fineKeyFraction : BURN.keyFraction);
       choose({ x: target.x + delta[0] * step, y: target.y + delta[1] * step });
     }
     finish(true);

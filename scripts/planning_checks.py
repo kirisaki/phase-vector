@@ -1,5 +1,6 @@
 """Exercise firing-time planning through the actual range, weapon, and maneuver controls."""
 from playwright.sync_api import expect
+from browser_controls import read_ui_settings, timeline_point
 
 
 def check_planning(page, artifacts):
@@ -8,20 +9,19 @@ def check_planning(page, artifacts):
     def state():
         return page.evaluate('readState()')
 
-    def select_firing(fraction=0.4):
-        box = page.locator('#forecast-time').bounding_box()
-        page.mouse.click(box['x'] + 7 + (box['width'] - 14) * fraction, box['y'] + box['height'] / 2)
+    near_share = read_ui_settings(page)['TIMELINE']['nearShare']
+
+    def select_firing(fraction=near_share):
+        page.mouse.click(**timeline_point(page, fraction))
         expect(page.locator('#forecast-label')).to_contain_text('Fire')
         return float(page.locator('#forecast-time').get_attribute('aria-valuenow'))
 
     before = state()['world']
     # The imminent interval is expanded; pointer input snaps gently, keys remain precise.
     slider = page.locator('#forecast-time')
-    box = slider.bounding_box()
     deadline = state()['mission']['deadline_seconds']
-    for position, seconds in [(0.4, 120), (0.4 + 0.6 * (480 - 120) / (deadline - 120), 480)]:
-        page.mouse.click(box['x'] + 7 + (box['width'] - 14) * position + 0.2,
-                         box['y'] + box['height'] / 2)
+    for position, seconds in [(near_share, 120), (near_share + (1 - near_share) * (480 - 120) / (deadline - 120), 480)]:
+        page.mouse.click(**timeline_point(page, position, offset_pixels=0.2))
         expect(slider).to_have_attribute('aria-valuenow', str(seconds))
         slider.focus()
         page.keyboard.press('ArrowRight')
@@ -129,6 +129,8 @@ def check_planning(page, artifacts):
     for width, height in [(390, 844), (320, 568), (844, 390)]:
         page.set_viewport_size({'width': width, 'height': height})
         page.wait_for_timeout(250)
+        # Flush the resized compositor frame before CDP sends absolute touch coordinates.
+        page.screenshot()
         box = page.locator('#forecast-time').bounding_box()
         client = page.context.new_cdp_session(page)
         point = {'x': box['x'] + box['width'] / 2, 'y': box['y'] + box['height'] / 2}
@@ -157,10 +159,8 @@ def check_queue_while_scrubbing(page):
 
     slider = page.locator('#forecast-time')
     queue = page.locator('#queue-shot')
-    box = slider.bounding_box()
-
     def move(fraction):
-        page.mouse.move(box['x'] + 7 + (box['width'] - 14) * fraction, box['y'] + box['height'] / 2)
+        page.mouse.move(**timeline_point(page, fraction))
 
     move(0.6)
     page.mouse.down()
@@ -194,7 +194,7 @@ def check_queue_while_scrubbing(page):
     page.mouse.up()
     reset()
     move(0.6)
-    page.mouse.click(box['x'] + 7 + (box['width'] - 14) * 0.6, box['y'] + box['height'] / 2)
+    page.mouse.click(**timeline_point(page, 0.6))
     expect(queue).to_be_enabled()
     page.locator('#console-toggle').click()
     page.locator('#lua-input').fill('')
@@ -210,12 +210,10 @@ def check_queue_while_scrubbing(page):
     page.locator('[data-speed="1"]').click()
     page.locator('#toggle').click()
     page.wait_for_function('readState().world.tick > 0')
-    box = slider.bounding_box()
     client = page.context.new_cdp_session(page)
 
     def finger(fraction):
-        return {'id': 1, 'x': box['x'] + 7 + (box['width'] - 14) * fraction,
-                'y': box['y'] + box['height'] / 2}
+        return {'id': 1, **timeline_point(page, fraction)}
 
     def queue_finger():
         rect = queue.bounding_box()
@@ -273,6 +271,7 @@ def check_reload_markers(page, artifacts):
     slider = page.locator('#forecast-time')
     queue = page.locator('#queue-shot')
     marks = page.locator('#forecast-ready-marks i')
+    near_share = read_ui_settings(page)['TIMELINE']['nearShare']
 
     def reset():
         page.evaluate("wasm.command('reset')")
@@ -283,11 +282,9 @@ def check_reload_markers(page, artifacts):
         return marks.evaluate_all('nodes => nodes.map(n => Number(n.dataset.seconds))')
 
     def choose(seconds, offset_pixels=0):
-        box = slider.bounding_box()
         deadline = page.evaluate('readState().mission.deadline_seconds')
-        fraction = 0.4 * seconds / 120 if seconds <= 120 else 0.4 + 0.6 * (seconds - 120) / (deadline - 120)
-        page.mouse.click(box['x'] + 7 + (box['width'] - 14) * fraction + offset_pixels,
-                         box['y'] + box['height'] / 2)
+        fraction = near_share * seconds / 120 if seconds <= 120 else near_share + (1 - near_share) * (seconds - 120) / (deadline - 120)
+        page.mouse.click(**timeline_point(page, fraction, offset_pixels))
 
     assert times() == [0]
     queue.click()
@@ -329,9 +326,8 @@ def check_reload_markers(page, artifacts):
     page.screenshot(path=str(artifacts / 'reload-marker-desktop.png'))
     page.set_viewport_size({'width': 390, 'height': 844})
     page.wait_for_timeout(250)
-    box = slider.bounding_box()
     client = page.context.new_cdp_session(page)
-    point = {'x': box['x'] + 7 + (box['width'] - 14) * 0.4, 'y': box['y'] + box['height'] / 2}
+    point = timeline_point(page, near_share)
     client.send('Input.dispatchTouchEvent', {'type': 'touchStart', 'touchPoints': [point]})
     client.send('Input.dispatchTouchEvent', {'type': 'touchEnd', 'touchPoints': []})
     expect(slider).to_have_attribute('aria-valuenow', '122')
