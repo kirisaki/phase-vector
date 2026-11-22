@@ -58,7 +58,8 @@ export function createMissionPanel({ onCancelShot, onRetry }) {
       // Keep nodes and focus stable across polling updates, including insertion into a freed slot.
       const sibling = list.querySelectorAll('[data-shot-id]')[index];
       if (sibling !== row) list.insertBefore(row, sibling ?? null);
-      row.querySelector('span').textContent = `#${order.id} · fire ${decimal(order.launch_tick * stepSeconds)} s · arrival ${order.solution ? decimal(order.solution.arrival_seconds) + ' s' : 'unreachable'}`;
+      row.querySelector('span').textContent = order.error ? `#${order.id} · ${order.error}` :
+        `#${order.id} · fire ${decimal(order.launch_tick * stepSeconds)} s · arrival ${order.solution ? decimal(order.solution.arrival_seconds) + ' s' : 'unreachable'}${order.requested_arrival_seconds !== null ? ` · requested ${decimal(order.requested_arrival_seconds)} s` : ''}`;
       row.title = order.error || `Target (${decimal(order.target.x / 1000)}, ${decimal(order.target.y / 1000)}) km`;
       row.classList.toggle('invalid', Boolean(order.error));
       row.querySelector('button').disabled = done || order.locked;

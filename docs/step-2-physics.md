@@ -88,8 +88,9 @@ Richer maneuver timelines remain later work.
 
 The current GUI plans one constant thrust vector by specifying an absolute
 position at the end of the next complete 120-second order interval. This is an
-early step-4 subset; variable arrival times and intermediate waypoints remain
-unimplemented. Step 3 separately adds the gun and observed enemy forecast.
+early step-4 subset; variable friendly maneuver durations and intermediate waypoints
+remain unimplemented. Step 3 adds the gun and observed enemy forecast;
+[step 4](step-4-planning.md) adds a time slider and requested shot arrival times.
 
 `maneuver::preview` clones the friendly ship and uses the same kick/drift routine
 as execution, including partial fuel exhaustion. It samples the route every two

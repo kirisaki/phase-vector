@@ -6,6 +6,7 @@ from pathlib import Path
 from urllib.parse import unquote, urlparse
 from playwright.sync_api import sync_playwright, expect
 from map_navigation_checks import check_map_navigation
+from planning_checks import check_planning
 
 ROOT = Path(__file__).resolve().parents[1]
 
@@ -68,6 +69,7 @@ def main():
                     return {x: p.x, y: p.y};
                 }''')
 
+            check_planning(page, artifacts)
             check_map_navigation(page, artifacts)
             current = state()
             timing = current['timing']

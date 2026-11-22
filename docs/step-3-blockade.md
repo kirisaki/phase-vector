@@ -84,7 +84,8 @@ The command log records the complete frozen shot list (targets and launch ticks)
 alongside the applied thrust vector, including gaps left by cancellation, for
 deterministic replay. Terminal outcomes stop pending launches.
 
-The current UI/API does not choose an arbitrary arrival time; that remains step 4. There is no blast damage, projectile lifetime,
+Step 3 originally chose only a launch slot. [Step 4](step-4-planning.md) extends
+the UI/API with requested arrival times and maneuver-driven rescheduling. There is no blast damage, projectile lifetime,
 ship-to-ship collision, guided weapon, or enemy gun.
 
 ## Information boundary

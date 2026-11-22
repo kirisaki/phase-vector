@@ -31,6 +31,19 @@ h2 { font-size: 11px; font-weight: 500; letter-spacing: .04em; text-transform: u
 .map-scale { display: flex; flex-direction: column; gap: 4px; min-width: 0; }
 .map-scale span { text-align: left; }
 .canvas-wrap { touch-action: none; cursor: grab; position: relative; flex: 1; min-height: 0; min-width: 0; overflow: hidden; }
+#timeline-controls { display: grid; grid-template-columns: 48px minmax(100px, 1fr) minmax(120px, 2fr); align-items: center; gap: 8px; flex: 0 0 42px; height: 42px; padding: 3px 10px; border-top: 1px solid var(--line); }
+#forecast-live { min-height: 32px; padding: 4px; }
+#forecast-live[aria-pressed="true"] { color: var(--cyan); border-color: var(--cyan); }
+#forecast-label { margin: 0; font: 10px/12px ui-monospace, monospace; }
+#forecast-time { width: 100%; min-width: 0; accent-color: var(--amber); padding: 0; cursor: ew-resize; }
+#time-forecast { pointer-events: none; }
+#time-forecast path { stroke-width: 1.5; }
+#time-forecast .forecast-route { stroke: var(--cyan); stroke-dasharray: 5 5; opacity: .65; }
+#time-forecast .forecast-own { stroke: var(--cyan); fill: var(--cyan); }
+#time-forecast .forecast-enemy { stroke: var(--amber); fill: var(--amber); stroke-dasharray: 3 3; }
+#time-forecast .forecast-round { stroke: white; fill: white; }
+#time-forecast text { stroke: #070f16; stroke-width: 3px; stroke-dasharray: none; paint-order: stroke; }
+#mission-overlay[data-preview="true"] + .map-caption .map-scale { visibility: hidden; }
 /* Bevy sets inline minimum dimensions; allow the canvas to fit compact viewports. */
 canvas { display: block; width: 100%; height: 100%; min-width: 0 !important; min-height: 0 !important; outline: none; }
 .map-caption { position: absolute; top: 12px; left: 12px; right: 12px; display: flex; justify-content: space-between; gap: 10px; color: var(--muted); font-size: 9px; pointer-events: none; }
@@ -144,6 +157,9 @@ legend { color: var(--muted); font-size: 11px; margin-bottom: 8px; }
 .short-viewport .map-tools { grid-column: 1; grid-row: 2; }
 .short-viewport .canvas-wrap { grid-column: 1; grid-row: 3; }
 .short-viewport .flight-controls { grid-column: 2; grid-row: 2 / 4; border-top: 0; border-left: 1px solid var(--line); grid-template-columns: minmax(0, 1fr); grid-template-areas: 'transport' 'telemetry' 'burn'; align-content: start; }
+.short-viewport .mission-active .map-panel { grid-template-rows: 30px auto minmax(0, 1fr) 42px; }
+.short-viewport .mission-active .flight-controls { grid-row: 2 / 5; }
+.short-viewport #timeline-controls { grid-column: 1; grid-row: 4; grid-template-columns: 42px minmax(70px, 1fr) minmax(90px, 1fr); gap: 4px; }
 .short-viewport .command-row, .short-viewport .playback { flex-basis: 100%; }
 .short-viewport .speed-buttons { order: 1; flex-basis: 100%; }
 .short-viewport .buttons { flex-shrink: 0; gap: 4px; }

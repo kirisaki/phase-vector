@@ -3,15 +3,17 @@ import { mapProjection } from './map-overlay.js';
 const ns = 'http://www.w3.org/2000/svg';
 
 // Render a supplied observation snapshot and aim preview; never issue gameplay commands.
-export function drawMissionMap(svg, state, { aim, solution, arrival, fixedTarget, done }) {
+export function drawMissionMap(svg, state, { aim, solution, arrival, forecast, fixedTarget, done }) {
   const el = (id) => svg.querySelector(`#${id}`);
   const handle = el('aim-handle'), m = state.mission;
   const view = mapProjection(svg, state.map), { project, path } = view;
+  svg.dataset.preview = String(Boolean(forecast));
+  drawForecast(el('time-forecast'), view, forecast);
   const [gx, gy] = project(m.goal);
   el('mission-goal').setAttribute('cx', gx); el('mission-goal').setAttribute('cy', gy);
   el('mission-goal').setAttribute('r', Math.max(3, m.goal_radius / view.metresPerPixel));
   el('goal-label').setAttribute('x', gx + 8); el('goal-label').setAttribute('y', gy + 4);
-  el('enemy-prediction').setAttribute('d', path(m.prediction));
+  el('enemy-prediction').setAttribute('d', path(forecast ? [m.prediction[0], forecast.enemy_position] : m.prediction));
   el('prediction-label').textContent = `Observed velocity · +${state.timing.forecast_seconds} s`;
   const [px, py] = project(m.prediction[1]);
   el('prediction-label').setAttribute('text-anchor', px > view.width - 180 ? 'end' : 'start');
@@ -24,6 +26,7 @@ export function drawMissionMap(svg, state, { aim, solution, arrival, fixedTarget
     .map(({ solution }) => path([solution.origin, solution.target])).join(' '));
   el('queued-shot-markers').replaceChildren();
   if (!done) for (const order of m.queued) {
+    if (forecast?.rounds.some((round) => round.order_id === order.id)) continue;
     const [x, y] = project(order.target);
     const marker = document.createElementNS(ns, 'text');
     marker.setAttribute('x', x + 8); marker.setAttribute('y', y - 10);
@@ -42,8 +45,8 @@ export function drawMissionMap(svg, state, { aim, solution, arrival, fixedTarget
     el('aim-grip').querySelector('.grip-control').setAttribute('transform', `translate(${gripX} ${gripY})`);
   }
   const arrivalContact = el('arrival-contact');
-  arrivalContact.style.display = arrival && !done ? '' : 'none';
-  el('prediction-label').style.display = arrival && !done ? 'none' : '';
+  arrivalContact.style.display = arrival && !done && !forecast ? '' : 'none';
+  el('prediction-label').style.display = (arrival && !done) || forecast ? 'none' : '';
   if (arrival && !done) {
     const [x, y] = project(arrival.position);
     arrivalContact.setAttribute('transform', `translate(${x} ${y})`);
@@ -75,6 +78,49 @@ export function drawMissionMap(svg, state, { aim, solution, arrival, fixedTarget
     label.setAttribute('text-anchor', x > view.width - 35 ? 'end' : 'start');
     label.textContent = `#${shot.order_id}`;
     el('shot-labels').append(label);
+  }
+}
+
+function drawForecast(group, view, forecast) {
+  group.replaceChildren();
+  if (!forecast) return;
+  const route = document.createElementNS(ns, 'path');
+  route.setAttribute('d', view.path(forecast.own_path));
+  route.setAttribute('class', 'forecast-route');
+  group.append(route);
+  const marker = (position, velocity, kind, label, symbol) => {
+    const node = document.createElementNS(ns, 'g');
+    node.setAttribute('class', `forecast-${kind}`);
+    const [x, y] = view.project(position);
+    node.setAttribute('transform', `translate(${x} ${y})`);
+    const shape = document.createElementNS(ns, 'path');
+    shape.setAttribute('d', symbol);
+    node.append(shape);
+    if (velocity) {
+      const speed = Math.hypot(velocity.x, velocity.y);
+      if (speed) {
+        const arrow = document.createElementNS(ns, 'path');
+        const dx = velocity.x / speed, dy = -velocity.y / speed, length = Math.min(60, speed / 1000);
+        const tip = 12 + length;
+        arrow.setAttribute('d', `M${dx * 12} ${dy * 12}L${dx * tip} ${dy * tip}M${dx * (tip - 5) - dy * 3} ${dy * (tip - 5) + dx * 3}L${dx * tip} ${dy * tip}L${dx * (tip - 5) + dy * 3} ${dy * (tip - 5) - dx * 3}`);
+        node.append(arrow);
+      }
+    }
+    const text = document.createElementNS(ns, 'text');
+    text.textContent = label;
+    if (kind === 'enemy' && view.width < 600) text.style.display = 'none';
+    text.setAttribute('x', x > view.width - 155 ? -14 : 14);
+    text.setAttribute('y', kind === 'enemy' ? Math.min(34, view.height - y - 8)
+      : kind === 'round' ? -30 : y < 30 ? 22 : -12);
+    text.setAttribute('text-anchor', x > view.width - 155 ? 'end' : 'start');
+    node.append(text); group.append(node);
+    return node;
+  };
+  const speed = Math.hypot(forecast.own.velocity.x, forecast.own.velocity.y) / 1000;
+  marker(forecast.own.position, forecast.own.velocity, 'own', `${view.width < 600 ? 'Own' : 'Own preview'} · ${speed.toFixed(1)} km/s`, 'M0 -10L9 8H-9Z');
+  marker(forecast.enemy_position, forecast.enemy_velocity, 'enemy', 'Enemy estimate', 'M0 -10L10 0L0 10L-10 0Z');
+  for (const round of forecast.rounds) {
+    marker(round.position, null, 'round', `#${round.order_id}`, 'M-4 -4L4 4M-4 4L4 -4').dataset.shotId = round.order_id;
   }
 }
 

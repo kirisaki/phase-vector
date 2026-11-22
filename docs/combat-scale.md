@@ -69,7 +69,8 @@ not modeled.
 reference flight test uses a stationary firing frame. The blockade gun adds the
 firing ship's velocity and solves flight time to a fixed world target; its default
 lead point uses the observed enemy velocity. Reload is 30 s and a hit disables
-the enemy. Arbitrary arrival-time scheduling remains step 4. The optional physics
+the enemy. [Step 4](step-4-planning.md) adds arrival-time scheduling with a
+0.25-second tolerance while retaining fixed muzzle speed. The optional physics
 sandbox has no firing controls, reload mechanic, or hit consequences.
 
 A 660 km/s projectile travels 165 km per tick, far beyond a ship's 0.5 km radius.

@@ -42,9 +42,10 @@
                 <text id="enemy-speed"/><text id="enemy-motion"/>
               </g>
               <g id="shot-paths"/><g id="shot-labels"/><path id="queued-shot-line"/><g id="queued-shot-markers"/><path id="aim-line"/>
-              <g id="arrival-contact"><path/><text/></g>
+              <g id="time-forecast"/><g id="arrival-contact"><path/><text/></g>
               <g id="aim-handle" role="button" tabindex="0" aria-label="Drag shot target. Near observed lead, aim snaps to the intercept. Hold Shift to bypass snapping. Arrow keys adjust; Home tracks observed lead."><circle r="28" class="handle-hit"/><path d="M-12 0H12M0 -12V12"/><circle r="7"/><text x="14" y="-12">Aim</text><g id="aim-grip"><path class="grip-link"/><g class="grip-control"><circle r="22"/><path d="M-8 0H8M0 -8V8"/><text y="34" text-anchor="middle">Fine aim</text></g></g></g>
             </svg><div class="map-caption"><div class="map-scale"><span id="grid-label">GRID / km</span><span id="range-label">RANGE / —</span><span id="railgun-label">RAILGUN / —</span></div><span id="command-number">COMMAND 01</span></div></div>
+          <div id="timeline-controls" hidden><button id="forecast-live" aria-pressed="true" title="Return to live positions and automatic shot arrival">Live</button><label for="forecast-time" id="forecast-label">Live · drag to plan arrival</label><input id="forecast-time" type="range" min="0" max="1200" step="0.25" value="0" aria-label="Future preview and shot arrival time"></div>
           <div class="flight-controls" tabindex="0" aria-label="Flight controls">
             <div class="transport">
               <div class="command-row">
