@@ -7,6 +7,7 @@ use piccolo::{
 };
 
 use crate::{
+    parameters::Parameter,
     physics::{Ship, Vector2},
     session::{Command, Session},
 };
@@ -30,6 +31,40 @@ impl Host {
         let mut lua = Lua::core();
         lua.enter(|ctx| {
             let game = Table::new(&ctx);
+            let configure_state = state.clone();
+            game.set(
+                ctx,
+                "configure",
+                Callback::from_fn(&ctx, move |ctx, _, mut stack| {
+                    let (name, value): (String, f64) = stack.consume(ctx)?;
+                    Parameter::named(&name)
+                        .and_then(|parameter| {
+                            configure_state
+                                .borrow_mut()
+                                .dispatch(Command::Configure(parameter, value))
+                        })
+                        .map_err(|e| {
+                            piccolo::Error::from_value(Value::String(ctx.intern(e.as_bytes())))
+                        })?;
+                    stack.replace(ctx, true);
+                    Ok(CallbackReturn::Return)
+                }),
+            )
+            .expect("static key");
+            let parameters_state = state.clone();
+            game.set(
+                ctx,
+                "parameters",
+                Callback::from_fn(&ctx, move |ctx, _, mut stack| {
+                    let state = parameters_state.borrow();
+                    let mission = state.mission().ok_or_else(|| {
+                        piccolo::Error::from_value(Value::String(ctx.intern(b"No active mission.")))
+                    })?;
+                    stack.replace(ctx, parameters_table(ctx, &mission.config)?);
+                    Ok(CallbackReturn::Return)
+                }),
+            )
+            .expect("static key");
             let command_state = state.clone();
             game.set(
                 ctx,
@@ -301,6 +336,23 @@ impl Host {
                     snapshot.set(ctx, "active_burn", active)?;
                     if let Some(mission) = view.mission {
                         let table = Table::new(&ctx);
+                        table.set(ctx, "run_kind", view.run_kind.label())?;
+                        table.set(ctx, "parameters", parameters_table(ctx, &mission.config)?)?;
+                        table.set(
+                            ctx,
+                            "initial_parameters",
+                            parameters_table(ctx, view.initial_mission.unwrap())?,
+                        )?;
+                        let edits = Table::new(&ctx);
+                        for (index, edit) in view.parameter_edits.iter().enumerate() {
+                            let item = Table::new(&ctx);
+                            item.set(ctx, "tick", edit.tick as f64)?;
+                            item.set(ctx, "parameter", edit.parameter.name())?;
+                            item.set(ctx, "value", edit.value)?;
+                            item.set(ctx, "during_play", edit.during_play)?;
+                            edits.set(ctx, (index + 1) as i64, item)?;
+                        }
+                        table.set(ctx, "parameter_edits", edits)?;
                         table.set(ctx, "outcome", mission.outcome.label())?;
                         table.set(ctx, "shots", mission.shots.len() as f64)?;
                         table.set(
@@ -511,6 +563,17 @@ impl Host {
             lines.join("\n")
         })
     }
+}
+
+fn parameters_table<'gc>(
+    ctx: Context<'gc>,
+    config: &crate::mission::Config,
+) -> Result<Table<'gc>, piccolo::Error<'gc>> {
+    let table = Table::new(&ctx);
+    for parameter in Parameter::ALL {
+        table.set(ctx, parameter.name(), parameter.value(config))?;
+    }
+    Ok(table)
 }
 
 fn track_table<'gc>(

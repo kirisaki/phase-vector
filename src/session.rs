@@ -4,6 +4,7 @@ use serde::Serialize;
 
 use crate::physics::{Burn, STEP_SECONDS, Vector2, World};
 
+use crate::parameters::{Edit, Parameter, RunKind};
 use crate::timing::STEP_FORWARD_TICKS;
 pub use crate::timing::{INTERVAL_SECONDS, INTERVAL_TICKS, PULSES_PER_TICK};
 
@@ -43,6 +44,7 @@ pub enum Command {
     StepForward,
     NextTurn,
     SetSpeed(f64),
+    Configure(Parameter, f64),
     Reset,
 }
 
@@ -87,12 +89,14 @@ pub struct Session {
     speed: u32,
     playback_quanta: u32,
     command_log: Vec<CommandRecord>,
+    parameter_edits: Vec<Edit>,
 }
 
 /// Authoritative state for commands and diagnostics; use presentation::State for the UI.
 pub struct Snapshot<'a> {
     pub world: &'a World,
     pub mission: Option<&'a crate::mission::Mission>,
+    pub initial_mission: Option<&'a crate::mission::Config>,
     pub scale: crate::scenario::Scale,
     pub player_id: u32,
     pub phase: Phase,
@@ -107,6 +111,8 @@ pub struct Snapshot<'a> {
     pub order_start_seconds: f64,
     pub command_number: usize,
     pub command_log: &'a [CommandRecord],
+    pub run_kind: RunKind,
+    pub parameter_edits: &'a [Edit],
 }
 
 impl Default for Session {
@@ -135,6 +141,7 @@ impl Session {
             speed: DEFAULT_SPEED,
             playback_quanta: 0,
             command_log: Vec::new(),
+            parameter_edits: Vec::new(),
         })
     }
 
@@ -188,6 +195,7 @@ impl Session {
         Snapshot {
             world: &self.world,
             mission: self.mission.as_ref(),
+            initial_mission: self.initial_mission.as_ref(),
             scale: crate::scenario::SCALE,
             player_id: self.player_id,
             phase: self.phase,
@@ -206,6 +214,8 @@ impl Session {
             order_start_seconds: self.interval_end as f64 * STEP_SECONDS,
             command_number: self.command_log.len() + usize::from(self.phase == Phase::Planning),
             command_log: &self.command_log,
+            run_kind: self.run_kind(),
+            parameter_edits: &self.parameter_edits,
         }
     }
 
@@ -223,6 +233,7 @@ impl Session {
             return Err("Mission is over; retry to issue orders.".into());
         }
         match command {
+            Command::Configure(parameter, value) => self.configure(parameter, value)?,
             Command::QueueLaunchShot(target, seconds) => {
                 let solution = self.snapshot().preview_launch_shot(target, seconds)?;
                 let ship = self.snapshot().planning_ship_at(solution.launch_tick);
@@ -351,6 +362,60 @@ impl Session {
         ) {
             self.replan_timed_shots();
         }
+        Ok(())
+    }
+
+    fn run_kind(&self) -> RunKind {
+        if self.parameter_edits.iter().any(|edit| edit.during_play) {
+            RunKind::Debug
+        } else if self.initial_mission.as_ref() != Some(&crate::mission::Config::default())
+            || self.initial != crate::scenario::initial_world()
+        {
+            RunKind::Custom
+        } else {
+            RunKind::Standard
+        }
+    }
+
+    fn configure(&mut self, parameter: Parameter, value: f64) -> Result<(), String> {
+        if !self.paused {
+            return Err("Pause execution before changing parameters.".into());
+        }
+        let mission = self
+            .mission
+            .as_ref()
+            .ok_or("Start a blockade mission to configure parameters.")?;
+        let during_play = self.world.tick != self.initial.tick || !self.command_log.is_empty();
+        if parameter.initial_only() && (during_play || !mission.queued.is_empty()) {
+            return Err(
+                "Change initial parameters before the first command and with an empty shot queue."
+                    .into(),
+            );
+        }
+        let mut config = mission.config.clone();
+        parameter.apply(&mut config, value)?;
+        if parameter.initial_only() {
+            crate::mission::Mission::new(&self.world, self.player_id, config.clone())?;
+        }
+        if config == mission.config {
+            return Ok(());
+        }
+        // Only initial-only edits affect scheduling. They require an empty queue before play.
+        // Policy changes preserve observations, flying rounds, and all frozen orders.
+        let mission = self.mission.as_mut().unwrap();
+        if config.policy != mission.config.policy {
+            mission.decision.hold_until = self.world.tick;
+        }
+        mission.config = config.clone();
+        if !during_play {
+            self.initial_mission = Some(config);
+        }
+        self.parameter_edits.push(Edit {
+            tick: self.world.tick,
+            parameter,
+            value,
+            during_play,
+        });
         Ok(())
     }
 

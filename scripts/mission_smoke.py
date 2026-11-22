@@ -9,6 +9,7 @@ from playwright.sync_api import sync_playwright, expect
 from map_navigation_checks import check_map_navigation
 from planning_checks import check_planning
 from browser_controls import read_ui_settings, connect_engine
+from diagnostic_checks import check_parameters
 
 ROOT = Path(__file__).resolve().parents[1]
 
@@ -42,6 +43,7 @@ def main():
             page.goto(args.url or 'https://phase-vector.test/phase-vector/')
             expect(page.locator('body')).to_have_attribute('data-ready', 'true', timeout=90000)
             connect_engine(page)
+            check_parameters(page)
             ui_settings = read_ui_settings(page)
             fine_gain = ui_settings['AIM']['fineGain']
 

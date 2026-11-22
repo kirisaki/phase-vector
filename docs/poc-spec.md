@@ -17,7 +17,7 @@ for adopted assumptions, acceptance coverage, and limits. In particular, physica
 launches use the 0.25-second grid and timed arrivals accept at most 0.25 seconds
 of error, displaying the actual computed time. Friendly plans still use one
 repeating draft burn rather than independent multi-turn waypoints.
-Formal scoring and general paused parameter editing remain step 5.
+Step 5 is in progress: bounded paused parameter editing is implemented; formal scoring remains.
 
 ## Scope and implementation approach
 

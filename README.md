@@ -23,7 +23,7 @@ The time slider previews future friendly, observed enemy, and ballistic position
 Choose a world point and firing time to reserve a shot. AIM leads beyond the
 selected instant by the computed flight time. Maneuver changes recompute shot
 direction and arrival while retaining firing time and target. Live retains automatic timing.
-Formal scoring and paused parameter editing remain step 5. Tuning is provisional;
+Formal scoring remains step 5; paused diagnostic parameter editing is available. Tuning is provisional;
 the current enemy is conservative. See [step 4 planning](docs/step-4-planning.md)
 for timing tolerance, replanning priority, validation, and prediction limits.
 The [acceptance coverage](docs/step-3-blockade.md#acceptance-coverage) records
@@ -408,7 +408,45 @@ return game.state().mission.threats[1] -- Delivered projectile track, if availab
 `mission.threats` are detached delivered observations with `id`, `x/y`, `vx/vy`,
 `radius`, `sampled_tick`, and `received_tick`. `ai_ax`, `ai_ay`, and
 `ai_hold_until_tick` expose the current enemy order. Editing these returned Lua
-tables does not change the simulation. There is no general parameter editor yet.
+tables does not change the simulation. Use the explicit diagnostic settings API:
+
+```lua
+game.parameters() -- Detached current settings, in seconds and metres
+game.configure("reaction_seconds", 60)
+game.configure("safety_radius_m", 250000)
+game.state().mission.initial_parameters -- Retry baseline
+game.state().mission.parameter_edits -- Tick, parameter, value, during_play
+game.state().mission.run_kind -- standard, custom, or debug
+game.command("retry") -- Restore the baseline, discarding mid-play edits
+game.command("mission") -- Restore the standard blockade and all default settings
+```
+
+Configuration requires paused playback and an unfinished blockade. Before the
+first command, edits become the Retry baseline. During play, only AI policy edits
+are accepted; they mark the run as debug, release the previous AI hold, and take
+effect at its next one-second decision tick. They do not advance time or rewrite
+observations, frozen player orders, reservations, or flying rounds. Retry restores
+the initial world and baseline settings, paused, with empty queues and edit history.
+A custom baseline stays custom after Retry. Returning a live-edited parameter to
+its old value does not remove the debug label. Lua globals survive Retry.
+
+| Parameter | Allowed range | When editable |
+| --- | --- | --- |
+| `deadline_seconds` | 0.25–7,200 s | Before play, empty shot queue |
+| `reload_seconds` | 0.25–600 s | Before play, empty shot queue |
+| `sensor_processing_seconds` | 0–120 s | Before play, empty shot queue |
+| `reaction_seconds` | 0–600 s | Paused |
+| `safety_radius_m` | 0–2,000,000 m | Paused |
+| `hold_seconds` | 0–120 s | Paused |
+| `recovery_seconds` | 0.25–1,200 s | Paused |
+
+The first three settings require exact 0.25-second multiples. Other settings
+retain their numerical precision. These bounds limit diagnostic computation;
+they are not balance recommendations. Unknown names, invalid types, nonfinite or
+out-of-range values, running edits, and edits after a result fail without mutation.
+Each `configure` call is atomic; multiple Lua calls are not a transaction. A
+no-op value creates no history entry. Step size, command duration, ship geometry,
+fuel, and muzzle speed remain fixed in this PoC API.
 
 ## Verification
 
@@ -590,7 +628,7 @@ for both APIs, validation, and replanning priority.
   physics is frozen at the end of the event tick; result time includes its fraction.
 - Goal circles have a minimum display radius of 3 px for readability; physical
   entry uses the specified 1,000 km radius. Symbols are also enlarged.
-- Mission scoring and paused parameter edits remain step 5. The default balance
+- Mission scoring remains step 5; diagnostic settings cover only the documented subset. The default balance
   demonstrates placement-dependent denial and is not final difficulty tuning.
 - First-load size and performance are not final. Browser errors are shown in the
   page; details are also available in the browser developer console.

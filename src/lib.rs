@@ -6,6 +6,7 @@ pub mod maneuver;
 pub mod map;
 pub mod mission;
 pub mod observation;
+pub mod parameters;
 pub mod physics;
 pub mod planning;
 pub mod presentation;
