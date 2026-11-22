@@ -30,6 +30,7 @@ pub enum Command {
     PlanBurn(Vector2),
     PlanArrival(Vector2),
     QueueShot(Vector2),
+    QueueTimedShot(Vector2, f64),
     CancelShot,
     CancelQueuedShot(u32),
     StartMission,
@@ -221,6 +222,18 @@ impl Session {
             return Err("Mission is over; retry to issue orders.".into());
         }
         match command {
+            Command::QueueTimedShot(target, arrival) => {
+                let solution = self.snapshot().preview_timed_shot(target, arrival)?;
+                let ship = self.snapshot().planning_ship_at(solution.launch_tick);
+                let mission = self.mission.as_mut().unwrap();
+                mission.queue(&ship, target, solution.launch_tick)?;
+                mission
+                    .queued
+                    .iter_mut()
+                    .find(|order| order.launch_tick == solution.launch_tick)
+                    .unwrap()
+                    .requested_arrival_seconds = Some(arrival);
+            }
             Command::QueueShot(target) => {
                 let tick = self.next_shot_tick()?;
                 let ship = self.snapshot().planning_ship_at(tick);
@@ -234,7 +247,9 @@ impl Session {
                     .as_mut()
                     .ok_or("No active mission.")?
                     .queued
-                    .retain(|order| order.launch_tick < self.interval_end);
+                    .retain(|order| {
+                        order.planning_error.is_none() && order.launch_tick < self.interval_end
+                    });
             }
             Command::CancelQueuedShot(id) => {
                 self.mission
@@ -318,7 +333,59 @@ impl Session {
                 .expect("validated initial scenario");
             }
         }
+        if matches!(
+            command,
+            Command::PlanBurn(_)
+                | Command::PlanArrival(_)
+                | Command::CancelShot
+                | Command::CancelQueuedShot(_)
+        ) {
+            self.replan_timed_shots();
+        }
         Ok(())
+    }
+
+    fn replan_timed_shots(&mut self) {
+        let Some(mut slots) = self.mission.clone() else {
+            return;
+        };
+        let mut timed: Vec<_> = slots
+            .queued
+            .iter()
+            .filter(|order| {
+                order.requested_arrival_seconds.is_some()
+                    && (order.planning_error.is_some() || order.launch_tick >= self.interval_end)
+            })
+            .cloned()
+            .collect();
+        if timed.is_empty() {
+            return;
+        }
+        slots
+            .queued
+            .retain(|order| !timed.iter().any(|candidate| candidate.id == order.id));
+        // Earlier reservations retain priority. Fixed launch slots and active orders are anchors.
+        timed.sort_by_key(|order| order.id);
+        for mut order in timed {
+            match self.snapshot().solve_timed_shot(
+                order.target,
+                order.requested_arrival_seconds.unwrap(),
+                &slots,
+            ) {
+                Ok(solution) => {
+                    order.launch_tick = solution.launch_tick;
+                    order.planning_error = None;
+                }
+                Err(error) => {
+                    order.planning_error = Some(error);
+                }
+            }
+            slots.queued.push(order);
+        }
+        slots
+            .queued
+            .sort_by_key(|order| (order.planning_error.is_some(), order.launch_tick));
+        self.mission = Some(slots);
     }
 
     /// Consume one presentation-clock pulse, without changing the physical timestep.
@@ -373,6 +440,17 @@ impl Session {
     }
 
     fn begin_interval(&mut self) -> Result<(), String> {
+        if let Some(order) = self
+            .mission
+            .as_ref()
+            .and_then(|m| m.queued.iter().find(|o| o.planning_error.is_some()))
+        {
+            return Err(format!(
+                "Shot #{}: {} Cancel or revise the maneuver before continuing.",
+                order.id,
+                order.planning_error.as_ref().unwrap()
+            ));
+        }
         let end = self
             .world
             .tick
@@ -392,8 +470,7 @@ impl Session {
             .unwrap_or_default();
         // Validate the complete frozen firing plan before committing any part of it.
         for order in &shots {
-            self.snapshot()
-                .preview_shot_at(order.target, order.launch_tick)?;
+            self.snapshot().preview_order(order)?;
         }
         if let Some(mission) = &mut self.mission {
             mission.launch_queued(&mut self.world, self.player_id)?;
@@ -457,14 +534,8 @@ impl Snapshot<'_> {
             .find(|s| s.id == self.player_id)
             .unwrap()
             .clone();
-        let boundary = self.order_start_tick;
         for t in self.world.tick..tick {
-            let burn = if self.phase == Phase::Executing && t < boundary {
-                self.active_burn
-            } else {
-                self.planned_burn
-            };
-            ship.advance(burn);
+            ship.advance(self.planning_burn_at(t));
         }
         ship
     }

@@ -92,6 +92,8 @@ pub struct MissionView<'a> {
     pub shots: &'a [Shot],
     pub queued: Vec<QueuedShotView<'a>>,
     pub queue_capacity: usize,
+    pub planning_horizon_seconds: f64,
+    pub arrival_tolerance_seconds: f64,
     pub queue_error: Option<String>,
     pub aim: Option<Solution>,
     pub contact: &'a Track,
@@ -117,14 +119,17 @@ impl<'a> State<'a> {
                 reload_seconds: mission.config.reload_ticks as f64 * STEP_SECONDS,
                 shots: &mission.shots,
                 queue_capacity: crate::mission::MAX_QUEUED_SHOTS,
+                planning_horizon_seconds: crate::planning::MAX_PLANNING_SECONDS,
+                arrival_tolerance_seconds: crate::planning::ARRIVAL_TOLERANCE_SECONDS,
                 queued: mission
                     .queued
                     .iter()
                     .map(|order| {
-                        let solution = snapshot.preview_shot_at(order.target, order.launch_tick);
+                        let solution = snapshot.preview_order(order);
                         QueuedShotView {
                             order,
-                            locked: order.launch_tick < snapshot.order_start_tick,
+                            locked: order.planning_error.is_none()
+                                && order.launch_tick < snapshot.order_start_tick,
                             error: solution.as_ref().err().cloned(),
                             solution: solution.ok(),
                         }

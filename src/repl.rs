@@ -80,6 +80,87 @@ impl Host {
                 }),
             )
             .expect("static key");
+            let timed_state = state.clone();
+            game.set(
+                ctx,
+                "fire_at",
+                Callback::from_fn(&ctx, move |ctx, _, mut stack| {
+                    let (x, y, seconds): (f64, f64, f64) = stack.consume(ctx)?;
+                    timed_state
+                        .borrow_mut()
+                        .dispatch(Command::QueueTimedShot(Vector2::new(x, y), seconds))
+                        .map_err(|e| {
+                            piccolo::Error::from_value(Value::String(ctx.intern(e.as_bytes())))
+                        })?;
+                    stack.replace(ctx, true);
+                    Ok(CallbackReturn::Return)
+                }),
+            )
+            .expect("static key");
+            let preview_state = state.clone();
+            game.set(
+                ctx,
+                "preview_shot_at",
+                Callback::from_fn(&ctx, move |ctx, _, mut stack| {
+                    let (x, y, seconds): (f64, f64, f64) = stack.consume(ctx)?;
+                    let session = preview_state.borrow();
+                    let solution = session
+                        .snapshot()
+                        .preview_timed_shot(Vector2::new(x, y), seconds)
+                        .map_err(|e| {
+                            piccolo::Error::from_value(Value::String(ctx.intern(e.as_bytes())))
+                        })?;
+                    let table = Table::new(&ctx);
+                    for (key, value) in [
+                        ("launch_tick", solution.launch_tick as f64),
+                        (
+                            "launch_seconds",
+                            solution.launch_tick as f64 * crate::physics::STEP_SECONDS,
+                        ),
+                        ("arrival_seconds", solution.arrival_seconds),
+                        ("flight_seconds", solution.flight_seconds),
+                        ("direction_x", solution.direction.x),
+                        ("direction_y", solution.direction.y),
+                    ] {
+                        table.set(ctx, key, value)?;
+                    }
+                    stack.replace(ctx, table);
+                    Ok(CallbackReturn::Return)
+                }),
+            )
+            .expect("static key");
+            let forecast_state = state.clone();
+            game.set(
+                ctx,
+                "forecast",
+                Callback::from_fn(&ctx, move |ctx, _, mut stack| {
+                    let seconds: f64 = stack.consume(ctx)?;
+                    let session = forecast_state.borrow();
+                    let forecast = session.snapshot().forecast(seconds).map_err(|e| {
+                        piccolo::Error::from_value(Value::String(ctx.intern(e.as_bytes())))
+                    })?;
+                    let table = Table::new(&ctx);
+                    table.set(ctx, "time_seconds", forecast.time_seconds)?;
+                    table.set(ctx, "own", ship_table(ctx, &forecast.own)?)?;
+                    table.set(ctx, "enemy_x", forecast.enemy_position.x)?;
+                    table.set(ctx, "enemy_y", forecast.enemy_position.y)?;
+                    table.set(ctx, "enemy_vx", forecast.enemy_velocity.x)?;
+                    table.set(ctx, "enemy_vy", forecast.enemy_velocity.y)?;
+                    let rounds = Table::new(&ctx);
+                    for (i, round) in forecast.rounds.iter().enumerate() {
+                        let item = Table::new(&ctx);
+                        item.set(ctx, "id", round.order_id)?;
+                        item.set(ctx, "x", round.position.x)?;
+                        item.set(ctx, "y", round.position.y)?;
+                        item.set(ctx, "reserved", round.reserved)?;
+                        rounds.set(ctx, (i + 1) as i64, item)?;
+                    }
+                    table.set(ctx, "rounds", rounds)?;
+                    stack.replace(ctx, table);
+                    Ok(CallbackReturn::Return)
+                }),
+            )
+            .expect("static key");
             let cancel_state = state.clone();
             game.set(
                 ctx,
@@ -250,6 +331,16 @@ impl Host {
                             "queue_capacity",
                             crate::mission::MAX_QUEUED_SHOTS as i64,
                         )?;
+                        table.set(
+                            ctx,
+                            "planning_horizon_seconds",
+                            crate::planning::MAX_PLANNING_SECONDS,
+                        )?;
+                        table.set(
+                            ctx,
+                            "arrival_tolerance_seconds",
+                            crate::planning::ARRIVAL_TOLERANCE_SECONDS,
+                        )?;
                         let queue = Table::new(&ctx);
                         for (i, order) in mission.queued.iter().enumerate() {
                             let item = Table::new(&ctx);
@@ -257,9 +348,21 @@ impl Host {
                             item.set(
                                 ctx,
                                 "locked",
-                                order.launch_tick
-                                    < (view.order_start_seconds / crate::physics::STEP_SECONDS)
-                                        as u64,
+                                order.planning_error.is_none()
+                                    && order.launch_tick < view.order_start_tick,
+                            )?;
+                            item.set(
+                                ctx,
+                                "requested_arrival_seconds",
+                                order.requested_arrival_seconds,
+                            )?;
+                            item.set(
+                                ctx,
+                                "error",
+                                order
+                                    .planning_error
+                                    .as_ref()
+                                    .map(|error| ctx.intern(error.as_bytes())),
                             )?;
                             item.set(ctx, "target_x", order.target.x)?;
                             item.set(ctx, "target_y", order.target.y)?;

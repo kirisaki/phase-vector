@@ -63,6 +63,8 @@ pub struct QueuedShot {
     pub id: u32,
     pub target: Vector2,
     pub launch_tick: u64,
+    pub requested_arrival_seconds: Option<f64>,
+    pub planning_error: Option<String>,
 }
 #[derive(Clone, Debug, PartialEq, Serialize)]
 pub struct Shot {
@@ -203,6 +205,9 @@ impl Mission {
         let exhausted = || "No free firing slot remains before the deadline.".to_string();
         let mut tick = from_tick.max(self.ready_tick);
         for order in &self.queued {
+            if order.planning_error.is_some() {
+                continue;
+            }
             if tick.abs_diff(order.launch_tick) < self.config.reload_ticks {
                 tick = order
                     .launch_tick
@@ -221,7 +226,9 @@ impl Mission {
             .iter()
             .position(|order| order.id == id)
             .ok_or("Unknown queued shot.")?;
-        if self.queued[index].launch_tick < editable_from {
+        if self.queued[index].planning_error.is_none()
+            && self.queued[index].launch_tick < editable_from
+        {
             return Err("This shot is committed to the active command interval.".into());
         }
         self.queued.remove(index);
@@ -238,11 +245,7 @@ impl Mission {
         if launch_tick >= self.config.deadline_tick {
             return Err("Launch would be after the mission deadline.".into());
         }
-        if self
-            .queued
-            .iter()
-            .any(|order| order.launch_tick.abs_diff(launch_tick) < self.config.reload_ticks)
-        {
+        if !self.slot_available(launch_tick) {
             return Err("Another reservation occupies this gun's reload window.".into());
         }
         solve_shot(ship, target, launch_tick)?;
@@ -254,18 +257,30 @@ impl Mission {
             id: self.next_order_id,
             target,
             launch_tick,
+            requested_arrival_seconds: None,
+            planning_error: None,
         });
         self.next_order_id = next_id;
-        self.queued.sort_by_key(|order| order.launch_tick);
+        self.queued
+            .sort_by_key(|order| (order.planning_error.is_some(), order.launch_tick));
         Ok(())
     }
-    fn check_queue_capacity(&self) -> Result<(), String> {
+    pub(crate) fn check_queue_capacity(&self) -> Result<(), String> {
         if self.queued.len() >= MAX_QUEUED_SHOTS {
             return Err(format!(
                 "Shot queue is full ({MAX_QUEUED_SHOTS}/{MAX_QUEUED_SHOTS}). Wait for a launch or cancel an editable shot."
             ));
         }
         Ok(())
+    }
+    pub(crate) fn slot_available(&self, tick: u64) -> bool {
+        tick >= self.ready_tick
+            && tick < self.config.deadline_tick
+            && self
+                .queued
+                .iter()
+                .filter(|order| order.planning_error.is_none())
+                .all(|order| order.launch_tick.abs_diff(tick) >= self.config.reload_ticks)
     }
     pub fn launch_queued(
         &mut self,
@@ -278,6 +293,10 @@ impl Mission {
         let Some(order) = self.queued.first() else {
             return Ok(None);
         };
+        // Invalid editable orders are retained for correction; the next boundary blocks them.
+        if order.planning_error.is_some() {
+            return Ok(None);
+        }
         if order.launch_tick > world.tick || self.ready_tick > world.tick {
             return Ok(None);
         }
