@@ -211,5 +211,6 @@ after target passage; a missed round continues flying with its number visible.
 Target passage is not itself a collision or a hit;
 amber dots indicate a constant-observed-velocity estimate, not the AI's future.
 
-Formal score weighting and general paused parameter editing remain step 5.
+Formal scoring and bounded paused parameter editing are implemented in
+[step 5](step-5-evaluation.md). General scenario editing remains out of scope.
 This milestone reports outcome, elapsed time, shot count, and friendly delta-v.

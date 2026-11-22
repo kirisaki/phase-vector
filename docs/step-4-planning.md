@@ -154,7 +154,7 @@ game.fire_at_launch(x, y, 120)
 `game.state` diagnostic interface exposes true state. Queue entries include
 `requested_arrival_seconds` (null for fixed launches), `error`, and firing time.
 `game.fire(x, y)` and `game.aim()` retain the Live workflow. Parameter editing
-and formal evaluation scores remain step 5.
+and formal evaluation scores are covered by [step 5](step-5-evaluation.md).
 
 ## Verification
 

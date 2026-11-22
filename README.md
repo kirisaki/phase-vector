@@ -8,7 +8,7 @@ and delta-v expenditure.
 
 ## Status
 
-**Step 4 complete: future preview and scheduled shooting.** One friendly ship must stop a non-firing enemy
+**Step 5 complete: diagnostic settings, evaluation, and retry.** One friendly ship must stop a non-firing enemy
 from reaching its exit before 1,230 seconds. Fire an unguided railgun at a future
 point; the enemy reacts only to delivered attack observations and tries to
 recover its course. Win by disabling it or delaying it past the deadline.
@@ -23,7 +23,8 @@ The time slider previews future friendly, observed enemy, and ballistic position
 Choose a world point and firing time to reserve a shot. AIM leads beyond the
 selected instant by the computed flight time. Maneuver changes recompute shot
 direction and arrival while retaining firing time and target. Live retains automatic timing.
-Formal scoring remains step 5; paused diagnostic parameter editing is available. Tuning is provisional;
+The result includes a deterministic score and resource breakdown. Paused Lua
+settings support reproducible custom trials. Tuning is provisional;
 the current enemy is conservative. See [step 4 planning](docs/step-4-planning.md)
 for timing tolerance, replanning priority, validation, and prediction limits.
 The [acceptance coverage](docs/step-3-blockade.md#acceptance-coverage) records
@@ -32,8 +33,9 @@ which requirements are verified natively and through real browser interaction.
 See the [PoC specification](docs/poc-spec.md),
 [stack decisions](docs/step-1-stack.md),
 [physics and time model](docs/step-2-physics.md),
-[provisional combat scale](docs/combat-scale.md), and
-[blockade rules and assumptions](docs/step-3-blockade.md).
+[provisional combat scale](docs/combat-scale.md),
+[blockade rules and assumptions](docs/step-3-blockade.md), and
+[evaluation and diagnostic settings](docs/step-5-evaluation.md).
 
 ## Build and run locally
 
@@ -180,14 +182,38 @@ The standard deadline leaves about 57 seconds beyond unopposed entry; the prior
 1,320-second trial required about 147 seconds of delay. See the
 [balance trials](docs/step-3-blockade.md#tuning-and-scope-limits) for reproducible
 placement-dependent wins with twelve shots. Exact simultaneous
-impact/entry favors disablement; entry at the deadline beats timeout. No formal
-points formula is implemented yet.
+impact/entry favors disablement; entry at the deadline beats timeout. Both victory
+types receive the same base score.
 
 A centered result dialog announces VICTORY or DEFEAT with the reason, elapsed
 time, shots fired, and delta-v spent. The battlefield stays visible without
 dimming or blur. Retry restarts immediately; View map, Escape, or a click/tap
 outside the dialog dismisses it so the frozen battlefield can be inspected. The
 inline result and Retry button remain available after dismissal.
+
+Terminal results also show a total score and its three components. Running missions
+have no final score. Victory earns 1,000 base points, plus `max(0, 500 - 20 × shots
+fired)` for shot economy and `floor(500 × remaining friendly Δv / initial friendly
+Δv)` for fuel economy, clamped to 0–500. Zero initial Δv earns no fuel bonus.
+Defeat earns zero points in every component, while retaining actual resource
+usage in the breakdown. Reserved or cancelled shots are not counted; only
+physical launches cost points. There is no extra kill or speed bonus.
+
+The score uses the frozen terminal world (including the full final physics tick's
+fuel expenditure) and stays unchanged after dismissal, pause, or playback-speed
+changes. It remains available in the inline status and at
+`game.state().mission.evaluation` in Lua. The fields are `total`, `victory_points`,
+`shot_points`, `fuel_points`, `shots_fired`, and `spent_delta_v` (m/s).
+`evaluation` is nil in Lua / null in UI JSON before a result.
+
+Results identify **Standard**, **Custom settings**, or **Debug run**. Custom means
+the initial scenario differs from the standard blockade. Debug means a parameter
+actually changed after execution began, even if it was later changed back. Their
+scores use the same formula but are not comparable to standard runs. Retry repeats
+the initial settings and removes mid-play changes; `game.command("mission")`
+restores the standard mission. Lua examples include settings, scores, and standard
+reset. No leaderboard, durable save, or general scenario editor is included.
+Scoring weights are provisional and remain subject to step 6 playtesting.
 
 The gun has unlimited ammunition and a 30-second reload. Each reservation fires
 once at its reserved firing tick, using the firing ship's velocity plus a fixed
@@ -628,7 +654,7 @@ for both APIs, validation, and replanning priority.
   physics is frozen at the end of the event tick; result time includes its fraction.
 - Goal circles have a minimum display radius of 3 px for readability; physical
   entry uses the specified 1,000 km radius. Symbols are also enlarged.
-- Mission scoring remains step 5; diagnostic settings cover only the documented subset. The default balance
+- Scoring weights are provisional; diagnostic settings cover only the documented subset. The default balance
   demonstrates placement-dependent denial and is not final difficulty tuning.
 - First-load size and performance are not final. Browser errors are shown in the
   page; details are also available in the browser developer console.
@@ -650,6 +676,7 @@ Shared numerical settings have distinct owners:
 | Goal, deadline, reload, sensor processing | `mission::Config::default()` |
 | Sensor sampling/retention and AI decision cadence | Named constants in `observation.rs` and `ai.rs` |
 | Independent threat horizon, safety corridor, evasion/recovery duration | `ai::Policy::default()` |
+| Score weights | `src/evaluation.rs` |
 | Aim sensitivity, timeline snapping/geometry, navigation and burn gestures, command pulse, history length | `web/ui-settings.ts` |
 
 Whole-second durations become ticks through `timing::seconds_to_ticks`; the
@@ -662,6 +689,10 @@ Tests import these settings for setup and execution boundaries. Browser tests
 read `state_json().timing`, and Lua exposes the same table. Independent analytic
 expectations and selected trial regression anchors in `tests/scale.rs` remain
 literal so an incorrect shared constant cannot silently make a test pass.
+Parameter tests cover atomic rejection, paused-only edits, frozen orders and flying
+rounds, deterministic continuation, and custom Retry baselines. Evaluation tests
+cover both victory types, zero-point defeats, actual launches versus reservations,
+fuel normalization, bonus limits, terminal stability, and matching UI/Lua output.
 Browser input helpers read `web/ui-settings.ts` and computed slider geometry
 instead of copying sensitivity or thumb dimensions. The slider's CSS dimensions
 and snap calculation share the same thumb size. Expected gameplay outcomes,

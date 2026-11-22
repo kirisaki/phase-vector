@@ -17,7 +17,10 @@ for adopted assumptions, acceptance coverage, and limits. In particular, physica
 launches use the 0.25-second grid and timed arrivals accept at most 0.25 seconds
 of error, displaying the actual computed time. Friendly plans still use one
 repeating draft burn rather than independent multi-turn waypoints.
-Step 5 is in progress: bounded paused parameter editing is implemented; formal scoring remains.
+Step 5 is complete: bounded paused parameter editing, terminal score breakdowns,
+custom/debug run identification, and reproducible Retry baselines are implemented.
+See [evaluation and diagnostic settings](step-5-evaluation.md) for exact scope
+and limits. Step 6 tuning remains.
 
 ## Scope and implementation approach
 
@@ -139,7 +142,7 @@ compilation checks alone do not satisfy this milestone.
   circle contacts. See [physics and time](step-2-physics.md). Step 3 defines
   mission geometry, observations, AI policy, and the basic gun solver in
   [blockade rules](step-3-blockade.md). Timed scheduling is documented in [step 4](step-4-planning.md);
-  scoring remains open.
+  scoring and paused diagnostic edits are documented in [step 5](step-5-evaluation.md).
 - Reproducibility must be tested independently of rendering and playback speed.
   Bit-identical results across browsers and architectures are not claimed until
   explicitly verified.
