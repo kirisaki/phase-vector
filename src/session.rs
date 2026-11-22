@@ -31,6 +31,7 @@ pub enum Command {
     PlanArrival(Vector2),
     QueueShot(Vector2),
     QueueTimedShot(Vector2, f64),
+    QueueLaunchShot(Vector2, f64),
     CancelShot,
     CancelQueuedShot(u32),
     StartMission,
@@ -222,6 +223,14 @@ impl Session {
             return Err("Mission is over; retry to issue orders.".into());
         }
         match command {
+            Command::QueueLaunchShot(target, seconds) => {
+                let solution = self.snapshot().preview_launch_shot(target, seconds)?;
+                let ship = self.snapshot().planning_ship_at(solution.launch_tick);
+                self.mission
+                    .as_mut()
+                    .unwrap()
+                    .queue(&ship, target, solution.launch_tick)?;
+            }
             Command::QueueTimedShot(target, arrival) => {
                 let solution = self.snapshot().preview_timed_shot(target, arrival)?;
                 let ship = self.snapshot().planning_ship_at(solution.launch_tick);

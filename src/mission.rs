@@ -220,6 +220,23 @@ impl Mission {
         }
         Ok(tick)
     }
+    /// Starts of free firing windows, using the same reload/capacity rules as Live.
+    pub fn available_launch_ticks(&self, from_tick: u64) -> Vec<u64> {
+        let starts = std::iter::once(from_tick).chain(self.queued.iter().filter_map(|order| {
+            order
+                .planning_error
+                .is_none()
+                .then(|| order.launch_tick.checked_add(self.config.reload_ticks))
+                .flatten()
+        }));
+        let mut ticks: Vec<_> = starts
+            .filter_map(|start| self.next_launch_tick(start.max(from_tick)).ok())
+            .collect();
+        ticks.sort_unstable();
+        ticks.dedup();
+        ticks
+    }
+
     pub fn cancel(&mut self, id: u32, editable_from: u64) -> Result<(), String> {
         let index = self
             .queued

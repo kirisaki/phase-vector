@@ -89,6 +89,7 @@ pub struct MissionView<'a> {
     pub deadline_seconds: f64,
     pub ready_seconds: f64,
     pub reload_seconds: f64,
+    pub available_launch_seconds: Vec<f64>,
     pub shots: &'a [Shot],
     pub queued: Vec<QueuedShotView<'a>>,
     pub queue_capacity: usize,
@@ -117,6 +118,11 @@ impl<'a> State<'a> {
                 deadline_seconds: mission.config.deadline_tick as f64 * STEP_SECONDS,
                 ready_seconds: mission.ready_tick as f64 * STEP_SECONDS,
                 reload_seconds: mission.config.reload_ticks as f64 * STEP_SECONDS,
+                available_launch_seconds: mission
+                    .available_launch_ticks(snapshot.order_start_tick)
+                    .into_iter()
+                    .map(|tick| tick as f64 * STEP_SECONDS)
+                    .collect(),
                 shots: &mission.shots,
                 queue_capacity: crate::mission::MAX_QUEUED_SHOTS,
                 planning_horizon_seconds: crate::planning::MAX_PLANNING_SECONDS,

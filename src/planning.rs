@@ -26,6 +26,7 @@ pub struct Forecast {
     pub own_path: Vec<Vector2>,
     pub enemy_position: Vector2,
     pub enemy_velocity: Vector2,
+    pub aim: Option<Solution>,
     pub rounds: Vec<ForecastRound>,
 }
 
@@ -42,6 +43,42 @@ impl Snapshot<'_> {
             return Err("Choose a future time within the mission deadline and 3600-second planning horizon.".into());
         }
         Ok((seconds / STEP_SECONDS).round() as u64)
+    }
+
+    /// Lead from the predicted firing state, using only the delivered contact.
+    pub fn aim_at(&self, seconds: f64) -> Result<Solution, String> {
+        let tick = self.planning_tick(seconds)?;
+        self.mission
+            .unwrap()
+            .aim(&self.planning_ship_at(tick), tick)
+    }
+
+    /// Reserve an explicit firing tick; arrival follows from fixed muzzle speed.
+    pub fn preview_launch_shot(&self, target: Vector2, seconds: f64) -> Result<Solution, String> {
+        let tick = self.planning_tick(seconds)?;
+        let mission = self.mission.unwrap();
+        if !mission.running() {
+            return Err("Mission is over; retry to issue orders.".into());
+        }
+        if seconds != tick as f64 * STEP_SECONDS {
+            return Err("Choose a firing time on the 0.25 s tick grid.".into());
+        }
+        if tick < self.order_start_tick {
+            return Err(format!(
+                "Firing before {:.2} s is locked by the active command interval.",
+                self.order_start_seconds
+            ));
+        }
+        if tick >= mission.config.deadline_tick {
+            return Err("Choose a firing time before the mission deadline.".into());
+        }
+        mission.check_queue_capacity()?;
+        if !mission.slot_available(tick) {
+            return Err(
+                "Firing time conflicts with the gun's reload window or another reservation.".into(),
+            );
+        }
+        self.preview_shot_at(target, tick)
     }
 
     pub fn preview_timed_shot(&self, target: Vector2, seconds: f64) -> Result<Solution, String> {
@@ -179,6 +216,7 @@ impl Snapshot<'_> {
         }
         Ok(Forecast {
             time_seconds,
+            aim: mission.aim(&own, tick).ok(),
             own,
             own_path,
             enemy_position: mission.sensors.contact.position_at(tick),

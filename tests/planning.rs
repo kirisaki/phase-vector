@@ -243,3 +243,176 @@ fn invalid_future_order_allows_active_interval_to_finish_then_blocks_the_boundar
     s.dispatch(C::NextTurn).unwrap();
     assert_eq!(s.mission().unwrap().shots.len(), 1);
 }
+
+#[test]
+fn selected_launch_leads_beyond_the_preview_and_fires_on_that_tick() {
+    let mut s = Session::blockade();
+    let firing = 120.0;
+    let forecast = s.snapshot().forecast(firing).unwrap();
+    let lead = s.snapshot().aim_at(firing).unwrap();
+    assert!(lead.flight_seconds > 300.0);
+    assert!((lead.target - forecast.enemy_position).length() > 10_000_000.0);
+    assert!(
+        (lead.target - forecast.enemy_position - forecast.enemy_velocity * lead.flight_seconds)
+            .length()
+            < 1e-5
+    );
+    assert_eq!(forecast.aim.unwrap(), lead);
+    s.dispatch(C::QueueLaunchShot(lead.target, firing)).unwrap();
+    s.dispatch(C::NextTurn).unwrap();
+    assert!(s.mission().unwrap().shots.is_empty());
+    s.dispatch(C::NextTurn).unwrap();
+    let shot = &s.mission().unwrap().shots[0];
+    assert_eq!(shot.launch_tick, (firing / STEP_SECONDS) as u64);
+    assert_eq!(shot.origin, forecast.own.position);
+    assert_eq!(shot.target, lead.target);
+    assert!((shot.arrival_seconds - lead.arrival_seconds).abs() < 1e-9);
+}
+
+#[test]
+fn fixed_launch_validation_and_four_rounds_preserve_exact_schedule() {
+    let mut s = Session::blockade();
+    let target = s.aim().unwrap().target;
+    for seconds in [
+        f64::NAN,
+        f64::INFINITY,
+        -1.0,
+        0.1,
+        Config::default().deadline_tick as f64 * STEP_SECONDS,
+    ] {
+        let before = s.mission().unwrap().clone();
+        assert!(s.dispatch(C::QueueLaunchShot(target, seconds)).is_err());
+        assert_eq!(s.mission().unwrap(), &before);
+    }
+    for seconds in [0.0, 30.0, 60.0, 90.0] {
+        let target = s.snapshot().aim_at(seconds).unwrap().target;
+        s.dispatch(C::QueueLaunchShot(target, seconds)).unwrap();
+        assert!(
+            s.dispatch(C::QueueLaunchShot(target, seconds + STEP_SECONDS))
+                .is_err()
+        );
+    }
+    assert!(
+        s.dispatch(C::QueueLaunchShot(target, 120.0))
+            .unwrap_err()
+            .contains("full")
+    );
+    s.dispatch(C::NextTurn).unwrap();
+    let times: Vec<_> = s
+        .mission()
+        .unwrap()
+        .shots
+        .iter()
+        .map(|shot| shot.launch_tick as f64 * STEP_SECONDS)
+        .collect();
+    assert_eq!(times, [0.0, 30.0, 60.0, 90.0]);
+}
+
+#[test]
+fn launch_order_keeps_time_and_target_while_maneuver_recomputes_ballistics() {
+    let mut s = Session::blockade();
+    let lead = s.snapshot().aim_at(150.0).unwrap();
+    s.dispatch(C::QueueLaunchShot(lead.target, 150.0)).unwrap();
+    let order = s.mission().unwrap().queued[0].clone();
+    s.dispatch(C::PlanBurn(V::new(scenario::MAX_ACCELERATION, 0.0)))
+        .unwrap();
+    assert_eq!(s.mission().unwrap().queued[0], order);
+    let after = s.snapshot().preview_order(&order).unwrap();
+    assert_eq!(after.launch_tick, lead.launch_tick);
+    assert_eq!(after.target, lead.target);
+    assert_ne!(after.origin, lead.origin);
+    assert_ne!(after.arrival_seconds, lead.arrival_seconds);
+    s.dispatch(C::StepForward).unwrap();
+    let before = s.mission().unwrap().clone();
+    assert!(
+        s.dispatch(C::QueueLaunchShot(lead.target, 60.0))
+            .unwrap_err()
+            .contains("locked")
+    );
+    assert_eq!(s.mission().unwrap(), &before);
+}
+
+#[test]
+fn timed_lead_uses_observation_and_lua_shares_fixed_launch_validation() {
+    let mut s = Session::blockade();
+    let lead = s.snapshot().aim_at(120.0).unwrap();
+    let mut hidden = s.world().clone();
+    hidden.ships[1].position = V::ZERO;
+    hidden.ships[1].velocity = V::new(900000.0, 900000.0);
+    assert_eq!(
+        Snapshot {
+            world: &hidden,
+            ..s.snapshot()
+        }
+        .aim_at(120.0)
+        .unwrap(),
+        lead
+    );
+    let mut lua = phase_vector::repl::Host::with_session(s.clone());
+    lua.evaluate("local x,y = game.aim_at(120); game.fire_at_launch(x,y,120)")
+        .unwrap();
+    s.dispatch(C::QueueLaunchShot(lead.target, 120.0)).unwrap();
+    assert_eq!(s.mission(), lua.state.borrow().mission());
+    assert!(
+        lua.evaluate("local x,y = game.aim_at(120); game.fire_at_launch(x,y,120)")
+            .is_err()
+    );
+    assert_eq!(
+        lua.evaluate(
+            "local x,y = game.aim_at(150); return game.preview_launch(x,y,150).launch_seconds"
+        )
+        .unwrap(),
+        "150"
+    );
+}
+
+#[test]
+fn firing_window_markers_follow_reservations_cancellation_and_capacity() {
+    let mut s = Session::blockade();
+    let reload = Config::default().reload_ticks;
+    let windows = |s: &Session| {
+        s.mission()
+            .unwrap()
+            .available_launch_ticks(s.snapshot().order_start_tick)
+    };
+    assert_eq!(windows(&s), [0]);
+    for time in [0.0, 120.0] {
+        let target = s.snapshot().aim_at(time).unwrap().target;
+        s.dispatch(C::QueueLaunchShot(target, time)).unwrap();
+    }
+    assert_eq!(windows(&s), [reload, 5 * reload]);
+    let id = s.mission().unwrap().queued[0].id;
+    s.dispatch(C::CancelQueuedShot(id)).unwrap();
+    assert_eq!(windows(&s), [0, 5 * reload]);
+    for time in [30.0, 60.0, 90.0] {
+        let target = s.snapshot().aim_at(time).unwrap().target;
+        s.dispatch(C::QueueLaunchShot(target, time)).unwrap();
+    }
+    assert!(windows(&s).is_empty());
+    s.dispatch(C::NextTurn).unwrap();
+    assert_eq!(windows(&s), [5 * reload]);
+}
+
+#[test]
+fn firing_window_markers_respect_reload_deadline_and_locked_intervals() {
+    let mut s = Session::blockade();
+    s.dispatch(C::QueueShot(s.aim().unwrap().target)).unwrap();
+    s.dispatch(C::StepForward).unwrap();
+    let mission = s.mission().unwrap();
+    assert_eq!(
+        mission.available_launch_ticks(0),
+        [mission.config.reload_ticks]
+    );
+    assert_eq!(
+        mission.available_launch_ticks(s.snapshot().order_start_tick),
+        [phase_vector::timing::INTERVAL_TICKS]
+    );
+    assert!(
+        mission
+            .available_launch_ticks(mission.config.deadline_tick)
+            .is_empty()
+    );
+    let mut ended = mission.clone();
+    ended.outcome = phase_vector::mission::Outcome::Timeout;
+    assert!(ended.available_launch_ticks(0).is_empty());
+}

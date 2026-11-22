@@ -80,55 +80,70 @@ impl Host {
                 }),
             )
             .expect("static key");
-            let timed_state = state.clone();
-            game.set(
-                ctx,
-                "fire_at",
-                Callback::from_fn(&ctx, move |ctx, _, mut stack| {
-                    let (x, y, seconds): (f64, f64, f64) = stack.consume(ctx)?;
-                    timed_state
-                        .borrow_mut()
-                        .dispatch(Command::QueueTimedShot(Vector2::new(x, y), seconds))
+            for (fire_name, preview_name, by_launch) in [
+                ("fire_at", "preview_shot_at", false),
+                ("fire_at_launch", "preview_launch", true),
+            ] {
+                let timed_state = state.clone();
+                game.set(
+                    ctx,
+                    fire_name,
+                    Callback::from_fn(&ctx, move |ctx, _, mut stack| {
+                        let (x, y, seconds): (f64, f64, f64) = stack.consume(ctx)?;
+                        timed_state
+                            .borrow_mut()
+                            .dispatch(if by_launch {
+                                Command::QueueLaunchShot(Vector2::new(x, y), seconds)
+                            } else {
+                                Command::QueueTimedShot(Vector2::new(x, y), seconds)
+                            })
+                            .map_err(|e| {
+                                piccolo::Error::from_value(Value::String(ctx.intern(e.as_bytes())))
+                            })?;
+                        stack.replace(ctx, true);
+                        Ok(CallbackReturn::Return)
+                    }),
+                )
+                .expect("static key");
+                let preview_state = state.clone();
+                game.set(
+                    ctx,
+                    preview_name,
+                    Callback::from_fn(&ctx, move |ctx, _, mut stack| {
+                        let (x, y, seconds): (f64, f64, f64) = stack.consume(ctx)?;
+                        let session = preview_state.borrow();
+                        let solution = if by_launch {
+                            session
+                                .snapshot()
+                                .preview_launch_shot(Vector2::new(x, y), seconds)
+                        } else {
+                            session
+                                .snapshot()
+                                .preview_timed_shot(Vector2::new(x, y), seconds)
+                        }
                         .map_err(|e| {
                             piccolo::Error::from_value(Value::String(ctx.intern(e.as_bytes())))
                         })?;
-                    stack.replace(ctx, true);
-                    Ok(CallbackReturn::Return)
-                }),
-            )
-            .expect("static key");
-            let preview_state = state.clone();
-            game.set(
-                ctx,
-                "preview_shot_at",
-                Callback::from_fn(&ctx, move |ctx, _, mut stack| {
-                    let (x, y, seconds): (f64, f64, f64) = stack.consume(ctx)?;
-                    let session = preview_state.borrow();
-                    let solution = session
-                        .snapshot()
-                        .preview_timed_shot(Vector2::new(x, y), seconds)
-                        .map_err(|e| {
-                            piccolo::Error::from_value(Value::String(ctx.intern(e.as_bytes())))
-                        })?;
-                    let table = Table::new(&ctx);
-                    for (key, value) in [
-                        ("launch_tick", solution.launch_tick as f64),
-                        (
-                            "launch_seconds",
-                            solution.launch_tick as f64 * crate::physics::STEP_SECONDS,
-                        ),
-                        ("arrival_seconds", solution.arrival_seconds),
-                        ("flight_seconds", solution.flight_seconds),
-                        ("direction_x", solution.direction.x),
-                        ("direction_y", solution.direction.y),
-                    ] {
-                        table.set(ctx, key, value)?;
-                    }
-                    stack.replace(ctx, table);
-                    Ok(CallbackReturn::Return)
-                }),
-            )
-            .expect("static key");
+                        let table = Table::new(&ctx);
+                        for (key, value) in [
+                            ("launch_tick", solution.launch_tick as f64),
+                            (
+                                "launch_seconds",
+                                solution.launch_tick as f64 * crate::physics::STEP_SECONDS,
+                            ),
+                            ("arrival_seconds", solution.arrival_seconds),
+                            ("flight_seconds", solution.flight_seconds),
+                            ("direction_x", solution.direction.x),
+                            ("direction_y", solution.direction.y),
+                        ] {
+                            table.set(ctx, key, value)?;
+                        }
+                        stack.replace(ctx, table);
+                        Ok(CallbackReturn::Return)
+                    }),
+                )
+                .expect("static key");
+            }
             let forecast_state = state.clone();
             game.set(
                 ctx,
@@ -178,19 +193,28 @@ impl Host {
                 }),
             )
             .expect("static key");
-            let aim_state = state.clone();
-            game.set(
-                ctx,
-                "aim",
-                Callback::from_fn(&ctx, move |ctx, _, mut stack| {
-                    let solution = aim_state.borrow().aim().map_err(|e| {
-                        piccolo::Error::from_value(Value::String(ctx.intern(e.as_bytes())))
-                    })?;
-                    stack.replace(ctx, (solution.target.x, solution.target.y));
-                    Ok(CallbackReturn::Return)
-                }),
-            )
-            .expect("static key");
+            for (name, timed) in [("aim", false), ("aim_at", true)] {
+                let aim_state = state.clone();
+                game.set(
+                    ctx,
+                    name,
+                    Callback::from_fn(&ctx, move |ctx, _, mut stack| {
+                        let session = aim_state.borrow();
+                        let solution = if timed {
+                            let seconds: f64 = stack.consume(ctx)?;
+                            session.snapshot().aim_at(seconds)
+                        } else {
+                            session.aim()
+                        }
+                        .map_err(|e| {
+                            piccolo::Error::from_value(Value::String(ctx.intern(e.as_bytes())))
+                        })?;
+                        stack.replace(ctx, (solution.target.x, solution.target.y));
+                        Ok(CallbackReturn::Return)
+                    }),
+                )
+                .expect("static key");
+            }
             let speed_state = state.clone();
             let arrival_state = state.clone();
             game.set(
