@@ -114,18 +114,22 @@ downgrade Vite automatically.
 ## Mission controls
 
 The application fills the available browser viewport without page scrolling or
-visible scrollbars. The map uses the remaining space above the controls; short,
-wide viewports place the controls beside it. On narrow or short screens, opening
+visible scrollbars. Desktop map panels at least 1,000 px wide place flight,
+weapon, mission, and ship controls in a 540 px sidebar on the right. The timeline
+stays below the map. Narrow panels use the remaining space above the controls;
+short, wide viewports also place controls beside the map. On narrow or short screens, opening
 the Lua console replaces the map area until closed. Console history remains
 scrollable by touch, wheel, or keyboard. Compact viewports also allow scrolling
 within the flight controls so inputs remain reachable while the map keeps a
 minimum visible height. Browser chrome stays visible; no fullscreen permission
 is requested. The layout follows visual-viewport changes and device safe areas.
 On wide desktop panels, the display heading and view selectors share a toolbar.
-Playback, weapon buttons, and Retry share a row, with Retry in its own section.
-Mission status and the shot queue sit below it to preserve map height. Medium
-panels combine only the heading and weapon/queue rows. Narrow panels retain the stacked layout; short
-landscape screens retain the side controls.
+The sidebar stacks playback, mission status, weapons, telemetry, and burn
+controls. Retry stays in a footer at the bottom right while the controls scroll.
+Shot reservations scroll vertically in a fixed-height area, with
+recent launches below. The layout responds to the map panel's available width,
+so opening the Lua console can restore the stacked arrangement. Narrow panels
+and short landscape screens retain their compact layouts.
 Clock, telemetry, and status rows reserve their space so planning, playback,
 pause/resume, and changing digits do not resize the map. Numeric-edit warnings
 share the status area; longer messages can be scrolled inside it.

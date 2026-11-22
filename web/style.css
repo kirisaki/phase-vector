@@ -18,7 +18,7 @@ main { flex: 1; min-height: 0; min-width: 0; padding: 8px; position: relative; o
 .workspace { display: grid; height: 100%; min-height: 0; grid-template-columns: minmax(0, 1fr); grid-template-rows: minmax(0, 1fr); gap: 8px; position: relative; }
 .workspace.console-open { grid-template-columns: minmax(0, 1fr) 360px; }
 .map-panel, .console-panel { border: 1px solid var(--line); background: #0b151e; min-width: 0; min-height: 0; overflow: hidden; }
-.map-toolbar { display: contents; }
+.tactical-layout, .map-toolbar { display: contents; }
 .map-panel { display: flex; flex-direction: column; container: tactical / inline-size; }
 .panel-heading { flex: 0 0 36px; display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 0 12px; border-bottom: 1px solid var(--line); font-size: 10px; }
 h2 { font-size: 11px; font-weight: 500; letter-spacing: .04em; text-transform: uppercase; margin: 0; }
@@ -309,27 +309,53 @@ legend { color: var(--muted); font-size: 11px; margin-bottom: 8px; }
 #retry { min-width: 104px; min-height: 44px; padding: 10px 20px; font-size: 14px; font-weight: 650; white-space: nowrap; color: #071319; background: var(--cyan); border-color: var(--cyan); }
 #retry:hover:not(:disabled) { background: #85eee9; }
 
-/* Use the available desktop width to leave more vertical space for the map. */
+/* Keep the timeline attached to the map, with flight controls beside it on desktop.
+   Query the panel width so opening the console can restore the stacked layout. */
 @container tactical (min-width: 900px) {
   :root:not(.short-viewport) .map-toolbar { display: flex; flex: 0 0 auto; align-items: stretch; border-bottom: 1px solid var(--line); }
   :root:not(.short-viewport) .map-toolbar > .panel-heading { flex: 0 0 auto; gap: 16px; border-bottom: 0; }
   :root:not(.short-viewport) .map-toolbar > .map-tools { flex: 1; border-bottom: 0; border-left: 1px solid var(--line); }
-  :root:not(.short-viewport) #mission-controls { display: grid; grid-template-columns: 300px minmax(0, 1fr); column-gap: 12px; align-items: center; }
-  :root:not(.short-viewport) .gun-buttons { grid-column: 1; grid-row: 1; }
-  :root:not(.short-viewport) #shot-ledger { grid-column: 2; grid-row: 1; margin-top: 0; }
-  :root:not(.short-viewport) #gun-feedback { grid-column: 1 / -1; }
 }
-@container tactical (min-width: 1100px) {
-  :root:not(.short-viewport) .mission-active .flight-controls { grid-template-columns: minmax(300px, .8fr) minmax(0, 1fr) minmax(300px, .8fr) 128px; grid-template-areas: 'transport transport weapons retry' 'status queue queue queue' 'feedback feedback feedback feedback' 'telemetry telemetry burn burn'; }
-  :root:not(.short-viewport) .mission-active .transport { flex-wrap: nowrap; gap: 12px; }
-  :root:not(.short-viewport) .mission-active .command-row { flex: 0 1 160px; }
-  :root:not(.short-viewport) .mission-active .playback { flex: 1 0 auto; flex-wrap: nowrap; }
-  :root:not(.short-viewport) #mission-controls, :root:not(.short-viewport) #game-controls { display: contents; }
-  :root:not(.short-viewport) .mission-readout { grid-area: status; justify-content: center; padding: 8px 12px; background: #101e27; border-bottom: 1px solid var(--line); }
-  :root:not(.short-viewport) .retry-action { grid-area: retry; display: flex; align-items: center; justify-content: center; padding: 8px 12px; background: #101e27; border-left: 1px solid var(--line); border-bottom: 1px solid var(--line); }
-  :root:not(.short-viewport) .gun-buttons { grid-area: weapons; max-width: none; padding: 8px 12px; align-items: center; border-left: 1px solid var(--line); border-bottom: 1px solid var(--line); }
-  :root:not(.short-viewport) #shot-ledger { grid-area: queue; height: auto; min-height: 58px; padding-inline: 12px; border-left: 1px solid var(--line); border-bottom: 1px solid var(--line); }
-  :root:not(.short-viewport) #gun-feedback { grid-area: feedback; height: 28px; margin: 0; padding: 2px 12px; border-bottom: 1px solid var(--line); }
+@container tactical (min-width: 1000px) {
+  :root:not(.short-viewport) .tactical-layout {
+    --flight-sidebar-width: 540px;
+    display: grid; flex: 1; min-height: 0; min-width: 0; position: relative;
+    grid-template-columns: minmax(0, 1fr) var(--flight-sidebar-width);
+    grid-template-rows: auto minmax(0, 1fr) auto auto;
+    grid-template-areas: 'toolbar controls' 'map controls' 'timeline controls' 'legend controls';
+  }
+  :root:not(.short-viewport) .map-toolbar { grid-area: toolbar; flex-wrap: wrap; }
+  :root:not(.short-viewport) .canvas-wrap { grid-area: map; }
+  :root:not(.short-viewport) #timeline-controls { grid-area: timeline; }
+  :root:not(.short-viewport) .legend { grid-area: legend; }
+  :root:not(.short-viewport) .flight-controls {
+    grid-area: controls; grid-template-columns: minmax(0, 1fr);
+    grid-template-areas: 'transport' 'telemetry' 'burn'; align-content: start;
+    border-top: 0; border-left: 1px solid var(--line);
+  }
+  :root:not(.short-viewport) .mission-active .flight-controls { grid-template-areas: 'transport' 'game' 'mission' 'telemetry' 'burn'; }
+  :root:not(.short-viewport) .mission-active .flight-controls { padding-bottom: 65px; scroll-padding-bottom: 73px; }
+  :root:not(.short-viewport) #game-controls { display: contents; }
+  :root:not(.short-viewport) .mission-readout { grid-area: game; padding: 8px 12px; background: #101e27; border-bottom: 1px solid var(--line); }
+  :root:not(.short-viewport) .retry-action {
+    position: absolute; right: 0; bottom: 0; z-index: 1; width: var(--flight-sidebar-width);
+    display: flex; justify-content: flex-end; padding: 10px 12px;
+    border-top: 1px solid var(--line); border-left: 1px solid var(--line); background: #101e27;
+  }
+  :root:not(.short-viewport) .transport { gap: 10px; }
+  :root:not(.short-viewport) .command-row, :root:not(.short-viewport) .playback { flex-basis: 100%; }
+  :root:not(.short-viewport) .speed-buttons { order: 1; flex-basis: 100%; }
+  :root:not(.short-viewport) .gun-buttons { max-width: none; }
+  :root:not(.short-viewport) #shot-ledger { grid-template-columns: minmax(0, 1fr); grid-template-rows: 112px 56px; height: 176px; }
+  :root:not(.short-viewport) #shot-queue { flex-direction: column; align-items: stretch; }
+  :root:not(.short-viewport) .queued-shot { justify-content: space-between; }
+  :root:not(.short-viewport) .queued-shot span { max-width: none; }
+  :root:not(.short-viewport) #shot-history { border-left: 0; border-top: 1px solid var(--line); padding: 6px 0 0; }
+  :root:not(.short-viewport) #launch-list { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 3px 8px; }
+  :root:not(.short-viewport) #gun-feedback { height: 36px; }
+  :root:not(.short-viewport) #mission-status, :root:not(.short-viewport) #mission-metrics { height: 2.4em; white-space: normal; }
+  :root:not(.short-viewport) .telemetry { grid-template-columns: repeat(2, minmax(0, 1fr)); padding-bottom: 10px; }
+  :root:not(.short-viewport) #burn-form { border-left: 0; border-top: 1px solid var(--line); }
 }
 
 .canvas-wrap[data-navigating="true"], .canvas-wrap[data-navigating="true"] * { cursor: grabbing !important; }

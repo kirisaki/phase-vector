@@ -19,6 +19,7 @@
     <main>
       <div class="workspace">
         <section class="map-panel" aria-labelledby="map-title">
+          <div class="tactical-layout">
           <div class="map-toolbar">
             <div class="panel-heading"><h2 id="map-title">Tactical display</h2><span id="engine-status" role="status">Starting engine…</span></div>
             <div class="map-tools" role="group" aria-label="Map view">
@@ -88,6 +89,7 @@
               <details id="numeric-burn"><summary>Numeric thrust</summary><fieldset id="burn-fields" disabled><legend>Constant acceleration for the next interval</legend><div class="burn-inputs"><label for="burn-x">ax / m/s²<input id="burn-x" type="number" value="0" step="any" required></label><label for="burn-y">ay / m/s²<input id="burn-y" type="number" value="0" step="any" required></label><button id="apply-burn" type="submit">Apply burn</button></div></fieldset></details></form>
           </div>
           <p class="legend"><span class="cyan">△</span> Friendly <span class="amber">▷</span> Observed enemy · Dots: predicted routes · White: gun · Enemy bright arrow: observed acceleration · Symbols enlarged · Radius rings visible when zoomed in</p>
+          </div>
         </section>
         <section id="console-panel" class="console-panel" aria-labelledby="console-title" tabindex="-1" hidden>
           <div class="panel-heading"><h2 id="console-title">Lua console</h2><button id="console-close" type="button" aria-label="Close Lua console">Close</button></div>
