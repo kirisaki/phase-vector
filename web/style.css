@@ -31,6 +31,8 @@ h2 { font-size: 11px; font-weight: 500; letter-spacing: .04em; text-transform: u
 .map-scale { display: flex; flex-direction: column; gap: 4px; min-width: 0; }
 .map-scale span { text-align: left; }
 .canvas-wrap { touch-action: none; cursor: grab; position: relative; flex: 1; min-height: 0; min-width: 0; overflow: hidden; }
+/* Map gestures must not select labels or open touch-and-hold callouts. */
+.canvas-wrap { -webkit-user-select: none; user-select: none; -webkit-touch-callout: none; }
 #timeline-controls { display: grid; grid-template-columns: 48px minmax(100px, 1fr) minmax(120px, 2fr); align-items: center; gap: 8px; flex: 0 0 42px; height: 42px; padding: 3px 10px; border-top: 1px solid var(--line); }
 #forecast-live { min-height: 32px; padding: 4px; }
 #forecast-live[aria-pressed="true"] { color: var(--cyan); border-color: var(--cyan); }
