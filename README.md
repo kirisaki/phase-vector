@@ -37,16 +37,19 @@ See the [PoC specification](docs/poc-spec.md),
 
 ## Build and run locally
 
-Install Git, [rustup](https://rustup.rs/), and Python 3.10 or newer. Rust 1.100.0,
+Install Git, [rustup](https://rustup.rs/), Python 3.10 or newer, and Node.js
+matching `^20.19.0 || >=22.12.0` (CI uses Node.js 24). Rust 1.100.0,
 `rustfmt`, Clippy, and `wasm32-unknown-unknown` are declared in
 `rust-toolchain.toml`. The first build requires access to Rust distribution and
-crate servers. The release build does not require Node.js, Trunk, or Emscripten.
+crate and npm servers. The release build uses TypeScript but needs neither
+Trunk nor Emscripten.
 
 ```sh
 git clone https://github.com/kirisaki/phase-vector.git
 cd phase-vector
 rustup show active-toolchain
 cargo install wasm-bindgen-cli --version 0.2.130 --locked
+npm ci
 python3 scripts/build_web.py
 python3 -m http.server 8080 --directory dist
 ```
@@ -55,9 +58,11 @@ Open `http://localhost:8080/` in a browser with WebGL2 enabled. Use an HTTP serv
 opening `index.html` with `file://` does not load the WebAssembly module correctly.
 `cargo run` is not an entry point: the browser calls the library's `start()` export.
 
-The build script checks that the CLI version matches `Cargo.lock`. It produces a
-self-contained `dist/` with HTML, CSS, JavaScript, and WASM. Relative asset URLs
-support both a local root and the `/phase-vector/` GitHub Pages project path.
+The build script checks that the CLI version matches `Cargo.lock`, generates
+WASM declarations, type-checks the UI and Vite configuration, and compiles the
+TypeScript modules to JavaScript. It produces a self-contained `dist/` with HTML,
+CSS, JavaScript, and WASM. Relative asset URLs support both a local root and the
+`/phase-vector/` GitHub Pages project path.
 
 ### Live UI development
 
@@ -72,14 +77,18 @@ npm run dev
 Open `http://127.0.0.1:5173/`. If `dist/pkg/` already contains a current WASM
 build, skip the build command. Vite serves `web/` directly and uses the generated
 module in `dist/pkg/`; edit `web/`, not `dist/`. CSS changes update in place.
-HTML and JavaScript changes reload the page, resetting the simulation and Lua
-session. The dev server binds only to loopback; stop it with Ctrl+C.
+HTML and TypeScript changes reload the page, resetting the simulation and Lua
+session. Vite transpiles TypeScript without checking types; run `npm run check`
+or keep `npm run check:watch` in another terminal. Generate `dist/pkg/*.d.ts`
+with the initial WASM build before checking types. The dev server binds only to
+loopback; stop it with Ctrl+C.
 
 Rust changes are not hot-swapped. Run `npm run build:wasm` in another terminal,
 wait for it to finish, then reload the page. The build prepares the whole site
-in a temporary directory before replacing output files. It keeps `dist/pkg/`
-and its imported paths available while Vite serves the previous build.
-This requires the Rust toolchain and
+in a temporary directory. It publishes generated WASM bindings/declarations
+first so the type checker can resolve them, then checks and emits the UI before
+publishing the full site. It keeps `dist/pkg/` and its imported paths available
+while Vite serves the previous build. This requires the Rust toolchain and
 matching wasm-bindgen CLI described above. Vite is only a local development tool;
 the release build and GitHub Pages pipeline continue using `scripts/build_web.py`.
 See the [Vite server documentation](https://vite.dev/config/server-options) for
@@ -410,6 +419,7 @@ cargo test --locked
 cargo run --locked --example blockade_trials
 cargo clippy --locked --target wasm32-unknown-unknown -- -D warnings
 python3 scripts/build_web.py
+npm run check
 ```
 
 Native Rust tests cover inertial motion, acceleration magnitude limits, partial
@@ -602,7 +612,7 @@ Shared numerical settings have distinct owners:
 | Goal, deadline, reload, sensor processing | `mission::Config::default()` |
 | Sensor sampling/retention and AI decision cadence | Named constants in `observation.rs` and `ai.rs` |
 | Independent threat horizon, safety corridor, evasion/recovery duration | `ai::Policy::default()` |
-| Aim sensitivity, timeline snapping/geometry, navigation and burn gestures, command pulse, history length | `web/ui-settings.js` |
+| Aim sensitivity, timeline snapping/geometry, navigation and burn gestures, command pulse, history length | `web/ui-settings.ts` |
 
 Whole-second durations become ticks through `timing::seconds_to_ticks`; the
 playback clock must be an integer multiple of the physics frequency. Equal
@@ -614,7 +624,7 @@ Tests import these settings for setup and execution boundaries. Browser tests
 read `state_json().timing`, and Lua exposes the same table. Independent analytic
 expectations and selected trial regression anchors in `tests/scale.rs` remain
 literal so an incorrect shared constant cannot silently make a test pass.
-Browser input helpers read `web/ui-settings.js` and computed slider geometry
+Browser input helpers read `web/ui-settings.ts` and computed slider geometry
 instead of copying sensitivity or thumb dimensions. The slider's CSS dimensions
 and snap calculation share the same thumb size. Expected gameplay outcomes,
 small collision fixtures, assertion tolerances, and test gesture offsets keep
@@ -628,15 +638,27 @@ using the same observed world as the renderer and camera. This module has no
 browser dependency and is covered by native tests. Keep new normal-view fields
 here rather than serializing the authoritative snapshot in browser bindings.
 
-`web/map-overlay.js` owns the SVG projection shared by burn planning and aiming.
-`web/mission.js` coordinates previews and commands. `web/aim-editor.js` owns the
+Browser code uses TypeScript with `strict`, `isolatedModules`, and unused-code
+checks. `web/types.ts` describes the normal-view fields consumed by the UI;
+`web/api.ts` is the single JSON decoding boundary for trusted local Rust output.
+These hand-maintained JSON types do not validate external data or automatically
+track Rust schema changes. Keep them aligned with the Rust presentation and
+planning contracts. `wasm-bindgen` generates the function declarations, so those
+signatures are not duplicated. `rootDirs` joins source modules and generated
+`dist/pkg/` declarations for type checking; emitted ES modules retain relative
+`.js` imports. `web/dom.ts` checks required elements and supplies types for IDs
+from `index.html`. Keep that ID table aligned with markup changes. Vite's own
+configuration is checked separately by `tsconfig.node.json`.
+
+`web/map-overlay.ts` owns the SVG projection shared by burn planning and aiming.
+`web/mission.ts` coordinates previews and commands. `web/aim-editor.ts` owns the
 draft target, fine aim, keyboard input, and pointer capture/cancellation; it
-notifies the controller without importing WASM. `web/timeline-scale.js` contains
-the pure time mapping and snap policy, while `web/timeline.js` owns selection,
-pointer ownership, forecast caching, and DOM updates. `web/mission-panel.js`
+notifies the controller without importing WASM. `web/timeline-scale.ts` contains
+the pure time mapping and snap policy, while `web/timeline.ts` owns selection,
+pointer ownership, forecast caching, and DOM updates. `web/mission-panel.ts`
 renders status, reservation/history rows, and the result dialog, forwarding actions
-through controller callbacks. `web/mission-preview.js` computes one observation-only
-arrival estimate for both weapon feedback and the map. `web/mission-map.js` draws
+through controller callbacks. `web/mission-preview.ts` computes one observation-only
+arrival estimate for both weapon feedback and the map. `web/mission-map.ts` draws
 the supplied state and preview without issuing commands. These are plain modules;
 they do not introduce a separate simulation or command API. Keep the existing
 command-boundary and gesture behavior when changing presentation.

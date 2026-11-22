@@ -8,7 +8,7 @@ from urllib.parse import unquote, urlparse
 from playwright.sync_api import sync_playwright, expect
 from map_navigation_checks import check_map_navigation
 from planning_checks import check_planning
-from browser_controls import read_ui_settings
+from browser_controls import read_ui_settings, connect_engine
 
 ROOT = Path(__file__).resolve().parents[1]
 
@@ -41,13 +41,7 @@ def main():
         try:
             page.goto(args.url or 'https://phase-vector.test/phase-vector/')
             expect(page.locator('body')).to_have_attribute('data-ready', 'true', timeout=90000)
-            page.evaluate("""async () => {
-                const url = new URL('./app.js', location.href);
-                const source = await (await fetch(url)).text();
-                const module = source.match(/from ['"]([^'"]+)['"]/)[1];
-                window.wasm = await import(new URL(module, url).href);
-                window.readState = () => JSON.parse(wasm.state_json());
-            }""")
+            connect_engine(page)
             ui_settings = read_ui_settings(page)
             fine_gain = ui_settings['AIM']['fineGain']
 
@@ -218,7 +212,7 @@ def main():
             # The camera eases even while paused; wait for DOM and camera state to agree.
             # The path must start at the moving round, never its historic launch origin.
             page.wait_for_function('''async () => {
-                const { mapProjection } = await import(new URL('./map-overlay.js', location.href).href);
+                const { mapProjection } = await import(browserModule('map-overlay'));
                 const s = readState(), svg = document.querySelector('#mission-overlay');
                 const view = mapProjection(svg, s.map), shot = s.mission.shots[0];
                 const projectile = s.world.projectiles.find(p => p.id === shot.projectile_id);
@@ -325,7 +319,7 @@ def main():
                                 return { x: p.x, y: p.y };
                             }''')
                             metres_per_pixel = page.evaluate('''async () => {
-                                const { mapProjection } = await import(new URL('./map-overlay.js', location.href).href);
+                                const { mapProjection } = await import(browserModule('map-overlay'));
                                 return mapProjection(document.querySelector('#mission-overlay'), readState().map).metresPerPixel;
                             }''')
                             page.mouse.move(point['x'], point['y'])

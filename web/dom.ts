@@ -1,0 +1,126 @@
+// Element identities in index.html. Keep this table aligned with the markup.
+interface Elements {
+  'console-toggle': HTMLElementTagNameMap['button'];
+  'map-title': HTMLElementTagNameMap['h2'];
+  'engine-status': HTMLElementTagNameMap['span'];
+  'zoom-out': HTMLElementTagNameMap['button'];
+  'zoom-in': HTMLElementTagNameMap['button'];
+  'tactical-map': HTMLElementTagNameMap['canvas'];
+  'route-editor': SVGSVGElement;
+  'command-pulse': SVGCircleElement;
+  'map-coast-route': SVGPathElement;
+  'map-planned-route': SVGPathElement;
+  'forecast-boundaries': SVGGElement;
+  'arrival-arrow': SVGPathElement;
+  'burn-vector': SVGPathElement;
+  'burn-label': SVGTextElement;
+  'arrival-handle': SVGGElement;
+  'mission-overlay': SVGSVGElement;
+  'mission-goal': SVGCircleElement;
+  'goal-label': SVGTextElement;
+  'enemy-prediction': SVGPathElement;
+  'prediction-label': SVGTextElement;
+  'enemy-contact': SVGGElement;
+  'enemy-velocity': SVGPathElement;
+  'enemy-acceleration': SVGPathElement;
+  'enemy-symbol': SVGPathElement;
+  'enemy-speed': SVGTextElement;
+  'enemy-motion': SVGTextElement;
+  'shot-paths': SVGGElement;
+  'shot-labels': SVGGElement;
+  'queued-shot-line': SVGPathElement;
+  'queued-shot-markers': SVGGElement;
+  'aim-line': SVGPathElement;
+  'time-forecast': SVGGElement;
+  'arrival-contact': SVGGElement;
+  'aim-handle': SVGGElement;
+  'aim-grip': SVGGElement;
+  'grid-label': HTMLElementTagNameMap['span'];
+  'range-label': HTMLElementTagNameMap['span'];
+  'railgun-label': HTMLElementTagNameMap['span'];
+  'command-number': HTMLElementTagNameMap['span'];
+  'timeline-controls': HTMLElementTagNameMap['div'];
+  'forecast-live': HTMLElementTagNameMap['button'];
+  'forecast-label': HTMLElementTagNameMap['label'];
+  'forecast-scale': HTMLElementTagNameMap['div'];
+  'forecast-axis': HTMLElementTagNameMap['div'];
+  'forecast-ticks': HTMLElementTagNameMap['div'];
+  'forecast-ready-marks': HTMLElementTagNameMap['div'];
+  'forecast-ready-label': HTMLElementTagNameMap['span'];
+  'forecast-boundary': HTMLElementTagNameMap['span'];
+  'forecast-end': HTMLElementTagNameMap['span'];
+  'forecast-time': HTMLElementTagNameMap['input'];
+  'mode': HTMLElementTagNameMap['span'];
+  'time': HTMLElementTagNameMap['span'];
+  'ticks': HTMLElementTagNameMap['span'];
+  'window-time': HTMLElementTagNameMap['span'];
+  'toggle': HTMLElementTagNameMap['button'];
+  'step': HTMLElementTagNameMap['button'];
+  'speed': HTMLElementTagNameMap['div'];
+  'commit': HTMLElementTagNameMap['button'];
+  'next-turn': HTMLElementTagNameMap['button'];
+  'game-controls': HTMLElementTagNameMap['div'];
+  'mission-status': HTMLElementTagNameMap['strong'];
+  'mission-metrics': HTMLElementTagNameMap['span'];
+  'retry': HTMLElementTagNameMap['button'];
+  'mission-controls': HTMLElementTagNameMap['section'];
+  'queue-shot': HTMLElementTagNameMap['button'];
+  'track-aim': HTMLElementTagNameMap['button'];
+  'cancel-shot': HTMLElementTagNameMap['button'];
+  'shot-ledger': HTMLElementTagNameMap['div'];
+  'shot-queue': HTMLElementTagNameMap['div'];
+  'empty-queue': HTMLElementTagNameMap['span'];
+  'shot-history': HTMLElementTagNameMap['section'];
+  'launch-list': HTMLElementTagNameMap['div'];
+  'empty-history': HTMLElementTagNameMap['span'];
+  'gun-feedback': HTMLElementTagNameMap['p'];
+  'position': HTMLElementTagNameMap['strong'];
+  'velocity': HTMLElementTagNameMap['strong'];
+  'dv': HTMLElementTagNameMap['strong'];
+  'spent-dv': HTMLElementTagNameMap['strong'];
+  'burn-form': HTMLElementTagNameMap['form'];
+  'route-cost-label': HTMLElementTagNameMap['span'];
+  'route-cost': HTMLElementTagNameMap['strong'];
+  'route-remaining': HTMLElementTagNameMap['strong'];
+  'route-velocity': HTMLElementTagNameMap['strong'];
+  'route-feedback': HTMLElementTagNameMap['p'];
+  'numeric-burn': HTMLElementTagNameMap['details'];
+  'burn-fields': HTMLElementTagNameMap['fieldset'];
+  'burn-x': HTMLElementTagNameMap['input'];
+  'burn-y': HTMLElementTagNameMap['input'];
+  'apply-burn': HTMLElementTagNameMap['button'];
+  'console-panel': HTMLElementTagNameMap['section'];
+  'console-title': HTMLElementTagNameMap['h2'];
+  'console-close': HTMLElementTagNameMap['button'];
+  'console-output': HTMLElementTagNameMap['div'];
+  'repl-form': HTMLElementTagNameMap['form'];
+  'lua-input': HTMLElementTagNameMap['textarea'];
+  'run': HTMLElementTagNameMap['button'];
+  'error': HTMLElementTagNameMap['p'];
+  'mission-result': HTMLElementTagNameMap['dialog'];
+  'result-title': HTMLElementTagNameMap['h2'];
+  'result-reason': HTMLElementTagNameMap['p'];
+  'result-time': HTMLElementTagNameMap['dd'];
+  'result-shots': HTMLElementTagNameMap['dd'];
+  'result-dv': HTMLElementTagNameMap['dd'];
+  'result-retry': HTMLElementTagNameMap['button'];
+  'result-view': HTMLElementTagNameMap['button'];
+  'retry-confirmation': HTMLElementTagNameMap['dialog'];
+  'retry-title': HTMLElementTagNameMap['h2'];
+  'retry-reason': HTMLElementTagNameMap['p'];
+  'retry-confirm': HTMLElementTagNameMap['button'];
+  'retry-cancel': HTMLElementTagNameMap['button'];
+}
+
+export function required<T>(value: T | null | undefined, message = "Required UI value is missing"): T {
+  if (value == null) throw new Error(message);
+  return value;
+}
+
+export function query<T extends Element = HTMLElement>(selector: string, root: ParentNode = document): T {
+  return required(root.querySelector<T>(selector), `Missing element: ${selector}`);
+}
+
+export function element<K extends keyof Elements>(id: K): Elements[K] {
+  return query<Elements[K]>(`#${id}`);
+}

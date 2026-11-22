@@ -49,11 +49,19 @@ def main():
     dist = ROOT / 'dist'
     with tempfile.TemporaryDirectory(prefix='phase-vector-web-') as temporary:
         site = Path(temporary) / 'site'
-        shutil.copytree(ROOT / 'web', site)
-        subprocess.run(['wasm-bindgen', '--target', 'web', '--no-typescript', '--remove-name-section',
+        shutil.copytree(ROOT / 'web', site, ignore=shutil.ignore_patterns('*.ts'))
+        subprocess.run(['wasm-bindgen', '--target', 'web', '--remove-name-section',
                         '--out-dir', str(site / 'pkg'),
                         str(ROOT / 'target/wasm32-unknown-unknown/release/phase_vector.wasm')],
                        cwd=ROOT, check=True)
+        # Generated declarations and bindings share the Vite/TypeScript virtual root.
+        publish_site(site / 'pkg', dist / 'pkg')
+        subprocess.run(['npm', 'run', 'check'], cwd=ROOT, check=True)
+        subprocess.run(['node', str(ROOT / 'node_modules/typescript/bin/tsc'),
+                        '--project', str(ROOT / 'tsconfig.json'), '--noEmit', 'false',
+                        '--outDir', str(site)], cwd=ROOT, check=True)
+        entry = site / 'index.html'
+        entry.write_text(entry.read_text().replace('./app.ts', './app.js'))
         publish_site(site, dist)
     print(f'Static site written to {dist}')
 

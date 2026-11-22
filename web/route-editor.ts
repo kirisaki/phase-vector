@@ -1,33 +1,37 @@
-import { plan_arrival, preview_arrival, set_route_editing, state_json } from './pkg/phase_vector.js';
+import type { State, Vector2, ManeuverPreview } from './types.js';
+import type { Projection } from './map-overlay.js';
+import { element as el, query, required } from './dom.js';
+import { readState, ownShip, previewArrival } from './api.js';
+import { plan_arrival, set_route_editing } from './pkg/phase_vector.js';
 
 import { mapProjection } from './map-overlay.js';
 import { BURN, COMMAND_PULSE } from './ui-settings.js';
 
-const el = (id) => document.getElementById(id);
 const number = new Intl.NumberFormat('en-US', { maximumFractionDigits: 3 });
-const km = (value) => number.format(value / 1000);
+const km = (value: number) => number.format(value / 1000);
 
-export function createRouteEditor(onChange) {
+export function createRouteEditor(onChange: (applied: boolean) => void) {
   const svg = el('route-editor');
   const handle = el('arrival-handle');
-  let state, context, target, route, fingerprint, pointer;
+  let state: State, context: State, target: Vector2;
+  let route: ManeuverPreview | null = null, fingerprint: string, pointer: number | undefined;
   let dragging = false, valid = false, ready = false, dirtyNumeric = false;
   let grabX = 0, grabY = 0;
   // Keep running gestures stable; rebase their control offset at command boundaries.
-  const identity = (value) => JSON.stringify([value.order_start_seconds, value.planned_burn,
+  const identity = (value: State) => JSON.stringify([value.order_start_seconds, value.planned_burn,
     value.command_number, value.active_burn]);
-  let lastCommand, pulseStarted = -Infinity;
-  function animatePulse(now) {
+  let lastCommand: number | undefined, pulseStarted = -Infinity;
+  function animatePulse(now: number) {
     const pulse = el('command-pulse');
     const age = (now - pulseStarted) / COMMAND_PULSE.durationMs;
     const active = state && age >= 0 && age < 1;
     pulse.style.opacity = active ? String((1 - age) * COMMAND_PULSE.opacity) : '0';
     if (active) {
       const view = projection();
-      const ship = state.world.ships.find((ship) => ship.id === state.player_id);
+      const ship = ownShip(state);
       const [x, y] = view.project(ship.position);
-      pulse.setAttribute('cx', x); pulse.setAttribute('cy', y);
-      pulse.setAttribute('r', COMMAND_PULSE.startRadiusPixels + age * COMMAND_PULSE.growthPixels);
+      pulse.setAttribute('cx', String(x)); pulse.setAttribute('cy', String(y));
+      pulse.setAttribute('r', String(COMMAND_PULSE.startRadiusPixels + age * COMMAND_PULSE.growthPixels));
     }
     requestAnimationFrame(animatePulse);
   }
@@ -37,11 +41,11 @@ export function createRouteEditor(onChange) {
     return mapProjection(svg, state.map);
   }
 
-  function controls(view) {
+  function controls(view: Projection) {
     const source = dragging ? context : state;
     const maneuver = source.maneuver;
     const coast = maneuver.coast_endpoint;
-    const ship = state.world.ships.find((ship) => ship.id === state.player_id);
+    const ship = ownShip(state);
     const [cx, cy] = view.project(ship.position);
     // Size the control for the viewport, never its distance from an edge.
     // Panning clips the circle instead of changing the thrust-to-pixel ratio.
@@ -55,7 +59,7 @@ export function createRouteEditor(onChange) {
   function render(error = '') {
     if (!state || !ready) {
       svg.setAttribute('hidden', '');
-      for (const id of ['route-cost', 'route-remaining', 'route-velocity']) el(id).textContent = '—';
+      for (const id of ['route-cost', 'route-remaining', 'route-velocity'] as const) el(id).textContent = '—';
       el('route-feedback').textContent = '';
       return;
     }
@@ -63,7 +67,7 @@ export function createRouteEditor(onChange) {
     const planning = state.phase === 'planning';
     svg.dataset.phase = state.phase;
     const candidate = dragging ? route : state.maneuver;
-    const arrival = dragging ? target : candidate.endpoint;
+    const arrival = dragging ? target : required(candidate).endpoint;
     const coast = (dragging ? context : state).maneuver.coast_endpoint;
     const view = projection();
     const { project, path } = view;
@@ -73,9 +77,9 @@ export function createRouteEditor(onChange) {
     const x = cx + (arrival.x - coast.x) / control.metresPerPixel;
     const y = cy - (arrival.y - coast.y) / control.metresPerPixel;
     handle.setAttribute('transform', `translate(${x} ${y})`);
-    const area = svg.querySelector('.reach-area');
-    area.setAttribute('cx', cx); area.setAttribute('cy', cy);
-    area.setAttribute('r', control.radius);
+    const area = query<SVGCircleElement>('.reach-area', svg);
+    area.setAttribute('cx', String(cx)); area.setAttribute('cy', String(cy));
+    area.setAttribute('r', String(control.radius));
 
     area.style.display = finished() ? 'none' : '';
     handle.style.display = finished() ? 'none' : '';
@@ -83,11 +87,11 @@ export function createRouteEditor(onChange) {
     handle.style.pointerEvents = area.style.pointerEvents = finished() ? 'none' : '';
     handle.setAttribute('aria-disabled', String(Boolean(finished())));
     // Leave the ship itself visible at zero thrust, while retaining the hit target.
-    handle.querySelector('.handle-dot').style.display = Math.hypot(x - cx, y - cy) > 2 ? '' : 'none';
+    query<SVGCircleElement>('.handle-dot', handle).style.display = Math.hypot(x - cx, y - cy) > 2 ? '' : 'none';
     el('map-coast-route').setAttribute('d', dragging ? path([context.maneuver.points[0], coast]) : '');
     el('map-planned-route').setAttribute('d', candidate ? path(candidate.forecast.points) : '');
     svg.dataset.invalid = String(dragging && !valid);
-    handle.querySelector('text').textContent = 'Burn';
+    query<SVGTextElement>('text', handle).textContent = 'Burn';
     const markers = el('forecast-boundaries');
     markers.replaceChildren();
     for (const boundary of candidate?.forecast.boundaries ?? []) {
@@ -106,8 +110,8 @@ export function createRouteEditor(onChange) {
     el('burn-vector').setAttribute('d', length > 2
       ? `M${cx} ${cy}L${x} ${y}M${x - ux * 7 - uy * 4} ${y - uy * 7 + ux * 4}L${x} ${y}L${x - ux * 7 + uy * 4} ${y - uy * 7 - ux * 4}` : '');
     const label = el('burn-label');
-    label.setAttribute('x', Math.max(6, cx - control.radius));
-    label.setAttribute('y', Math.min(view.height - 6, cy + control.radius + 14));
+    label.setAttribute('x', String(Math.max(6, cx - control.radius)));
+    label.setAttribute('y', String(Math.min(view.height - 6, cy + control.radius + 14)));
     label.textContent = `${planning ? 'ORDER' : 'NEXT ORDER'} / ${number.format(state.timing.interval_seconds)} s`;
     handle.setAttribute('aria-label', 'Drag to set burn. Arrow keys adjust; Shift for fine adjustment; Home to coast.');
     let arrow = '';
@@ -132,7 +136,7 @@ export function createRouteEditor(onChange) {
       (planning ? 'Home: coast.' : `Active: ${number.format(state.active_burn.x)}, ${number.format(state.active_burn.y)} m/s².`));
   }
 
-  const finished = () => state?.mission && state.mission.outcome !== 'running';
+  const finished = () => Boolean(state?.mission && state.mission.outcome !== 'running');
 
   function begin() {
     if (!ready || !state || dragging || finished()) return false;
@@ -146,7 +150,7 @@ export function createRouteEditor(onChange) {
     return true;
   }
 
-  function rebaseGesture(fresh) {
+  function rebaseGesture(fresh: State) {
     if (identity(fresh) === fingerprint) return true;
     if (fresh.world.tick < context.world.tick || fresh.order_start_seconds < context.order_start_seconds ||
         JSON.stringify(fresh.planned_burn) !== JSON.stringify(context.planned_burn)) return false;
@@ -160,9 +164,9 @@ export function createRouteEditor(onChange) {
     return true;
   }
 
-  function finish(apply) {
+  function finish(apply: boolean) {
     if (!dragging) return;
-    const fresh = JSON.parse(state_json());
+    const fresh = readState();
     let applied = false, error = '';
     if (apply && rebaseGesture(fresh) && valid) {
       try { plan_arrival(target.x, target.y); applied = true; }
@@ -173,12 +177,12 @@ export function createRouteEditor(onChange) {
     pointer = undefined;
     if (captured !== undefined && svg.hasPointerCapture(captured)) svg.releasePointerCapture(captured);
     set_route_editing(false);
-    state = JSON.parse(state_json());
+    state = readState();
     onChange(applied);
     render(error);
   }
 
-  function choose(position) {
+  function choose(position: Vector2) {
     const coast = context.maneuver.coast_endpoint;
     const dx = position.x - coast.x, dy = position.y - coast.y;
     const distance = Math.hypot(dx, dy);
@@ -186,12 +190,12 @@ export function createRouteEditor(onChange) {
     const fraction = distance > radius ? radius / distance : 1;
     target = { x: coast.x + dx * fraction, y: coast.y + dy * fraction };
     try {
-      route = JSON.parse(preview_arrival(target.x, target.y));
+      route = previewArrival(target.x, target.y);
       valid = true; render();
     } catch (error) { route = null; valid = false; render(String(error)); }
   }
 
-  function fromPointer(event) {
+  function fromPointer(event: PointerEvent) {
     const view = projection();
     const control = controls(view);
     // Keep the cursor direction outside the canvas; radial clamping happens in choose.
@@ -202,7 +206,7 @@ export function createRouteEditor(onChange) {
     if (event.button !== 0 || pointer !== undefined || !begin()) return;
     pointer = event.pointerId;
     grabX = 0; grabY = 0;
-    if (event.target.closest('#arrival-handle')) {
+    if (event.target instanceof Element && event.target.closest('#arrival-handle')) {
       const view = projection(), control = controls(view);
       grabX = event.clientX - view.box.left - control.cx - (target.x - control.coast.x) / control.metresPerPixel;
       grabY = event.clientY - view.box.top - control.cy + (target.y - control.coast.y) / control.metresPerPixel;
@@ -222,7 +226,8 @@ export function createRouteEditor(onChange) {
   window.addEventListener('blur', () => finish(false));
   document.addEventListener('visibilitychange', () => { if (document.hidden) finish(false); });
   handle.addEventListener('keydown', (event) => {
-    const delta = { ArrowLeft: [-1, 0], ArrowRight: [1, 0], ArrowUp: [0, 1], ArrowDown: [0, -1] }[event.key];
+    const directions: Record<string, [number, number]> = { ArrowLeft: [-1, 0], ArrowRight: [1, 0], ArrowUp: [0, 1], ArrowDown: [0, -1] };
+    const delta = directions[event.key];
     if ((!delta && event.key !== 'Home') || !begin()) return;
     event.preventDefault();
     if (event.key === 'Home') choose(context.maneuver.coast_endpoint);
@@ -235,11 +240,11 @@ export function createRouteEditor(onChange) {
   document.addEventListener('keydown', (event) => {
     if (event.key === 'Escape' && dragging) { event.preventDefault(); finish(false); }
   });
-  new ResizeObserver(() => render()).observe(svg.parentElement);
+  new ResizeObserver(() => render()).observe(required(svg.parentElement));
   return {
     get dragging() { return dragging; },
     cancel() { finish(false); },
-    sync(value, isReady, hasNumericEdits) {
+    sync(value: State, isReady: boolean, hasNumericEdits: boolean) {
       state = value; ready = isReady; dirtyNumeric = hasNumericEdits;
       const record = state.command_log.at(-1);
       const command = record?.start_tick;

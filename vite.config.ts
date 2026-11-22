@@ -2,7 +2,7 @@ import { existsSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { defineConfig } from 'vite';
 
-const localPath = (path) => fileURLToPath(new URL(path, import.meta.url));
+const localPath = (path: string) => fileURLToPath(new URL(path, import.meta.url));
 const web = localPath('./web/');
 const pkg = localPath('./dist/pkg/');
 

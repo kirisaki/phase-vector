@@ -1,16 +1,19 @@
+import { ownShip } from './api.js';
+import type { State, Mission, Ship } from './types.js';
+import { element as el, query, required } from './dom.js';
 import { RECENT_LAUNCHES } from './ui-settings.js';
 
-const el = (id) => document.getElementById(id);
-const decimal = (n) => n.toFixed(1);
+interface PanelActions { onCancelShot: (id: number) => void; onRetry: () => void; onConfirmRetry: () => void; onCancelRetry: () => void }
 
+const decimal = (n: number) => n.toFixed(1);
 
 // Render mission feedback and forward user actions; commands belong to the controller.
-export function createMissionPanel({ onCancelShot, onRetry, onConfirmRetry, onCancelRetry }) {
+export function createMissionPanel({ onCancelShot, onRetry, onConfirmRetry, onCancelRetry }: PanelActions) {
   const result = el('mission-result');
   const confirmation = el('retry-confirmation');
-  let shownOutcome;
+  let shownOutcome: Mission['outcome'] | undefined;
 
-  function renderResult(m, own) {
+  function renderResult(m: Mission, own: Ship) {
     if (m.outcome === 'running') { result.close(); shownOutcome = undefined; return; }
     const victory = m.outcome !== 'breakthrough';
     result.dataset.outcome = victory ? 'victory' : 'defeat';
@@ -18,8 +21,8 @@ export function createMissionPanel({ onCancelShot, onRetry, onConfirmRetry, onCa
     el('result-reason').textContent = { disabled: 'Enemy disabled by a direct hit.',
       timeout: 'Blockade successful. The enemy missed its deadline.',
       breakthrough: 'The enemy reached the exit before the deadline.' }[m.outcome];
-    el('result-time').textContent = `${decimal(m.ended_seconds)} s`;
-    el('result-shots').textContent = m.shots.length;
+    el('result-time').textContent = `${decimal(required(m.ended_seconds))} s`;
+    el('result-shots').textContent = String(m.shots.length);
     el('result-dv').textContent = `${decimal(own.spent_dv / 1000)} km/s`;
     if (shownOutcome !== m.outcome) {
       shownOutcome = m.outcome;
@@ -28,8 +31,8 @@ export function createMissionPanel({ onCancelShot, onRetry, onConfirmRetry, onCa
   }
 
   function dismissResult() { result.close(); el('retry').focus({ preventScroll: true }); }
-  function dismissDialog(dialog, dismiss) {
-    const outside = (event) => {
+  function dismissDialog(dialog: HTMLDialogElement, dismiss: () => void) {
+    const outside = (event: MouseEvent) => {
       const box = dialog.getBoundingClientRect();
       return event.clientX < box.left || event.clientX > box.right || event.clientY < box.top || event.clientY > box.bottom;
     };
@@ -48,48 +51,48 @@ export function createMissionPanel({ onCancelShot, onRetry, onConfirmRetry, onCa
   el('retry-cancel').addEventListener('click', cancelRetry);
   el('retry-confirm').addEventListener('click', () => { confirmation.close(); onConfirmRetry(); });
 
-  function renderQueue(m, stepSeconds, done) {
+  function renderQueue(m: Mission, stepSeconds: number, done: boolean) {
     const list = el('shot-queue');
     const ids = new Set(m.queued.map((order) => String(order.id)));
-    for (const node of list.querySelectorAll('[data-shot-id]')) {
-      if (!ids.has(node.dataset.shotId)) node.remove();
+    for (const node of list.querySelectorAll<HTMLElement>('[data-shot-id]')) {
+      if (!ids.has(required(node.dataset.shotId))) node.remove();
     }
     el('empty-queue').hidden = Boolean(m.queued.length);
     m.queued.forEach((order, index) => {
-      let row = list.querySelector(`[data-shot-id="${order.id}"]`);
+      let row = list.querySelector<HTMLElement>(`[data-shot-id="${order.id}"]`);
       if (!row) {
-        row = document.createElement('div'); row.dataset.shotId = order.id;
+        row = document.createElement('div'); row.dataset.shotId = String(order.id);
         row.className = 'queued-shot'; row.setAttribute('role', 'listitem');
         row.append(document.createElement('span'), document.createElement('button'));
-        const button = row.querySelector('button'); button.textContent = 'Cancel';
+        const button = query<HTMLButtonElement>('button', row); button.textContent = 'Cancel';
         button.setAttribute('aria-label', `Cancel shot ${order.id}`);
         button.addEventListener('click', () => onCancelShot(order.id));
       }
       // Keep nodes and focus stable across polling updates, including insertion into a freed slot.
-      const sibling = list.querySelectorAll('[data-shot-id]')[index];
+      const sibling = list.querySelectorAll<HTMLElement>('[data-shot-id]')[index];
       if (sibling !== row) list.insertBefore(row, sibling ?? null);
-      row.querySelector('span').textContent = order.error ? `#${order.id} · ${order.error}` :
+      query('span', row).textContent = order.error ? `#${order.id} · ${order.error}` :
         `#${order.id} · fire ${decimal(order.launch_tick * stepSeconds)} s · arrival ${order.solution ? decimal(order.solution.arrival_seconds) + ' s' : 'unreachable'}${order.requested_arrival_seconds !== null ? ` · requested ${decimal(order.requested_arrival_seconds)} s` : ''}`;
       row.title = order.error || `Target (${decimal(order.target.x / 1000)}, ${decimal(order.target.y / 1000)}) km`;
       row.classList.toggle('invalid', Boolean(order.error));
-      row.querySelector('button').disabled = done || order.locked;
-      row.querySelector('button').title = order.locked ? 'Committed to the current command interval' : 'Cancel this reservation';
+      query<HTMLButtonElement>('button', row).disabled = done || order.locked;
+      query<HTMLButtonElement>('button', row).title = order.locked ? 'Committed to the current command interval' : 'Cancel this reservation';
     });
   }
 
-  function renderLaunches(m, stepSeconds) {
+  function renderLaunches(m: Mission, stepSeconds: number) {
     const list = el('launch-list');
     const recent = m.shots.slice(-RECENT_LAUNCHES).reverse();
     const ids = new Set(recent.map((shot) => String(shot.order_id)));
-    for (const row of [...list.children]) {
-      if (!ids.has(row.dataset.shotId)) row.remove();
+    for (const row of [...list.querySelectorAll<HTMLElement>('[data-shot-id]')]) {
+      if (!ids.has(required(row.dataset.shotId))) row.remove();
     }
     el('empty-history').hidden = Boolean(recent.length);
     recent.forEach((shot, index) => {
-      let row = list.querySelector(`[data-shot-id="${shot.order_id}"]`);
+      let row = list.querySelector<HTMLElement>(`[data-shot-id="${shot.order_id}"]`);
       if (!row) {
         row = document.createElement('div');
-        row.dataset.shotId = shot.order_id;
+        row.dataset.shotId = String(shot.order_id);
         row.setAttribute('role', 'listitem');
       }
       if (list.children[index] !== row) list.insertBefore(row, list.children[index] ?? null);
@@ -100,7 +103,7 @@ export function createMissionPanel({ onCancelShot, onRetry, onConfirmRetry, onCa
   el('retry').addEventListener('click', onRetry);
   el('result-retry').addEventListener('click', onRetry);
 
-  return { confirmRetry() { confirmation.showModal(); }, render(state, ready) {
+  return { confirmRetry() { confirmation.showModal(); }, render(state: State, ready: boolean) {
     const m = state?.mission;
     el('retry').disabled = !m || !ready;
     if (!m || !ready) { result.close(); confirmation.close(); shownOutcome = undefined; return; }
@@ -109,9 +112,9 @@ export function createMissionPanel({ onCancelShot, onRetry, onConfirmRetry, onCa
       disabled: 'Victory · Enemy disabled', timeout: 'Victory · Deadline exceeded' };
     el('mission-status').textContent = titles[m.outcome];
     el('mission-status').dataset.outcome = m.outcome;
-    const own = state.world.ships.find((ship) => ship.id === state.player_id);
+    const own = ownShip(state);
     renderResult(m, own);
-    const clock = done ? `Ended ${decimal(m.ended_seconds)} s` : `${decimal(Math.max(0, m.deadline_seconds - state.time_seconds))} s left`;
+    const clock = done ? `Ended ${decimal(required(m.ended_seconds))} s` : `${decimal(Math.max(0, m.deadline_seconds - state.time_seconds))} s left`;
     el('mission-metrics').textContent = `${clock} · ${m.shots.length} shots · Δv ${decimal(own.spent_dv / 1000)} km/s`;
     renderQueue(m, state.timing.step_seconds, done);
     renderLaunches(m, state.timing.step_seconds);

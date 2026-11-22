@@ -1,6 +1,7 @@
+import type { MissionState, Solution } from './types.js';
 // Observation-only estimate shared by the map marker and weapon feedback.
 // The shot solver supplies arrival time, including flight after the selected firing time.
-export function shotArrivalEstimate(state, solution) {
+export function shotArrivalEstimate(state: MissionState, solution: Solution | null | undefined) {
   if (!solution) return null;
   const { prediction, contact } = state.mission;
   const secondsFromNow = solution.arrival_seconds - state.time_seconds;

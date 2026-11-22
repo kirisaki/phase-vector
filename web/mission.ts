@@ -1,4 +1,7 @@
-import { queue_shot, queue_launch_shot, cancel_shot, preview_shot, preview_launch_shot, command, set_route_editing } from './pkg/phase_vector.js';
+import type { State, Solution } from './types.js';
+import { element as el, query, required } from './dom.js';
+import { previewShot, previewLaunchShot } from './api.js';
+import { queue_shot, queue_launch_shot, cancel_shot, command, set_route_editing } from './pkg/phase_vector.js';
 
 import { mapProjection } from './map-overlay.js';
 import { drawMissionMap } from './mission-map.js';
@@ -7,14 +10,14 @@ import { shotArrivalEstimate } from './mission-preview.js';
 import { createTimeline } from './timeline.js';
 import { createAimEditor } from './aim-editor.js';
 
-const el = (id) => document.getElementById(id);
-const decimal = (n) => n.toFixed(1);
+const decimal = (n: number) => n.toFixed(1);
 
-export function createMissionControls(onChange, onBeforeRetry) {
+export function createMissionControls(onChange: () => void, onBeforeRetry: () => void) {
   const svg = el('mission-overlay'), handle = el('aim-handle');
-  let state, ready = false, blocked = false, solution, error = '';
+  let state: State;
+  let ready = false, blocked = false, solution: Solution | null = null, error = '';
   let lastTick = 0;
-  let resumeAfterRetry = null;
+  let resumeAfterRetry: 'commit' | 'play' | null = null;
   const timeline = createTimeline(() => { error = ''; onChange(); });
   const panel = createMissionPanel({
     onCancelShot: (id) => invoke(() => cancel_shot(id)),
@@ -33,7 +36,7 @@ export function createMissionControls(onChange, onBeforeRetry) {
     },
   });
   const finished = () => state?.mission?.outcome !== 'running';
-  const leadTarget = () => timeline.seconds === null ? state.mission.aim?.target : timeline.forecast?.aim?.target;
+  const leadTarget = () => timeline.seconds === null ? state.mission?.aim?.target : timeline.forecast?.aim?.target;
 
   const aimEditor = createAimEditor({
     svg, handle, projection: () => mapProjection(svg, state.map), leadTarget,
@@ -48,7 +51,7 @@ export function createMissionControls(onChange, onBeforeRetry) {
     el('mission-controls').hidden = !m;
     el('game-controls').hidden = !m;
     document.body.classList.toggle('mission-active', Boolean(m));
-    document.querySelector('.badge').textContent = m ? '04 / PREDICTION' : '02 / PHYSICS & WEGO';
+    query('.badge').textContent = m ? '04 / PREDICTION' : '02 / PHYSICS & WEGO';
     panel.render(state, ready);
     timeline.sync(state, ready, aimEditor.dragging || blocked);
     if (!m || !ready) { svg.setAttribute('hidden', ''); return; }
@@ -56,8 +59,8 @@ export function createMissionControls(onChange, onBeforeRetry) {
     const done = finished();
     const aim = aimEditor.target ?? leadTarget();
     let failure = '';
-    try { solution = aim ? JSON.parse(timeline.seconds === null ? preview_shot(aim.x, aim.y)
-      : preview_launch_shot(aim.x, aim.y, timeline.seconds)) : null; }
+    try { solution = aim ? timeline.seconds === null ? previewShot(aim.x, aim.y)
+      : previewLaunchShot(aim.x, aim.y, timeline.seconds) : null; }
     catch (e) {
       solution = null; failure = String(e);
       if (failure.startsWith('Unreachable arrival:')) failure =
@@ -72,17 +75,17 @@ export function createMissionControls(onChange, onBeforeRetry) {
     el('queue-shot').setAttribute('aria-label', `Queue shot (${m.queued.length} of ${m.queue_capacity} reserved)`);
     el('track-aim').disabled = done || aimEditor.dragging;
     el('cancel-shot').disabled = !m.queued.some((order) => !order.locked) || done;
-    const arrival = shotArrivalEstimate(state, solution);
+    const arrival = shotArrivalEstimate({ ...state, mission: m }, solution);
     const estimate = arrival ? `◇ predicted offset ${decimal(arrival.offsetMetres / 1000)} km; enemy may evade` : 'No solution';
     el('gun-feedback').textContent = error || timeline.error || failure || (done ? 'Retry restores the initial scenario.' :
       blocked ? 'Apply numeric edits or finish the burn gesture before queuing a shot.' :
       m.queued.find((order) => order.error)?.error || m.queue_error ||
       (timeline.seconds !== null && solution ? `Fire ${decimal(solution.launch_tick * state.timing.step_seconds)} s · arrival ${solution.arrival_seconds.toFixed(2)} s · flight ${decimal(solution.flight_seconds)} s · ${estimate}` :
       `${aimEditor.target ? 'Fixed point' : 'Lead assist'} · fire ${solution ? decimal(solution.launch_tick * state.timing.step_seconds) : '—'} s · flight ${solution ? decimal(solution.flight_seconds) : '—'} s · ${estimate}`));
-    drawMissionMap(svg, state, { aim, solution, arrival, forecast: timeline.forecast, fixedTarget: Boolean(aimEditor.target), done });
+    drawMissionMap(svg, { ...state, mission: m }, { aim, solution, arrival, forecast: timeline.forecast, fixedTarget: Boolean(aimEditor.target), done });
   }
 
-  function invoke(action) {
+  function invoke(action: () => void) {
     try { action(); error = ''; } catch (e) { error = String(e); }
     onChange();
   }
@@ -114,7 +117,7 @@ export function createMissionControls(onChange, onBeforeRetry) {
   });
   // Secondary touches do not reliably generate clicks. Commit on release inside
   // Queue, preserving timeline focus and suppressing a possible synthesized click.
-  let queuePointer, handledPointer;
+  let queuePointer: number | undefined, handledPointer: number | undefined;
   queue.addEventListener('pointerdown', (event) => {
     handledPointer = undefined;
     if (event.pointerType !== 'touch' || !timeline.dragging || queue.disabled || queuePointer !== undefined) return;
@@ -137,8 +140,8 @@ export function createMissionControls(onChange, onBeforeRetry) {
   el('cancel-shot').addEventListener('click', () => invoke(() => command('cancel_shot')));
   el('track-aim').addEventListener('click', () => { aimEditor.clear(); error = ''; render(); });
 
-  new ResizeObserver(() => { if (state) render(); }).observe(svg.parentElement);
-  return { get dragging() { return aimEditor.dragging; }, cancel() { aimEditor.cancel(); }, sync(value, isReady, isBlocked) {
+  new ResizeObserver(() => { if (state) render(); }).observe(required(svg.parentElement));
+  return { get dragging() { return aimEditor.dragging; }, cancel() { aimEditor.cancel(); }, sync(value: State, isReady: boolean, isBlocked: boolean) {
     const reset = value.world.tick < lastTick || Boolean(state?.mission) !== Boolean(value.mission);
     state = value; ready = isReady; blocked = isBlocked;
     if (aimEditor.dragging && (reset || finished())) aimEditor.cancel();

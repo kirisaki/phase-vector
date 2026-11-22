@@ -1,27 +1,32 @@
-import { forecast_at } from './pkg/phase_vector.js';
+import type { State, Forecast } from './types.js';
+import { element, required } from './dom.js';
+import { forecastAt } from './api.js';
 
 import { TIMELINE } from './ui-settings.js';
 import { timeScale, snapTime } from './timeline-scale.js';
 
 // The slider changes a read-only preview and the next shot's firing time.
 // It never advances the simulation or rewrites existing reservations.
-export function createTimeline(onChange) {
-  const root = document.getElementById('timeline-controls');
-  const slider = document.getElementById('forecast-time');
+export function createTimeline(onChange: () => void) {
+  const root = element('timeline-controls');
+  const slider = element('forecast-time');
   root.style.setProperty('--timeline-thumb-size', `${TIMELINE.thumbPixels}px`);
-  const live = document.getElementById('forecast-live');
-  const label = document.getElementById('forecast-label');
-  const axis = document.getElementById('forecast-axis');
-  const ticks = document.getElementById('forecast-ticks');
-  const readyMarks = document.getElementById('forecast-ready-marks');
-  const readyLabel = document.getElementById('forecast-ready-label');
-  const boundaryLabel = document.getElementById('forecast-boundary');
-  const endLabel = document.getElementById('forecast-end');
-  let selected = null, forecast = null, error = '', key, scale, step;
-  let pointer, scaleKey, available = [];
+  const live = element('forecast-live');
+  const label = element('forecast-label');
+  const axis = element('forecast-axis');
+  const ticks = element('forecast-ticks');
+  const readyMarks = element('forecast-ready-marks');
+  const readyLabel = element('forecast-ready-label');
+  const boundaryLabel = element('forecast-boundary');
+  const endLabel = element('forecast-end');
+  let selected: number | null = null, forecast: Forecast | null = null, error = '';
+  let key: string | undefined, scale: ReturnType<typeof timeScale> | undefined;
+  let step = 0;
+  let pointer: number | undefined, scaleKey: string | undefined, available: number[] = [];
   function clearSelection() { selected = null; forecast = null; error = ''; key = undefined; }
   function reset() { pointer = undefined; clearSelection(); }
-  function select(seconds) {
+  function select(seconds: number) {
+    if (!scale) return;
     selected = Math.max(scale.now, Math.min(scale.end, Math.round(seconds / step) * step));
     onChange();
   }
@@ -42,7 +47,7 @@ export function createTimeline(onChange) {
   slider.addEventListener('keydown', (event) => {
     if (!scale || slider.disabled) return;
     const current = selected ?? scale.now;
-    const times = { ArrowLeft: current - step, ArrowDown: current - step,
+    const times: Record<string, number> = { ArrowLeft: current - step, ArrowDown: current - step,
       ArrowRight: current + step, ArrowUp: current + step,
       PageDown: current - scale.interval, PageUp: current + scale.interval,
       Home: scale.now, End: scale.end };
@@ -57,7 +62,7 @@ export function createTimeline(onChange) {
     get seconds() { return selected; },
     get forecast() { return forecast; },
     get error() { return error; },
-    sync(state, ready, editing) {
+    sync(state: State, ready: boolean, editing: boolean) {
       const mission = state?.mission;
       root.hidden = !mission;
       if (!mission || !ready) { reset(); return; }
@@ -67,10 +72,10 @@ export function createTimeline(onChange) {
       if (pointer === undefined || !scale) scale = timeScale(state.time_seconds,
         Math.min(mission.deadline_seconds, state.time_seconds + mission.planning_horizon_seconds),
         state.timing.interval_seconds);
-      slider.value = scale.position(selected ?? state.time_seconds);
-      slider.setAttribute('aria-valuemin', scale.now);
-      slider.setAttribute('aria-valuemax', scale.end);
-      slider.setAttribute('aria-valuenow', selected ?? state.time_seconds);
+      slider.value = String(scale.position(selected ?? state.time_seconds));
+      slider.setAttribute('aria-valuemin', String(scale.now));
+      slider.setAttribute('aria-valuemax', String(scale.end));
+      slider.setAttribute('aria-valuenow', String(selected ?? state.time_seconds));
       const nextScaleKey = JSON.stringify([scale.now, scale.end, scale.boundary]);
       if (nextScaleKey !== scaleKey) {
         scaleKey = nextScaleKey;
@@ -86,11 +91,11 @@ export function createTimeline(onChange) {
           ticks.append(tick);
         }
       }
-      available = (mission.available_launch_seconds ?? []).filter(time => time >= scale.now && time <= scale.end);
+      available = (mission.available_launch_seconds ?? []).filter(time => time >= required(scale).now && time <= required(scale).end);
       readyMarks.replaceChildren();
       for (const time of available) {
         const mark = document.createElement('i');
-        mark.dataset.seconds = time;
+        mark.dataset.seconds = String(time);
         mark.style.left = `${scale.position(time) * 100}%`;
         readyMarks.append(mark);
       }
@@ -110,7 +115,7 @@ export function createTimeline(onChange) {
       if (nextKey !== key) {
         key = nextKey; error = ''; forecast = null;
         if (selected !== null) {
-          try { forecast = JSON.parse(forecast_at(selected)); }
+          try { forecast = forecastAt(selected); }
           catch (e) { error = String(e); }
         }
       }

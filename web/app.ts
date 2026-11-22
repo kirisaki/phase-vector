@@ -1,15 +1,16 @@
-import init, { start, command, plan_burn, set_speed, set_map_view, zoom_map, run_lua, state_json, rendered_frames } from './pkg/phase_vector.js';
+import { element, query, required } from './dom.js';
+import { readState, ownShip } from './api.js';
+import init, { start, command, plan_burn, set_speed, set_map_view, zoom_map, run_lua, rendered_frames } from './pkg/phase_vector.js';
 import { createRouteEditor } from './route-editor.js';
 import { createMissionControls } from './mission.js';
 import { createMapNavigation } from './map-navigation.js';
 
-const element = (id) => document.getElementById(id);
 const output = element('console-output');
 const input = element('lua-input');
-const speedButtons = document.querySelectorAll('[data-speed]');
-const viewButtons = document.querySelectorAll('[data-view]');
+const speedButtons = document.querySelectorAll<HTMLButtonElement>('[data-speed]');
+const viewButtons = document.querySelectorAll<HTMLButtonElement>('[data-view]');
 const kmFormat = new Intl.NumberFormat('en-US', { maximumFractionDigits: 3 });
-const km = (metres) => kmFormat.format(metres / 1000);
+const km = (metres: number) => kmFormat.format(metres / 1000);
 
 let ready = false;
 let dirtyPlan = false;
@@ -35,7 +36,7 @@ const narrowScreen = matchMedia('(max-width: 900px)');
 
 function syncConsoleLayout() {
   const overlay = narrowScreen.matches || document.documentElement.classList.contains('short-viewport');
-  document.querySelector('.map-panel').inert = !element('console-panel').hidden && overlay;
+  query('.map-panel').inert = !element('console-panel').hidden && overlay;
 }
 
 function fitViewport() {
@@ -55,9 +56,9 @@ window.visualViewport?.addEventListener('scroll', fitViewport);
 narrowScreen.addEventListener('change', syncConsoleLayout);
 fitViewport();
 
-function showConsole(open, moveFocus = true) {
+function showConsole(open: boolean, moveFocus = true) {
   element('console-panel').hidden = !open;
-  document.querySelector('.workspace').classList.toggle('console-open', open);
+  query('.workspace').classList.toggle('console-open', open);
   element('console-toggle').setAttribute('aria-expanded', String(open));
   element('console-toggle').textContent = open ? 'Hide Lua console' : 'Show Lua console';
   syncConsoleLayout();
@@ -66,7 +67,7 @@ function showConsole(open, moveFocus = true) {
   }
 }
 
-element('console-toggle').addEventListener('click', () => showConsole(element('console-panel').hidden));
+element('console-toggle').addEventListener('click', () => showConsole(Boolean(element('console-panel').hidden)));
 element('console-close').addEventListener('click', () => showConsole(false));
 element('console-panel').addEventListener('keydown', (event) => {
   if (event.key === 'Escape') {
@@ -75,23 +76,23 @@ element('console-panel').addEventListener('keydown', (event) => {
   }
 });
 
-function log(text, className) {
+function log(text: string, className = '') {
   const line = document.createElement('p');
   line.className = className;
   line.textContent = text;
   output.append(line);
-  while (output.children.length > 100) output.firstElementChild.remove();
+  while (output.children.length > 100) output.firstElementChild?.remove();
   output.scrollTop = output.scrollHeight;
 }
 
-function setVector(id, x, y) {
+function setVector(id: 'position' | 'velocity', x: string, y: string) {
   const values = element(id).children;
   values[0].textContent = `${x}, `;
   values[1].textContent = y;
 }
 
 function refresh() {
-  const state = JSON.parse(state_json());
+  const state = readState();
   if (!ready && rendered_frames() > 2) {
     ready = true;
     element('engine-status').textContent = 'ENGINE ONLINE';
@@ -103,21 +104,21 @@ function refresh() {
   element('next-turn').title = `Skip to the next ${state.timing.interval_seconds}-second turn boundary and pause`;
   element('commit').title = `Confirm orders and play at ${state.speed}× to the next ${state.timing.interval_seconds}-second turn boundary, then pause`;
   element('commit').setAttribute('aria-pressed', String(state.stop_at_boundary));
-  element('burn-fields').querySelector('legend').textContent = `Constant acceleration for the next ${state.timing.interval_seconds} s`;
+  query('legend', element('burn-fields')).textContent = `Constant acceleration for the next ${state.timing.interval_seconds} s`;
   const planning = state.phase === 'planning';
   const plan = JSON.stringify(state.planned_burn);
   if (lastPlan !== plan) {
-    element('burn-x').value = state.planned_burn.x;
-    element('burn-y').value = state.planned_burn.y;
+    element('burn-x').value = String(state.planned_burn.x);
+    element('burn-y').value = String(state.planned_burn.y);
     dirtyPlan = false;
     lastPlan = plan;
   }
-  const finished = state.mission && state.mission.outcome !== 'running';
+  const finished = Boolean(state.mission && state.mission.outcome !== 'running');
   mapNavigation.sync(state, ready);
   routeEditor.sync(state, ready, dirtyPlan);
   missionControls.sync(state, ready, dirtyPlan || routeEditor.dragging);
   element('mode').textContent = finished ? 'COMPLETE' : state.paused ? 'PAUSED' : 'EXECUTING';
-  element('ticks').textContent = state.world.tick;
+  element('ticks').textContent = String(state.world.tick);
   element('time').textContent = state.time_seconds.toFixed(2);
   element('command-number').textContent = `COMMAND ${String(state.command_number).padStart(2, '0')}`;
   element('window-time').textContent = finished ? 'Mission complete' : state.stop_at_boundary ? `Auto-pause: ${state.remaining_seconds.toFixed(2)} s` : `Next order: ${planning ? 'now' : state.remaining_seconds.toFixed(2) + ' s'}`;
@@ -142,14 +143,14 @@ function refresh() {
   element('zoom-in').disabled = !ready || mapNavigation.active || !state.map.can_zoom_in;
   element('zoom-out').disabled = !ready || mapNavigation.active || !state.map.can_zoom_out;
   element('grid-label').textContent = `GRID / ${km(state.map.grid_metres)} km`;
-  const other = state.world.ships.find((ship) => ship.id !== state.player_id);
-  const own = state.world.ships.find((ship) => ship.id === state.player_id);
+  const other = required(state.world.ships.find((ship) => ship.id !== state.player_id));
+  const own = ownShip(state);
   const range = Math.hypot(other.position.x - own.position.x, other.position.y - own.position.y);
   element('range-label').textContent = `RANGE / ${km(range)} km`;
   element('railgun-label').textContent = `RAILGUN / ${km(state.scale.railgun_speed_mps)} km/s · reference flight ${state.scale.reference_flight_seconds.toFixed(1)} s`;
   element('run').disabled = !ready;
   input.disabled = !ready;
-  const ship = state.world.ships.find((ship) => ship.id === state.player_id);
+  const ship = ownShip(state);
   setVector('position', km(ship.position.x), km(ship.position.y));
   setVector('velocity', (ship.velocity.x / 1000).toFixed(3), (ship.velocity.y / 1000).toFixed(3));
   element('dv').textContent = (ship.remaining_dv / 1000).toFixed(3);
@@ -157,13 +158,13 @@ function refresh() {
 
 }
 
-function invoke(action) {
+function invoke(action: () => void) {
   try { action(); }
   catch (error) { log(String(error), 'error-line'); showConsole(true, false); }
   refresh();
 }
 
-element('toggle').addEventListener('click', () => invoke(() => command(JSON.parse(state_json()).paused ? 'play' : 'pause')));
+element('toggle').addEventListener('click', () => invoke(() => command(readState().paused ? 'play' : 'pause')));
 element('step').addEventListener('click', () => invoke(() => command('step_forward')));
 element('commit').addEventListener('click', () => invoke(() => command('commit')));
 element('next-turn').addEventListener('click', () => invoke(() => command('skip')));
@@ -173,12 +174,12 @@ for (const button of speedButtons) {
 for (const button of viewButtons) {
   button.addEventListener('click', () => invoke(() => {
     const box = element('tactical-map').getBoundingClientRect();
-    set_map_view(button.dataset.view, box.width / Math.max(box.height, 1));
+    set_map_view(required(button.dataset.view), box.width / Math.max(box.height, 1));
   }));
 }
 element('zoom-in').addEventListener('click', () => invoke(() => zoom_map(0.5)));
 element('zoom-out').addEventListener('click', () => invoke(() => zoom_map(2)));
-for (const id of ['burn-x', 'burn-y']) {
+for (const id of ['burn-x', 'burn-y'] as const) {
   element(id).addEventListener('input', () => { dirtyPlan = true; refresh(); });
 }
 element('burn-form').addEventListener('submit', (event) => {
@@ -204,8 +205,8 @@ input.addEventListener('keydown', (event) => {
     element('repl-form').requestSubmit();
   }
 });
-document.querySelectorAll('[data-example]').forEach((button) => {
-  button.addEventListener('click', () => { input.value = button.dataset.example; input.focus(); });
+document.querySelectorAll<HTMLElement>('[data-example]').forEach((button) => {
+  button.addEventListener('click', () => { input.value = required(button.dataset.example); input.focus(); });
 });
 
 try {
@@ -224,7 +225,7 @@ try {
   fail(`The application could not start: ${error}`);
 }
 
-function fail(message) {
+function fail(message: string) {
   element('engine-status').textContent = 'ENGINE UNAVAILABLE';
   element('error').textContent = message;
   element('error').hidden = false;

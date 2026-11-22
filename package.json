@@ -4,12 +4,16 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
-    "build:wasm": "python3 scripts/build_web.py"
+    "build:wasm": "python3 scripts/build_web.py",
+    "check": "tsc --noEmit && tsc --project tsconfig.node.json --noEmit",
+    "check:watch": "tsc --noEmit --watch"
   },
   "engines": {
     "node": "^20.19.0 || >=22.12.0"
   },
   "devDependencies": {
+    "@types/node": "26.6.6",
+    "typescript": "7.0.2",
     "vite": "8.3.8"
   }
 }

@@ -1,38 +1,47 @@
-import { navigate_map, state_json } from './pkg/phase_vector.js';
+import type { State, Vector2 } from './types.js';
+import type { Projection } from './map-overlay.js';
+import { element, query, required } from './dom.js';
+import { readState } from './api.js';
+import { navigate_map } from './pkg/phase_vector.js';
 import { mapProjection } from './map-overlay.js';
-
 import { NAVIGATION } from './ui-settings.js';
+
+interface Pointer { x: number; y: number; type: string }
+interface Gesture { view: Projection; start: Pointer | Vector2; anchor: Vector2; scale: number; span: number | null; moved: boolean }
+interface NavigationOptions { onChange: () => void; onError: (error: unknown) => void; cancelEditors: () => void }
+
 const editorTarget = '#arrival-handle, .reach-area, #aim-handle';
 
-export function createMapNavigation({ onChange, onError, cancelEditors }) {
-  const surface = document.querySelector('.canvas-wrap');
-  const overlay = document.getElementById('route-editor');
-  const pointers = new Map();
-  let ready = false, owned = false, gesture, lastTick = 0, mission;
-  const point = (event) => ({ x: event.clientX, y: event.clientY, type: event.pointerType });
+export function createMapNavigation({ onChange, onError, cancelEditors }: NavigationOptions) {
+  const surface = query('.canvas-wrap');
+  const overlay = element('route-editor');
+  const pointers = new Map<number, Pointer>();
+  let ready = false, owned = false, lastTick = 0;
+  let gesture: Gesture | undefined, mission: boolean | undefined;
+  const point = (event: PointerEvent) => ({ x: event.clientX, y: event.clientY, type: event.pointerType });
   const pair = () => [...pointers.values()].filter((p) => p.type === 'touch').slice(0, 2);
-  const midpoint = (a, b) => ({ x: (a.x + b.x) / 2, y: (a.y + b.y) / 2 });
-  const span = (a, b) => Math.hypot(a.x - b.x, a.y - b.y);
-  const suppress = (event) => { event.preventDefault(); event.stopImmediatePropagation(); };
+  const midpoint = (a: Vector2, b: Vector2) => ({ x: (a.x + b.x) / 2, y: (a.y + b.y) / 2 });
+  const span = (a: Vector2, b: Vector2) => Math.hypot(a.x - b.x, a.y - b.y);
+  const suppress = (event: Event) => { event.preventDefault(); event.stopImmediatePropagation(); };
 
   function startGesture() {
-    const state = JSON.parse(state_json());
+    const state = readState();
     const view = mapProjection(overlay, state.map);
     const touches = pair();
     const pinch = touches.length === 2;
-    const start = pinch ? midpoint(...touches) : pointers.values().next().value;
+    const start = pinch ? midpoint(touches[0], touches[1]) : required(pointers.values().next().value);
     gesture = { view, start, anchor: view.unproject(start.x, start.y), scale: state.map.metres_per_unit,
-      span: pinch ? Math.max(NAVIGATION.minPinchSpanPixels, span(...touches)) : null, moved: false };
+      span: pinch ? Math.max(NAVIGATION.minPinchSpanPixels, span(touches[0], touches[1])) : null, moved: false };
   }
 
   function move() {
     if (!gesture) return;
     const touches = pair();
     const pinch = gesture.span !== null;
-    const current = pinch ? midpoint(...touches) : pointers.values().next().value;
+    const current = pinch ? midpoint(touches[0], touches[1]) : required(pointers.values().next().value);
     if (!pinch && !gesture.moved && span(current, gesture.start) < NAVIGATION.dragThresholdPixels) return;
     const { view, anchor } = gesture;
-    const scale = pinch ? gesture.scale * gesture.span / Math.max(NAVIGATION.minPinchSpanPixels, span(...touches)) : gesture.scale;
+    const scale = pinch ? gesture.scale * required(gesture.span) / Math.max(NAVIGATION.minPinchSpanPixels, span(touches[0], touches[1])) : gesture.scale;
     const x = (current.x - view.box.left - view.width / 2) * view.unitsPerPixel;
     const y = (view.height / 2 - (current.y - view.box.top)) * view.unitsPerPixel;
     try {
@@ -66,7 +75,7 @@ export function createMapNavigation({ onChange, onError, cancelEditors }) {
       startGesture();
       suppress(event);
       move();
-    } else if (owned || !event.target.closest(editorTarget)) {
+    } else if (owned || !(event.target instanceof Element && event.target.closest(editorTarget))) {
       owned = true;
       surface.dataset.navigating = 'true';
       surface.setPointerCapture(event.pointerId);
@@ -116,7 +125,7 @@ export function createMapNavigation({ onChange, onError, cancelEditors }) {
   return {
     get active() { return owned; },
     cancel,
-    sync(state, isReady) {
+    sync(state: State, isReady: boolean) {
       ready = isReady;
       if (state.world.tick < lastTick || (mission !== undefined && mission !== Boolean(state.mission))) cancel();
       lastTick = state.world.tick;

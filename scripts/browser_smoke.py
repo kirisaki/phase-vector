@@ -9,6 +9,7 @@ import sys
 from urllib.parse import unquote, urljoin, urlparse
 
 from playwright.sync_api import sync_playwright, expect
+from browser_controls import connect_engine
 
 ROOT = Path(__file__).resolve().parents[1]
 
@@ -38,7 +39,7 @@ def main():
             expect(page.locator('body')).to_have_attribute('data-ready', 'true', timeout=90000)
             with subprocess.Popen([sys.executable, str(ROOT / 'scripts/build_web.py')], cwd=ROOT) as build:
                 while build.poll() is None:
-                    for module in ['app.js', 'route-editor.js']:
+                    for module in ['app.ts', 'route-editor.ts']:
                         response = page.request.get(urljoin(args.url, module))
                         assert response.ok, f'{module} failed during rebuild: {response.status}'
                     page.wait_for_timeout(100)
@@ -85,15 +86,10 @@ def main():
             expect(page.locator('#console-panel')).to_be_hidden()
             expect(page.locator('#console-toggle')).to_have_attribute('aria-expanded', 'false')
             page.screenshot(path=str(artifacts / 'desktop-map.png'), full_page=True)
+            connect_engine(page)
+
             def read_state():
-                return page.evaluate("""async () => {
-                    const url = new URL('./app.js', location.href);
-                    const source = await (await fetch(url)).text();
-                    const module = source.match(/from ['"]([^'"]+)['"]/)[1];
-                    const wasm = await import(new URL(module, url).href);
-                    window.readPhaseVectorState = () => JSON.parse(wasm.state_json());
-                    return window.readPhaseVectorState();
-                }""")
+                return page.evaluate('readPhaseVectorState()')
 
             def route_point(x, y):
                 return page.locator('#route-editor').evaluate('''(svg, p) => {

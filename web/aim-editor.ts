@@ -1,16 +1,27 @@
+import type { Vector2 } from './types.js';
+import type { Projection } from './map-overlay.js';
+import { required } from './dom.js';
 import { AIM } from './ui-settings.js';
 
+interface AimOptions {
+  svg: SVGSVGElement; handle: SVGGElement; projection: () => Projection;
+  leadTarget: () => Vector2 | null | undefined; enabled: () => boolean;
+  onChange: () => void; onMove: () => void; onEditingChange: (editing: boolean) => void;
+}
+
 // Own the draft target and pointer lifecycle; the mission controller issues commands.
-export function createAimEditor({ svg, handle, projection, leadTarget, enabled, onChange, onMove, onEditingChange }) {
-  let target = null, pointer, beforeDrag, aimGesture;
+export function createAimEditor({ svg, handle, projection, leadTarget, enabled, onChange, onMove, onEditingChange }: AimOptions) {
+  let target: Vector2 | null = null, beforeDrag: Vector2 | null = null;
+  let pointer: number | undefined;
+  let aimGesture: { view: Projection; source: Vector2; x: number; y: number; gain: number } | undefined;
   let dragging = false;
-  function finish(apply) {
+  function finish(apply: boolean) {
     if (!dragging) return;
     dragging = false;
     aimGesture = undefined;
     if (!apply) target = beforeDrag;
     const captured = pointer; pointer = undefined;
-    if (svg.hasPointerCapture(captured)) svg.releasePointerCapture(captured);
+    if (captured !== undefined && svg.hasPointerCapture(captured)) svg.releasePointerCapture(captured);
     onEditingChange(false);
   }
   handle.addEventListener('pointerdown', (event) => {
@@ -18,14 +29,14 @@ export function createAimEditor({ svg, handle, projection, leadTarget, enabled, 
     const source = target ?? leadTarget();
     if (!source) return;
     aimGesture = { view: projection(), source, x: event.clientX, y: event.clientY,
-      gain: event.target.closest('#aim-grip') ? AIM.fineGain : 1 };
+      gain: event.target instanceof Element && event.target.closest('#aim-grip') ? AIM.fineGain : 1 };
     event.preventDefault(); beforeDrag = target; dragging = true; pointer = event.pointerId;
     handle.focus({ preventScroll: true }); svg.setPointerCapture(pointer);
     onEditingChange(true);
   });
   svg.addEventListener('pointermove', (event) => {
     if (!dragging || event.pointerId !== pointer) return;
-    const { view, source, x, y, gain } = aimGesture;
+    const { view, source, x, y, gain } = required(aimGesture);
     target = { x: source.x + (event.clientX - x) * view.metresPerPixel * gain,
       y: source.y - (event.clientY - y) * view.metresPerPixel * gain };
     const lead = leadTarget();
@@ -43,7 +54,7 @@ export function createAimEditor({ svg, handle, projection, leadTarget, enabled, 
   });
   handle.addEventListener('keydown', (event) => {
     if (!enabled() || dragging) return;
-    const directions = { ArrowLeft: [-1, 0], ArrowRight: [1, 0], ArrowUp: [0, 1], ArrowDown: [0, -1] };
+    const directions: Record<string, [number, number]> = { ArrowLeft: [-1, 0], ArrowRight: [1, 0], ArrowUp: [0, 1], ArrowDown: [0, -1] };
     if (event.key === 'Home') { event.preventDefault(); target = null; onChange(); return; }
     const delta = directions[event.key];
     if (!delta) return;
