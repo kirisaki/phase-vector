@@ -39,7 +39,10 @@ fn off_route_is_not_a_win_before_the_deadline() {
     world.ships[1].position.x += 10_000_000.0;
     world.ships[1].remaining_dv = 0.0;
     let mut s = Session::with_mission(world, 1, Config::default()).unwrap();
-    for _ in 0..9 {
+    for _ in 1..Config::default()
+        .deadline_tick
+        .div_ceil(phase_vector::timing::INTERVAL_TICKS)
+    {
         s.dispatch(C::NextTurn).unwrap();
         assert!(!s.finished());
     }
@@ -454,25 +457,37 @@ fn recorded_commands_replay_shots_observations_ai_and_outcome() {
 #[test]
 fn equal_shot_counts_have_different_outcomes_and_blockade_need_not_hit() {
     let mut outcomes = Vec::new();
-    for offset in [0.0, 10_000_000.0] {
+    for spacing in [300_000.0, 0.0] {
         let mut s = Session::blockade();
-        for turn in 0..10 {
-            if s.finished() {
-                break;
-            }
-            if turn < 7 {
-                let target = s.aim().unwrap().target + V::new(0.0, offset);
+        for _ in 0..4 {
+            for round in 0..4 {
+                let target = s.aim().unwrap().target + V::new(0.0, round as f64 * spacing);
                 s.dispatch(C::QueueShot(target)).unwrap();
             }
             s.dispatch(C::NextTurn).unwrap();
         }
+        run_to_end(&mut s);
         let m = s.mission().unwrap();
-        assert_eq!(m.shots.len(), 7);
+        assert_eq!(m.shots.len(), 16);
         assert!(s.world().impacts.is_empty());
         assert!(s.world().ships[1].remaining_dv > 0.0);
         outcomes.push(m.outcome);
     }
     assert_eq!(outcomes, [Outcome::Timeout, Outcome::Breakthrough]);
+}
+
+#[test]
+fn repeating_automatic_lead_salvos_does_not_prevent_breakthrough() {
+    let mut s = Session::blockade();
+    while !s.finished() {
+        for _ in 0..MAX_QUEUED_SHOTS {
+            s.dispatch(C::QueueShot(s.aim().unwrap().target)).unwrap();
+        }
+        s.dispatch(C::NextTurn).unwrap();
+    }
+    assert_eq!(s.mission().unwrap().outcome, Outcome::Breakthrough);
+    assert_eq!(s.mission().unwrap().shots.len(), 40);
+    assert!(s.world().impacts.is_empty());
 }
 
 #[test]
@@ -844,4 +859,75 @@ fn invalid_later_shot_rejects_the_whole_interval_before_any_launch() {
         .unwrap();
     s.dispatch(C::NextTurn).unwrap();
     assert_eq!(s.mission().unwrap().shots.len(), 1);
+}
+
+#[test]
+fn evasion_uses_partial_thrust_and_releases_after_the_short_commitment() {
+    let own = Ship::new(2, V::ZERO, V::ZERO, 500.0, 50.0, 60_000.0).unwrap();
+    let goal = V::new(1_000_000.0, 0.0);
+    let track = Track {
+        id: 1,
+        sampled_tick: 0,
+        received_tick: 0,
+        position: V::new(-100_000_000.0, 0.0),
+        velocity: V::new(1_000_000.0, 0.0),
+        radius: 1.0,
+    };
+    let policy = Policy {
+        safety_radius: 20_000.0,
+        ..Policy::default()
+    };
+    let d = ai::decide(&own, goal, 0.0, &[track], 0, policy, &Decision::default());
+    assert_eq!(d.threat_id, Some(1));
+    assert!(d.acceleration.length() > 0.0);
+    assert!(d.acceleration.length() < own.max_acceleration);
+    assert_eq!(d.hold_until, ai::DECISION_TICKS);
+    let recovered = ai::decide(&own, goal, 0.0, &[], d.hold_until, policy, &d);
+    assert_eq!(recovered.threat_id, None);
+    assert_eq!(recovered.acceleration, V::ZERO);
+}
+
+#[test]
+fn a_second_observed_round_can_block_the_preferred_evasion() {
+    let own = Ship::new(2, V::ZERO, V::ZERO, 500.0, 50.0, 60_000.0).unwrap();
+    let goal = V::new(1_000_000.0, 0.0);
+    let track = Track {
+        id: 1,
+        sampled_tick: 0,
+        received_tick: 0,
+        position: V::new(-100_000_000.0, 0.0),
+        velocity: V::new(1_000_000.0, 0.0),
+        radius: 1.0,
+    };
+    let policy = Policy {
+        safety_radius: 20_000.0,
+        ..Policy::default()
+    };
+    let first = ai::decide(
+        &own,
+        goal,
+        0.0,
+        std::slice::from_ref(&track),
+        0,
+        policy,
+        &Decision::default(),
+    );
+    // Place another observed crossing along the initially preferred escape direction.
+    let second = Track {
+        id: 2,
+        position: track.position + first.acceleration * (0.5 * 100.0_f64.powi(2)),
+        ..track.clone()
+    };
+    let both = ai::decide(
+        &own,
+        goal,
+        0.0,
+        &[track, second],
+        0,
+        policy,
+        &Decision::default(),
+    );
+    assert_ne!(both.acceleration, first.acceleration);
+    assert!(both.reason.contains("evaluating 2 observed tracks"));
+    assert!(both.acceleration.length() <= own.max_acceleration);
 }

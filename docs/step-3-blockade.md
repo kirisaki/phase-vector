@@ -27,7 +27,7 @@ the frozen physical state is at the end of that tick.
 | Initial separation, velocities, acceleration, delta-v | Existing 240,000 km / 75 and 37.5 km/s / 5 G / 60 km/s trial |
 | Goal center | Enemy's initial X, Y = -45,000 km |
 | Goal radius | 1,000 km; entry uses the ship center |
-| Deadline | 1,200 s (ten command intervals) |
+| Deadline | 1,320 s (eleven command intervals) |
 | No-attack entry time | 1,173.333333 s |
 | Relative muzzle speed / projectile radius | 660 km/s / 1 m |
 | Reload | 30 s; no ammunition-count limit |
@@ -35,20 +35,17 @@ the frozen physical state is at the end of that tick.
 | Stale projectile track retention | 300 s from its last sample |
 | Enemy decision cadence | Every 1 s |
 | Enemy threat lookahead | 120 s, independent of projectile flight time |
-| Safety corridor | 1,000 km plus physical contact radii |
-| Evasion commitment | 120 s |
+| Safety corridor | 500 km plus physical contact radii |
+| Evasion commitment | 1 s |
 | Cruise recovery response | 120 s |
 
-These are game tuning assumptions. In particular the enemy is a conservative
-controller, not an optimal pilot. The deadline has little slack; this is a
-functional demonstration, not a claim of final difficulty balance.
-
-The warning corridor was widened from 75 km to 1,000 km so modest targeting
-offsets can provoke evasion at the overview scale. Physical hit radii and the
-120-second threat horizon are unchanged. Reaction is not monotonic with corridor
-width: a different avoidance direction can help the enemy recover its schedule.
-The current seven-shot lead trial still prevents breakthrough without a hit;
-the displaced seven-shot trial and the no-attack trial still lose.
+These are provisional game tuning assumptions. The deadline provides about
+147 seconds of slack beyond unopposed entry. The previous 1,000 km warning
+corridor, 120-second full-thrust evasion, and 1,200-second deadline let repeated
+automatic lead salvos win by delay alone. The current controller reevaluates
+short burns and can resume progress sooner. Physical hit radii, reaction horizon,
+reload, and the four-slot firing UX are unchanged. This is a deterministic
+balance trial, not a claim that all repetitive strategies have been eliminated.
 
 ## Gun and command timing
 
@@ -118,14 +115,21 @@ for diagnostics, with observation timestamps and AI reasons available separately
 ## Enemy controller
 
 The controller reevaluates once per simulated second. It normally steers toward
-the goal at the original cruise speed, correcting transverse velocity and
-returning after an evasion. An approaching observed projectile becomes a threat
-when its predicted closest approach enters the safety corridor within the
-reaction window. Evasion accelerates perpendicular to relative projectile
-velocity, choosing the side farther from the predicted crossing. A symmetric
-approach uses a deterministic side. The controller holds the evasion for the
-configured commitment, then resumes recovery or reacts to another observation.
-All thrust uses the same acceleration and delta-v limits as the player.
+the goal at the original cruise speed, correcting transverse velocity. It first
+checks that recovery burn against every relevant delivered projectile track in
+the 120-second horizon. If recovery is safe, it resumes immediately after the
+current one-second commitment.
+
+Otherwise, it evaluates coasting and eight mission-relative directions at
+12.5%, 25%, 50%, 75%, and 100% thrust against all relevant observed rounds.
+It prefers candidates that clear every safety corridor, with lower thrust and
+less backward acceleration. If none is safe, it maximizes the worst clearance.
+Fixed candidate order resolves ties deterministically. Candidate trajectories
+assume constant acceleration until delta-v runs out and use closest approach
+along two-second segments; these are approximate AI forecasts, not authoritative
+physics or collision checks. Broad-phase filtering includes the maximum
+acceleration displacement so a burn cannot silently introduce an ignored threat.
+All actual thrust uses the same acceleration and delta-v limits as the player.
 
 Enemy autonomy can react inside a player command interval. It cannot receive
 player draft orders or observe reservations before launch. No random choices or
@@ -160,15 +164,29 @@ reservation/cooldown validation, projectile persistence, observation delivery,
 no hidden-state presentation, evasion/recovery, terminal locks, retry, Lua/API
 agreement, and full mission replay.
 
-`cargo run --example blockade_trials` compares no attack with seven observed-lead
-shots and seven shots placed 10,000 km away in Y. With the current tuning, the
-lead pattern wins by timeout without hits; the displaced pattern loses by
-breakthrough. Both fire the same number of shots and the enemy still has fuel.
-The demonstration validates placement-dependent delay, not optimal tactics.
+`cargo run --example blockade_trials` compares these reproducible patterns.
+All targeting uses the current observed lead for each reload slot, with no
+friendly burn. The spread adds world Y offsets of 0, +300, +600, and +900 km
+within each salvo, covering alternative evasion routes. Both 16-round patterns
+fire only during the first four command intervals.
+
+| Pattern | Shots | Hits | Outcome / time | Enemy delta-v spent |
+| --- | ---: | ---: | --- | ---: |
+| No attack | 0 | 0 | Breakthrough / 1,173.333 s | 0 km/s |
+| Automatic lead, first four salvos | 16 | 0 | Breakthrough / 1,201.480 s | 11.81 km/s |
+| Automatic lead, every interval | 40 | 0 | Breakthrough / 1,183.797 s | 19.45 km/s |
+| Spread, first four salvos | 16 | 0 | Timeout / 1,320 s | 40.75 km/s |
+
+The same shot count now has different outcomes, and successful blockade leaves
+the enemy with fuel. These scenarios do not prove universal difficulty balance;
+the finite candidate set and constant-burn prediction can still be exploited.
 
 `scripts/mission_smoke.py` plays the default mission in Chromium, including a
-no-attack defeat and the seven-shot non-hit victory. It exercises mouse/touch
-aiming, queue/cancel, running edits, launch boundaries, frozen outcomes, and retry.
+no-attack defeat and the 16-shot spread victory without hits. It exercises
+mouse/touch aiming, queue/cancel, running edits, launch boundaries, frozen
+outcomes, and retry. Arrow Up moves the target by +100 km, so three presses per
+spacing increment reproduce the spread through normal controls.
+
 The browser renders the default blockade; `?sandbox=1` retains the original
 sandbox for `scripts/browser_smoke.py` regression checks.
 

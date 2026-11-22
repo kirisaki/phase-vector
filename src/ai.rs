@@ -9,7 +9,9 @@ use serde::Serialize;
 pub const DECISION_TICKS: u64 = crate::timing::seconds_to_ticks(1);
 // These tolerances serve different physical quantities and must not share an epsilon.
 const COAST_ACCELERATION_TOLERANCE: f64 = 0.001; // m/s²
-const SYMMETRIC_APPROACH_TOLERANCE: f64 = 1.0; // m
+const EVASION_FRACTIONS: [f64; 5] = [0.125, 0.25, 0.5, 0.75, 1.0];
+const PREDICTION_STEP_SECONDS: f64 = 2.0;
+const CLEARANCE_TIE_TOLERANCE: f64 = 1e-9;
 
 #[derive(Clone, Debug, PartialEq, Serialize)]
 pub struct Decision {
@@ -42,8 +44,8 @@ impl Default for Policy {
     fn default() -> Self {
         Self {
             reaction_seconds: 120.0,
-            safety_radius: 1000.0 * crate::units::METRES_PER_KILOMETRE,
-            hold_seconds: 120.0,
+            safety_radius: 500.0 * crate::units::METRES_PER_KILOMETRE,
+            hold_seconds: 1.0,
             recovery_seconds: 120.0,
         }
     }
@@ -83,44 +85,138 @@ pub fn decide(
         "Returning to mission route and cruise speed"
     }
     .into();
-    let danger = tracks
+    let goal_direction = if offset.length() > 0.0 {
+        offset * (1.0 / offset.length())
+    } else {
+        Vector2::new(1.0, 0.0)
+    };
+    // Broad phase includes any track reachable under maximum acceleration in the horizon.
+    let travel = 0.5
+        * own.max_acceleration
+        * policy.reaction_seconds
+        * (policy.reaction_seconds + STEP_SECONDS);
+    let relevant: Vec<_> = tracks
         .iter()
-        .filter_map(|track| {
+        .filter(|track| {
             let r = track.position_at(now) - own.position;
             let v = track.velocity - own.velocity;
-            let speed2 = v.x * v.x + v.y * v.y;
-            if speed2 <= 0.0 {
-                return None;
+            let speed2 = dot(v, v);
+            if speed2 == 0.0 {
+                return r.length() <= policy.safety_radius + own.radius + track.radius + travel;
             }
-            let t = -(r.x * v.x + r.y * v.y) / speed2;
-            let miss = (r + v * t).length();
-            (t >= 0.0
-                && t <= policy.reaction_seconds
-                && miss < policy.safety_radius + own.radius + track.radius)
-                .then_some((t, track))
+            let t = (-dot(r, v) / speed2).clamp(0.0, policy.reaction_seconds);
+            (r + v * t).length() <= policy.safety_radius + own.radius + track.radius + travel
         })
-        .min_by(|a, b| a.0.total_cmp(&b.0).then(a.1.id.cmp(&b.1.id)));
-    if let Some((t, track)) = danger {
-        let relative_velocity = track.velocity - own.velocity;
-        let normal = Vector2::new(-relative_velocity.y, relative_velocity.x)
-            * (1.0 / relative_velocity.length());
-        let separation =
-            own.position + own.velocity * t - (track.position_at(now) + track.velocity * t);
-        let signed = separation.x * normal.x + separation.y * normal.y;
-        // On a symmetric approach use a stable side, not hidden mission outcomes.
-        let direction = if signed < -SYMMETRIC_APPROACH_TOLERANCE {
-            normal * -1.0
-        } else {
-            normal
-        };
-        decision.acceleration = direction * own.max_acceleration;
-        decision.reason = format!(
-            "Evading observed projectile {} (closest approach in {:.1} s)",
-            track.id, t
-        );
-        decision.threat_id = Some(track.id);
-        decision.hold_until = now + (policy.hold_seconds / STEP_SECONDS).ceil() as u64;
+        .collect();
+    if relevant.is_empty() {
+        return decision;
+    }
+    let recovery = decision.acceleration;
+    let (recovery_clearance, threat) = clearance(own, recovery, &relevant, now, policy);
+    if recovery_clearance >= 1.0 {
+        return decision;
+    }
+    // Evaluate all observed threats together. Prefer a safe low-cost burn, then forward progress.
+    let mut best = recovery;
+    let mut best_clearance = recovery_clearance;
+    let mut best_cost = f64::INFINITY;
+    let mut consider = |acceleration: Vector2| {
+        let (margin, _) = clearance(own, acceleration, &relevant, now, policy);
+        let cost = acceleration.length() + 2.0 * (-dot(acceleration, goal_direction)).max(0.0);
+        let safe = margin >= 1.0;
+        let best_safe = best_clearance >= 1.0;
+        if (safe && !best_safe)
+            || (safe && best_safe && cost < best_cost)
+            || (!safe
+                && !best_safe
+                && (margin > best_clearance + CLEARANCE_TIE_TOLERANCE
+                    || ((margin - best_clearance).abs() <= CLEARANCE_TIE_TOLERANCE
+                        && cost < best_cost)))
+        {
+            best = acceleration;
+            best_clearance = margin;
+            best_cost = cost;
+        }
+    };
+    consider(Vector2::ZERO);
+    // Rotate from the mission direction to make equal-cost choices deterministic and useful.
+    for fraction in EVASION_FRACTIONS {
+        for i in 0..8 {
+            let angle = i as f64 * std::f64::consts::FRAC_PI_4;
+            let (sin, cos) = angle.sin_cos();
+            let direction = Vector2::new(
+                goal_direction.x * cos - goal_direction.y * sin,
+                goal_direction.x * sin + goal_direction.y * cos,
+            );
+            consider(direction * (own.max_acceleration * fraction));
+        }
+    }
+    decision.acceleration = best;
+    decision.threat_id = threat;
+    decision.hold_until = now + (policy.hold_seconds / STEP_SECONDS).ceil() as u64;
+    if previous.threat_id != threat {
         decision.evasions += 1;
     }
+    decision.reason = format!(
+        "Evading observed projectile {} with {:.1}% thrust; evaluating {} observed tracks",
+        threat.unwrap_or(0),
+        100.0 * best.length() / own.max_acceleration.max(1.0),
+        relevant.len()
+    );
+
     decision
+}
+
+fn dot(a: Vector2, b: Vector2) -> f64 {
+    a.x * b.x + a.y * b.y
+}
+
+// Predict a candidate burn with finite fuel. Segment closest-approach checks retain fast rounds.
+// This is an AI approximation, never the authoritative collision detector.
+fn clearance(
+    own: &Ship,
+    acceleration: Vector2,
+    tracks: &[&Track],
+    now: u64,
+    policy: Policy,
+) -> (f64, Option<u64>) {
+    let magnitude = acceleration.length();
+    let burn_time = if magnitude > 0.0 {
+        own.remaining_dv / magnitude
+    } else {
+        0.0
+    };
+    let position = |t: f64| {
+        let burning = t.min(burn_time);
+        own.position
+            + own.velocity * t
+            + acceleration * (burning * (t - 0.5 * burning + 0.5 * STEP_SECONDS))
+    };
+    let mut minimum = f64::INFINITY;
+    let mut threat = None;
+    for track in tracks {
+        let origin = track.position_at(now);
+        let radius = (policy.safety_radius + own.radius + track.radius).max(1.0);
+        let mut time = 0.0;
+        let mut relative = own.position - origin;
+        while time < policy.reaction_seconds {
+            let next_time = (time + PREDICTION_STEP_SECONDS).min(policy.reaction_seconds);
+            let next = position(next_time) - (origin + track.velocity * next_time);
+            let delta = next - relative;
+            let u = if dot(delta, delta) > 0.0 {
+                (-dot(relative, delta) / dot(delta, delta)).clamp(0.0, 1.0)
+            } else {
+                0.0
+            };
+            let distance = relative + delta * u;
+            let ratio = dot(distance, distance) / (radius * radius);
+            if ratio < minimum {
+                minimum = ratio;
+                threat = Some(track.id);
+            }
+            relative = next;
+            time = next_time;
+        }
+    }
+    (minimum, threat)
 }

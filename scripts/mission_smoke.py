@@ -2,6 +2,7 @@
 """Play the blockade through its real browser controls, including touch aiming."""
 import argparse
 import mimetypes
+import math
 from pathlib import Path
 from urllib.parse import unquote, urlparse
 from playwright.sync_api import sync_playwright, expect
@@ -92,17 +93,18 @@ def main():
             assert page.locator('#enemy-acceleration').get_attribute('d') == ''
             for _ in range(2):
                 page.locator('#step').click()
-            expect(page.locator('#enemy-contact')).to_have_attribute('data-motion', 'slowing')
+            assert page.locator('#enemy-contact').get_attribute('data-motion') in ('slowing', 'speeding', 'turning')
             assert page.locator('#enemy-acceleration').get_attribute('d')
-            assert state()['mission']['observed_acceleration']['y'] > 0
+            acceleration = state()['mission']['observed_acceleration']
+            assert acceleration['x'] ** 2 + acceleration['y'] ** 2 > 0
             assert 'ai_reason' not in state()['mission']
-            page.screenshot(path=str(artifacts / 'enemy-slowing-desktop.png'))
+            page.screenshot(path=str(artifacts / 'enemy-evading-desktop.png'))
             page.set_viewport_size({'width': 390, 'height': 844})
             page.wait_for_timeout(300)
             expect(page.locator('#enemy-symbol')).to_be_in_viewport()
             expect(page.locator('#enemy-speed')).to_be_in_viewport()
             assert page.locator('#enemy-symbol').bounding_box()['height'] >= 19
-            page.screenshot(path=str(artifacts / 'enemy-slowing-phone.png'))
+            page.screenshot(path=str(artifacts / 'enemy-evading-phone.png'))
             page.set_viewport_size({'width': 1360, 'height': 1000})
             page.evaluate("wasm.command('reset')")
             page.wait_for_timeout(300)
@@ -240,15 +242,20 @@ def main():
             expect(page.locator('#mission-result')).to_be_hidden()
             assert state()['world'] == end
             retry()
-            # Seven observed-lead shots, no friendly burn: blockade without a hit.
-            for turn in range(10):
-                if turn < 7:
-                    page.locator('#queue-shot').click()
-                    assert len(state()['mission']['shots']) == turn
+            # Cover observed evasion routes with 16 rounds, no friendly burn or hits.
+            for turn in range(math.ceil(state()['mission']['deadline_seconds'] / timing['interval_seconds'])):
+                if turn < 4:
+                    for round_index in range(4):
+                        page.locator('#track-aim').click()
+                        page.locator('#aim-handle').focus()
+                        for _ in range(round_index * 3):
+                            page.keyboard.press('ArrowUp')
+                        page.locator('#queue-shot').click()
+                    assert len(state()['mission']['shots']) == turn * 4
                 next_turn()
                 if turn == 0:
-                    assert len(state()['world']['projectiles']) == 1
-                assert len(state()['mission']['shots']) == min(turn + 1, 7)
+                    assert len(state()['world']['projectiles']) == 4
+                assert len(state()['mission']['shots']) == min(turn + 1, 4) * 4
                 if turn == 4:
                     shots = state()['mission']['shots']
                     expect(page.locator('#launch-list > div')).to_have_text([
@@ -267,8 +274,8 @@ def main():
             expect(page.locator('#mission-result')).to_be_visible()
             expect(page.locator('#result-title')).to_have_text('VICTORY')
             expect(page.locator('#result-reason')).to_contain_text('missed its deadline')
-            expect(page.locator('#result-shots')).to_have_text('7')
-            expect(page.locator('#mission-metrics')).to_contain_text('7 shots')
+            expect(page.locator('#result-shots')).to_have_text('16')
+            expect(page.locator('#mission-metrics')).to_contain_text('16 shots')
             assert page.locator('#tactical-map').bounding_box() == canvas
             page.screenshot(path=str(artifacts / 'mission-victory.png'))
             page.locator('#result-view').click()
@@ -359,7 +366,7 @@ def main():
                     client.detach()
                 page.screenshot(path=str(artifacts / f'mission-{width}x{height}.png'))
             assert not errors, errors
-            print('PASS: observed prediction, pointer/touch aiming, four-round 30-second salvo/locked orders/individual cancel/full queue, boundary firing, persistence, no-attack defeat, seven-shot non-hit victory, frozen results, retry, and responsive layout')
+            print('PASS: observed prediction, pointer/touch aiming, four-round 30-second salvo/locked orders/individual cancel/full queue, boundary firing, persistence, no-attack defeat, 16-shot non-hit victory, frozen results, retry, and responsive layout')
         except Exception:
             page.screenshot(path=str(artifacts / 'mission-failure.png'), full_page=True)
             raise

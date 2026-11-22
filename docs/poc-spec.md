@@ -142,7 +142,8 @@ compilation checks alone do not satisfy this milestone.
   Bit-identical results across browsers and architectures are not claimed until
   explicitly verified.
 - About ten 120-second intervals suggests an initial mission duration near
-  1,200 seconds. Step 3 adopts this provisional deadline.
+  1,200 seconds. The current balance trial uses 1,320 seconds (eleven intervals)
+  to allow recovery after modest evasions.
 - Exact ordering for arrival, impact, and timeout at the same simulation instant
   is implemented and tested: earlier event wins, exact hit/entry ties favor
   disablement, and entry/impact at the deadline precedes timeout.

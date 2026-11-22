@@ -38,7 +38,14 @@ fn timed_solution_preserves_muzzle_speed_and_reaches_the_fixed_point() {
 fn requests_reject_invalid_times_and_reload_conflicts_atomically() {
     let mut s = Session::blockade();
     let (target, arrival) = request(&s, 600, 300.0);
-    for time in [f64::NAN, f64::INFINITY, -1.0, 0.0, 1.0, 1201.0] {
+    for time in [
+        f64::NAN,
+        f64::INFINITY,
+        -1.0,
+        0.0,
+        1.0,
+        Config::default().deadline_tick as f64 * STEP_SECONDS + 1.0,
+    ] {
         assert!(s.dispatch(C::QueueTimedShot(target, time)).is_err());
         assert!(s.mission().unwrap().queued.is_empty());
     }

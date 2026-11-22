@@ -9,7 +9,7 @@ and delta-v expenditure.
 ## Status
 
 **Step 4 complete: future preview and arrival-time shooting.** One friendly ship must stop a non-firing enemy
-from reaching its exit before 1,200 seconds. Fire an unguided railgun at a future
+from reaching its exit before 1,320 seconds. Fire an unguided railgun at a future
 point; the enemy reacts only to delivered attack observations and tries to
 recover its course. Win by disabling it or delaying it past the deadline.
 
@@ -159,7 +159,7 @@ share the status area; longer messages can be scrolled inside it.
 | Reload page | Start a new simulation and Lua session |
 
 The red **EXIT** circle marks the enemy's destination. Prevent entry until the
-1,200-second deadline. A hit wins immediately; fuel exhaustion or a temporary
+1,320-second deadline. A hit wins immediately; fuel exhaustion or a temporary
 course deviation alone does not win. Terminal results freeze time and report the
 reason, event time, shot count, and friendly delta-v spent. Exact simultaneous
 impact/entry favors disablement; entry at the deadline beats timeout. No formal
@@ -446,7 +446,7 @@ python scripts/browser_smoke.py --url http://127.0.0.1:5173/ --rebuild
 
 The mission smoke test uses the default game and checks observed prediction,
 mouse/touch target dragging, queue/cancel, running reservations, 30-second salvo timing, frozen active shots,
-ballistic persistence, no-attack defeat, seven-shot non-hit timeout victory,
+ballistic persistence, no-attack defeat, 16-shot non-hit timeout victory,
 terminal locks, retry, desktop/phone layouts, mouse panning, anchored touch
 pinching, and cancellation of editor drafts when a second finger takes over.
 It also accepts `--url` and
@@ -527,8 +527,12 @@ are absolute simulation seconds and coordinates are metres. See the complete
   processing plus rounded-up light travel time measured at sampling. Moving
   receivers, noise, occlusion, and relativistic effects are not modeled.
 - The enemy reacts autonomously once per second, within player command intervals.
-  Its 120 s threat horizon is independent of projectile flight time. A conservative
-  1,000 km safety corridor and 120 s committed evasion are tuning assumptions.
+  Its 120 s threat horizon is independent of projectile flight time. The provisional
+  safety corridor is 500 km, with 1 s evasion commitments. The controller checks
+  multiple observed rounds together, prefers safe low-thrust candidates, and
+  resumes cruise recovery as soon as it predicts that recovery is safe.
+  Candidate prediction approximates constant burns with finite delta-v; it is
+  not an optimal pilot. See [balance trials](docs/step-3-blockade.md#tuning-and-scope-limits).
 - The normal view extrapolates the latest received enemy track. The initial track
   is supplied by the briefing. Lua inspection intentionally exposes true state.
 - One constant burn repeats each interval; a shot reservation fires only once.

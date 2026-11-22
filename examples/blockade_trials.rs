@@ -1,31 +1,38 @@
+//! Compare shot placement using only observed lead points for targeting.
 use phase_vector::{
     physics::Vector2 as V,
     session::{Command as C, Session},
+    units::METRES_PER_KILOMETRE,
 };
+
 fn main() {
-    for offset in [None, Some(0.0), Some(10_000_000.0)] {
+    for (name, firing_turns, spacing_km) in [
+        ("No attack", 0, 0.0),
+        ("Lead / 16 rounds", 4, 0.0),
+        ("Continuous lead salvos", usize::MAX, 0.0),
+        ("Spread / 16 rounds", 4, 300.0),
+    ] {
         let mut s = Session::blockade();
-        for turn in 0..10 {
-            if s.finished() {
-                break;
-            }
-            if turn < 7
-                && let Some(y) = offset
-            {
-                let target = s.aim().unwrap().target + V::new(0.0, y);
-                s.dispatch(C::QueueShot(target)).unwrap();
+        let mut turn = 0;
+        while !s.finished() {
+            if turn < firing_turns {
+                for round in 0..4 {
+                    let offset = V::new(0.0, round as f64 * spacing_km * METRES_PER_KILOMETRE);
+                    s.dispatch(C::QueueShot(s.aim().unwrap().target + offset))
+                        .unwrap();
+                }
             }
             s.dispatch(C::NextTurn).unwrap();
+            turn += 1;
         }
         let m = s.mission().unwrap();
         println!(
-            "offset={offset:?} outcome={:?} time={:?} shots={} evasions={} enemy_dv={:.2}km/s goal_miss={:.0}km",
+            "{name}: outcome={:?} time={:.3}s shots={} hits={} enemy_dv={:.2}km/s",
             m.outcome,
-            m.ended_seconds,
+            m.ended_seconds.unwrap(),
             m.shots.len(),
-            m.decision.evasions,
-            s.world().ships[1].spent_dv / 1000.0,
-            (s.world().ships[1].position - m.config.goal).length() / 1000.0
+            s.world().impacts.len(),
+            s.world().ships[1].spent_dv / METRES_PER_KILOMETRE,
         );
     }
 }

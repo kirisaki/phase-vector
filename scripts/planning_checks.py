@@ -54,14 +54,15 @@ def check_planning(page, artifacts):
     expect(page.locator('#queue-shot')).to_be_enabled()
     page.evaluate("wasm.command('reset')")
     page.wait_for_timeout(200)
-    # A timed reservation survives one turn and actually fires in the following turn.
+    # A timed reservation survives a boundary and fires at its scheduled tick in a later turn.
     arrival = select_middle()
     page.locator('#queue-shot').click()
     queued = state()['mission']['queued'][0]
     page.locator('#next-turn').click()
     assert state()['mission']['queued'][0]['id'] == queued['id']
     assert not state()['mission']['shots']
-    page.locator('#next-turn').click()
+    while state()['world']['tick'] <= queued['launch_tick']:
+        page.locator('#next-turn').click()
     shot = state()['mission']['shots'][0]
     assert shot['order_id'] == queued['id']
     assert shot['launch_tick'] == queued['launch_tick']
