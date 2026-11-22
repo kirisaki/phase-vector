@@ -9,7 +9,7 @@ and delta-v expenditure.
 ## Status
 
 **Step 5 complete: diagnostic settings, evaluation, and retry.** One friendly ship must stop a non-firing enemy
-from reaching its exit before 1,230 seconds. Fire an unguided railgun at a future
+from reaching its exit before 1,215 seconds. Fire an unguided railgun at a future
 point; the enemy reacts only to delivered attack observations and tries to
 recover its course. Win by disabling it or delaying it past the deadline.
 
@@ -175,13 +175,13 @@ share the status area; longer messages can be scrolled inside it.
 | Reload page | Start a new simulation and Lua session |
 
 The red **EXIT** circle marks the enemy's destination. Prevent entry until the
-1,230-second deadline. A hit wins immediately; fuel exhaustion or a temporary
+1,215-second deadline. A hit wins immediately; fuel exhaustion or a temporary
 course deviation alone does not win. Terminal results freeze time and report the
 reason, event time, shot count, and friendly delta-v spent.
-The standard deadline leaves about 57 seconds beyond unopposed entry; the prior
-1,320-second trial required about 147 seconds of delay. See the
+The standard deadline leaves about 42 seconds beyond unopposed entry, down from
+about 57 seconds at the previous 1,230-second deadline. See the
 [balance trials](docs/step-3-blockade.md#tuning-and-scope-limits) for reproducible
-placement-dependent wins with twelve shots. Exact simultaneous
+placement-dependent wins with eight or twelve shots. Exact simultaneous
 impact/entry favors disablement; entry at the deadline beats timeout. Both victory
 types receive the same base score.
 

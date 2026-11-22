@@ -32,7 +32,7 @@ impl Default for Config {
                 -45_000.0 * METRES_PER_KILOMETRE,
             ),
             goal_radius: 1_000.0 * METRES_PER_KILOMETRE,
-            deadline_tick: seconds_to_ticks(1230),
+            deadline_tick: seconds_to_ticks(1215),
             reload_ticks: seconds_to_ticks(30),
             sensor_processing_ticks: seconds_to_ticks(1),
             cruise_speed: scenario::CONTACT_SPEED,

@@ -10,6 +10,7 @@ fn main() {
         ("No attack", 0, 0.0),
         ("Lead / 16 rounds", 4, 0.0),
         ("Continuous lead salvos", usize::MAX, 0.0),
+        ("Spread / 8 rounds", 2, 900.0),
         ("Spread / 12 rounds", 3, 900.0),
         ("Spread / 16 rounds", 4, 300.0),
     ] {

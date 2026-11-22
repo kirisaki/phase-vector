@@ -964,3 +964,54 @@ fn standard_deadline_allows_three_salvos_with_a_wider_spread() {
         }
     }
 }
+
+#[test]
+fn shorter_deadline_makes_two_spread_salvos_more_forgiving() {
+    // Historical deadline is deliberately literal: compare the same orders before/after tuning.
+    for deadline_tick in [
+        phase_vector::timing::seconds_to_ticks(1230),
+        Config::default().deadline_tick,
+    ] {
+        for spacing_km in [750.0, 800.0, 850.0, 900.0] {
+            for start_turn in [0, 1] {
+                let mut s = Session::with_mission(
+                    scenario::initial_world(),
+                    1,
+                    Config {
+                        deadline_tick,
+                        ..Config::default()
+                    },
+                )
+                .unwrap();
+                for _ in 0..start_turn {
+                    s.dispatch(C::NextTurn).unwrap();
+                }
+                for _ in 0..2 {
+                    for round in 0..4 {
+                        let offset = V::new(
+                            0.0,
+                            round as f64 * spacing_km * phase_vector::units::METRES_PER_KILOMETRE,
+                        );
+                        s.dispatch(C::QueueShot(s.aim().unwrap().target + offset))
+                            .unwrap();
+                    }
+                    s.dispatch(C::NextTurn).unwrap();
+                }
+                run_to_end(&mut s);
+                let expected = if deadline_tick == Config::default().deadline_tick {
+                    Outcome::Timeout
+                } else {
+                    Outcome::Breakthrough
+                };
+                assert_eq!(
+                    s.mission().unwrap().outcome,
+                    expected,
+                    "deadline={deadline_tick}, spacing={spacing_km}, start={start_turn}"
+                );
+                assert_eq!(s.mission().unwrap().shots.len(), 8);
+                assert!(s.world().impacts.is_empty());
+                assert!(s.world().ships[1].remaining_dv > 0.0);
+            }
+        }
+    }
+}

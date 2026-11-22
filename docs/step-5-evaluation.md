@@ -101,9 +101,10 @@ settings and true enemy state do not enter normal prediction rendering.
   score, and baseline restoration on desktop, portrait, and landscape layouts.
 - Existing browser checks retain coverage of planning, observation-based aiming,
   touch, Auto/Commit/Skip, results, and in-game Retry confirmation.
-- Existing placement trials retain outcomes: no attack and repeated lead shots
-  lose (0 points); twelve spread shots win without hits (1,760 points); sixteen
-  spread shots win without hits (1,680 points).
+- Current placement trials: no attack and repeated lead shots
+  lose (0 points); eight spread shots win without hits (1,840 points) at the
+  current 1,215-second deadline; twelve spread shots win without hits (1,760 points);
+  sixteen spread shots win without hits (1,680 points).
 
 Chromium interaction checks exercise the built artifact under the GitHub Pages
 project path and the Vite development build. They do not establish compatibility

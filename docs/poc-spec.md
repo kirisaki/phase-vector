@@ -147,7 +147,7 @@ compilation checks alone do not satisfy this milestone.
   Bit-identical results across browsers and architectures are not claimed until
   explicitly verified.
 - About ten 120-second intervals suggests an initial mission duration near
-  1,200 seconds. The current balance trial uses 1,230 seconds (ten intervals plus 30 seconds)
+  1,200 seconds. The current balance trial uses 1,215 seconds (ten intervals plus 15 seconds)
   to reduce the delay needed for a successful blockade.
 - Exact ordering for arrival, impact, and timeout at the same simulation instant
   is implemented and tested: earlier event wins, exact hit/entry ties favor

@@ -27,7 +27,7 @@ the frozen physical state is at the end of that tick.
 | Initial separation, velocities, acceleration, delta-v | Existing 240,000 km / 75 and 37.5 km/s / 5 G / 60 km/s trial |
 | Goal center | Enemy's initial X, Y = -45,000 km |
 | Goal radius | 1,000 km; entry uses the ship center |
-| Deadline | 1,230 s (ten command intervals plus 30 s) |
+| Deadline | 1,215 s (ten command intervals plus 15 s) |
 | No-attack entry time | 1,173.333333 s |
 | Relative muzzle speed / projectile radius | 660 km/s / 1 m |
 | Reload | 30 s; no ammunition-count limit |
@@ -40,10 +40,11 @@ the frozen physical state is at the end of that tick.
 | Cruise recovery response | 120 s |
 
 These are provisional game tuning assumptions. The deadline provides about
-57 seconds of slack beyond unopposed entry. The previous 1,320-second trial
-required about 147 seconds of delay and was too demanding for standard play.
-The deadline is now 90 seconds shorter; the enemy controller, warning corridor,
-physical hit radii, reaction horizon, reload, and four-slot firing UX are unchanged.
+42 seconds of slack beyond unopposed entry. The previous 1,230-second trial
+required about 57 seconds of delay; the older 1,320-second trial required 147 seconds.
+The latest change shortens the deadline by another 15 seconds; the enemy controller,
+warning corridor, physical hit radii, reaction horizon, reload, and four-slot firing
+UX are unchanged.
 Repeated automatic lead salvos still lose, while fewer deliberately placed shots
 can prevent breakthrough. This is a deterministic balance trial, not a claim
 that every offset or firing schedule succeeds.
@@ -169,22 +170,28 @@ agreement, and full mission replay.
 `cargo run --example blockade_trials` compares these reproducible patterns.
 All targeting uses the current observed lead for each reload slot, with no
 friendly burn. Each salvo contains four shots at the default reload spacing.
-The 12-round spread adds world Y offsets of 0, +900, +1,800, and +2,700 km per
-salvo, during the first three intervals. The original 16-round spread uses
-0, +300, +600, and +900 km during the first four intervals.
+The 8- and 12-round spreads add world Y offsets of 0, +900, +1,800, and +2,700 km per
+salvo, during the first two and three intervals respectively. The original
+16-round spread uses 0, +300, +600, and +900 km during the first four intervals.
 
 | Pattern | Shots | Hits | Outcome / time | Enemy delta-v spent |
 | --- | ---: | ---: | --- | ---: |
 | No attack | 0 | 0 | Breakthrough / 1,173.333 s | 0 km/s |
 | Automatic lead, first four salvos | 16 | 0 | Breakthrough / 1,201.480 s | 11.81 km/s |
 | Automatic lead, every interval | 40 | 0 | Breakthrough / 1,183.797 s | 19.45 km/s |
-| Wider spread, first three salvos | 12 | 0 | Timeout / 1,230 s | 19.62 km/s |
-| Original spread, first four salvos | 16 | 0 | Timeout / 1,230 s | 40.32 km/s |
+| Wider spread, first two salvos | 8 | 0 | Timeout / 1,215 s | 16.75 km/s |
+| Wider spread, first three salvos | 12 | 0 | Timeout / 1,215 s | 19.60 km/s |
+| Original spread, first four salvos | 16 | 0 | Timeout / 1,215 s | 40.21 km/s |
+
+The 8-shot regression checks 750, 800, 850, and 900 km spacing, with the first
+salvo starting at either zero or 120 seconds. All eight combinations win without
+hits at 1,215 seconds; the same orders lost at the previous 1,230-second deadline.
+This broadens the accepted placements rather than requiring one exact pattern.
 
 The 12-shot regression also checks 800 and 1,000 km spacing and a first salvo
 starting at 120 seconds instead of zero. All six combinations win without hits
-or fuel exhaustion. With the old deadline, the same three start-at-zero patterns
-lost at about 1,235.651, 1,245.235, and 1,252.724 seconds respectively.
+or fuel exhaustion. With the older 1,320-second deadline, the same three
+start-at-zero patterns lost at about 1,235.651, 1,245.235, and 1,252.724 seconds respectively.
 The same 16-shot count still has different outcomes depending on placement.
 These scenarios do not prove universal difficulty balance; the finite candidate
 set and constant-burn prediction can still be exploited, and some evasions help
