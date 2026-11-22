@@ -45,7 +45,10 @@
               <g id="time-forecast"/><g id="arrival-contact"><path/><text/></g>
               <g id="aim-handle" role="button" tabindex="0" aria-label="Drag shot target. Near observed lead, aim snaps to the intercept. Hold Shift to bypass snapping. Arrow keys adjust; Home tracks observed lead."><circle r="28" class="handle-hit"/><path d="M-12 0H12M0 -12V12"/><circle r="7"/><text x="14" y="-12">Aim</text><g id="aim-grip"><path class="grip-link"/><g class="grip-control"><circle r="22"/><path d="M-8 0H8M0 -8V8"/><text y="34" text-anchor="middle">Fine aim</text></g></g></g>
             </svg><div class="map-caption"><div class="map-scale"><span id="grid-label">GRID / km</span><span id="range-label">RANGE / —</span><span id="railgun-label">RAILGUN / —</span></div><span id="command-number">COMMAND 01</span></div></div>
-          <div id="timeline-controls" hidden><button id="forecast-live" aria-pressed="true" title="Return to live positions and automatic shot arrival">Live</button><label for="forecast-time" id="forecast-label">Live · drag to plan arrival</label><input id="forecast-time" type="range" min="0" max="1200" step="0.25" value="0" aria-label="Future preview and shot arrival time"></div>
+          <div id="timeline-controls" hidden><button id="forecast-live" aria-pressed="true" title="Return to live positions and automatic firing time">Live</button><label for="forecast-time" id="forecast-label">Live · drag to plan firing</label><div id="forecast-scale" title="Cyan: until the next command. Amber: later firing times. Green diamonds: firing windows after reload. Arrow keys fine-tune time. Q queues a shot while adjusting time; touch users can tap Queue with another finger.">
+            <div id="forecast-axis" aria-hidden="true"><div id="forecast-ticks"></div><div id="forecast-ready-marks"></div><span id="forecast-ready-label"></span><span class="forecast-now">Now</span><span id="forecast-boundary"></span><span id="forecast-end"></span></div>
+            <input id="forecast-time" type="range" min="0" max="1" step="any" value="0" aria-label="Future preview and shot firing time. Press Q to queue a shot." aria-keyshortcuts="Q">
+          </div></div>
           <div class="flight-controls" tabindex="0" aria-label="Flight controls">
             <div class="transport">
               <div class="command-row">
@@ -71,7 +74,7 @@
               <div class="retry-action"><button id="retry" type="button" title="Restart the mission after victory or defeat" disabled>Retry</button></div>
             </div>
             <section id="mission-controls" aria-label="Blockade mission" hidden>
-              <div class="gun-buttons"><button id="queue-shot" disabled>Queue shot</button><button id="track-aim" title="Aim at the observed constant-velocity intercept" disabled>Track lead</button><button id="cancel-shot" disabled>Clear queue</button></div>
+              <div class="gun-buttons"><button id="queue-shot" aria-describedby="gun-feedback" title="Queue the current target and firing time. Press Q while using the timeline, or tap here with another finger." disabled>Queue shot</button><button id="track-aim" title="Aim at the observed constant-velocity intercept" disabled>Track lead</button><button id="cancel-shot" disabled>Clear queue</button></div>
               <div id="shot-ledger">
                 <div id="shot-queue" role="list" aria-label="Queued shots"><span id="empty-queue">No queued shots</span></div>
                 <section id="shot-history" aria-label="Recent launches"><h3>Recent launches</h3><div id="launch-list" role="list"></div><span id="empty-history">No shots fired</span></section>

@@ -82,7 +82,8 @@ alongside the applied thrust vector, including gaps left by cancellation, for
 deterministic replay. Terminal outcomes stop pending launches.
 
 Step 3 originally chose only a launch slot. [Step 4](step-4-planning.md) extends
-the UI/API with requested arrival times and maneuver-driven rescheduling. There is no blast damage, projectile lifetime,
+planning with explicit firing times and observation-based intercepts. The original
+arrival-constrained API also supports maneuver-driven rescheduling. There is no blast damage, projectile lifetime,
 ship-to-ship collision, guided weapon, or enemy gun.
 
 ## Information boundary

@@ -1,18 +1,88 @@
 import { forecast_at } from './pkg/phase_vector.js';
 
-// The slider changes a read-only preview and the next shot's requested arrival.
+// Reserve space for the imminent command without losing distant firing plans.
+const NEAR_SHARE = 0.4;
+const SNAP_PIXELS = 5;
+const SNAP_SECONDS = 6;
+const THUMB_SIZE = 14;
+
+function timeScale(now, end, interval) {
+  const boundary = Math.min(end, (Math.floor(now / interval) + 1) * interval);
+  const split = boundary < end ? NEAR_SHARE : 1;
+  return {
+    now, end, boundary, split, interval,
+    time(position) {
+      return position <= split
+        ? now + (boundary - now) * position / split
+        : boundary + (end - boundary) * (position - split) / (1 - split);
+    },
+    position(time) {
+      if (end <= now) return 0;
+      return time <= boundary
+        ? split * (time - now) / (boundary - now)
+        : split + (1 - split) * (time - boundary) / (end - boundary);
+    },
+  };
+}
+
+// The slider changes a read-only preview and the next shot's firing time.
 // It never advances the simulation or rewrites existing reservations.
 export function createTimeline(onChange) {
   const root = document.getElementById('timeline-controls');
   const slider = document.getElementById('forecast-time');
   const live = document.getElementById('forecast-live');
   const label = document.getElementById('forecast-label');
-  let selected = null, forecast = null, error = '', key;
-  function reset() { selected = null; forecast = null; error = ''; key = undefined; }
-  slider.addEventListener('input', () => { selected = Number(slider.value); onChange(); });
+  const axis = document.getElementById('forecast-axis');
+  const ticks = document.getElementById('forecast-ticks');
+  const readyMarks = document.getElementById('forecast-ready-marks');
+  const readyLabel = document.getElementById('forecast-ready-label');
+  const boundaryLabel = document.getElementById('forecast-boundary');
+  const endLabel = document.getElementById('forecast-end');
+  let selected = null, forecast = null, error = '', key, scale, step;
+  let pointer, scaleKey, available = [];
+  function clearSelection() { selected = null; forecast = null; error = ''; key = undefined; }
+  function reset() { pointer = undefined; clearSelection(); }
+  function select(seconds) {
+    selected = Math.max(scale.now, Math.min(scale.end, Math.round(seconds / step) * step));
+    onChange();
+  }
+  slider.addEventListener('pointerdown', (event) => {
+    if (!slider.disabled && event.button === 0 && pointer === undefined) pointer = event.pointerId;
+  });
+  const release = () => { if (pointer !== undefined) { pointer = undefined; onChange(); } };
+  // A second finger can tap Queue without releasing the finger holding the scale.
+  window.addEventListener('pointerup', (event) => { if (event.pointerId === pointer) release(); });
+  window.addEventListener('pointercancel', (event) => { if (event.pointerId === pointer) release(); });
+  window.addEventListener('blur', release);
+  slider.addEventListener('input', () => {
+    if (!scale) return;
+    const position = Number(slider.value);
+    let seconds = scale.time(position);
+    const near = (time) => time >= scale.now && time <= scale.end &&
+      Math.abs(scale.position(time) - position) * Math.max(1, slider.clientWidth - THUMB_SIZE) <= SNAP_PIXELS;
+    // Reload readiness wins over a nearby command tick that may still be blocked.
+    const ready = available.filter(near).sort((a, b) => Math.abs(a - seconds) - Math.abs(b - seconds))[0];
+    const boundary = Math.round(seconds / scale.interval) * scale.interval;
+    if (ready !== undefined) seconds = ready;
+    else if (boundary > scale.now && Math.abs(seconds - boundary) <= SNAP_SECONDS && near(boundary)) seconds = boundary;
+    select(seconds);
+  });
+  // Keyboard nudges use real simulation ticks and bypass magnetic snapping.
+  slider.addEventListener('keydown', (event) => {
+    if (!scale || slider.disabled) return;
+    const current = selected ?? scale.now;
+    const times = { ArrowLeft: current - step, ArrowDown: current - step,
+      ArrowRight: current + step, ArrowUp: current + step,
+      PageDown: current - scale.interval, PageUp: current + scale.interval,
+      Home: scale.now, End: scale.end };
+    if (!(event.key in times)) return;
+    event.preventDefault();
+    select(times[event.key]);
+  });
   live.addEventListener('click', () => { reset(); onChange(); });
   return {
     reset,
+    get dragging() { return pointer !== undefined; },
     get seconds() { return selected; },
     get forecast() { return forecast; },
     get error() { return error; },
@@ -20,11 +90,48 @@ export function createTimeline(onChange) {
       const mission = state?.mission;
       root.hidden = !mission;
       if (!mission || !ready) { reset(); return; }
-      if (selected !== null && state.time_seconds >= selected) reset();
-      slider.min = state.time_seconds;
-      slider.max = Math.min(mission.deadline_seconds, state.time_seconds + mission.planning_horizon_seconds);
-      slider.step = state.timing.step_seconds;
-      slider.value = selected ?? state.time_seconds;
+      if (selected !== null && state.time_seconds >= selected) clearSelection();
+      step = state.timing.step_seconds;
+      // Keep the mapping fixed under the finger while Auto advances the world.
+      if (pointer === undefined || !scale) scale = timeScale(state.time_seconds,
+        Math.min(mission.deadline_seconds, state.time_seconds + mission.planning_horizon_seconds),
+        state.timing.interval_seconds);
+      slider.value = scale.position(selected ?? state.time_seconds);
+      slider.setAttribute('aria-valuemin', scale.now);
+      slider.setAttribute('aria-valuemax', scale.end);
+      slider.setAttribute('aria-valuenow', selected ?? state.time_seconds);
+      const nextScaleKey = JSON.stringify([scale.now, scale.end, scale.boundary]);
+      if (nextScaleKey !== scaleKey) {
+        scaleKey = nextScaleKey;
+        axis.style.setProperty('--near-share', `${scale.split * 100}%`);
+        boundaryLabel.style.left = `${scale.split * 100}%`;
+        boundaryLabel.classList.toggle('at-end', scale.split === 1);
+        boundaryLabel.textContent = `${scale.boundary.toFixed(0)} s`;
+        endLabel.textContent = scale.split < 1 ? `${scale.end.toFixed(0)} s` : '';
+        ticks.replaceChildren();
+        for (let time = scale.boundary; time <= scale.end; time += scale.interval) {
+          const tick = document.createElement('i');
+          tick.style.left = `${scale.position(time) * 100}%`;
+          ticks.append(tick);
+        }
+      }
+      available = (mission.available_launch_seconds ?? []).filter(time => time >= scale.now && time <= scale.end);
+      readyMarks.replaceChildren();
+      for (const time of available) {
+        const mark = document.createElement('i');
+        mark.dataset.seconds = time;
+        mark.style.left = `${scale.position(time) * 100}%`;
+        readyMarks.append(mark);
+      }
+      const nextReady = available.find(time => time >= (selected ?? state.time_seconds)) ?? available.at(-1);
+      readyLabel.hidden = nextReady === undefined;
+      if (nextReady !== undefined) {
+        const position = scale.position(nextReady);
+        readyLabel.textContent = `Ready ${Number(nextReady.toFixed(2))} s`;
+        readyLabel.style.left = `${position * 100}%`;
+        readyLabel.style.transform = position < 0.2 ? 'none' : position > 0.8 ? 'translateX(-100%)' : 'translateX(-50%)';
+      }
+      slider.style.setProperty('--thumb-color', selected === null || selected <= scale.boundary ? 'var(--cyan)' : 'var(--amber)');
       slider.disabled = !ready || mission.outcome !== 'running' || editing;
       live.disabled = !ready || editing;
       live.setAttribute('aria-pressed', String(selected === null));
@@ -37,9 +144,9 @@ export function createTimeline(onChange) {
         }
       }
       label.textContent = error || (forecast
-        ? `Preview ${forecast.time_seconds.toFixed(2)} s · +${(forecast.time_seconds - state.time_seconds).toFixed(2)} s`
-        : 'Live · drag to plan arrival');
-      slider.setAttribute('aria-valuetext', forecast ? `${forecast.time_seconds.toFixed(2)} seconds, predicted positions` : 'Live; drag to preview future positions');
+        ? `Fire ${forecast.time_seconds.toFixed(2)} s · +${(forecast.time_seconds - state.time_seconds).toFixed(2)} s`
+        : 'Live · drag to plan firing');
+      slider.setAttribute('aria-valuetext', forecast ? `${forecast.time_seconds.toFixed(2)} seconds firing time, predicted positions` : 'Live; drag to choose a firing time');
     },
   };
 }

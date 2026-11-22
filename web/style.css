@@ -35,7 +35,24 @@ h2 { font-size: 11px; font-weight: 500; letter-spacing: .04em; text-transform: u
 #forecast-live { min-height: 32px; padding: 4px; }
 #forecast-live[aria-pressed="true"] { color: var(--cyan); border-color: var(--cyan); }
 #forecast-label { margin: 0; font: 10px/12px ui-monospace, monospace; }
-#forecast-time { width: 100%; min-width: 0; accent-color: var(--amber); padding: 0; cursor: ew-resize; }
+#forecast-scale { position: relative; min-width: 0; height: 34px; }
+#forecast-axis { position: absolute; top: 8px; left: 7px; right: 7px; height: 6px; border-radius: 3px; background: linear-gradient(to right, var(--cyan) var(--near-share, 40%), #966335 var(--near-share, 40%)); pointer-events: none; }
+#forecast-axis span { position: absolute; top: 15px; white-space: nowrap; font: 9px/10px ui-monospace, monospace; }
+.forecast-now { left: 0; color: var(--muted); }
+#forecast-boundary { color: var(--cyan); transform: translateX(-50%); }
+#forecast-boundary.at-end { transform: translateX(-100%); }
+#forecast-end { right: 0; color: var(--amber); }
+#forecast-ticks i { position: absolute; top: -2px; height: 10px; width: 1px; background: var(--amber); }
+#forecast-ticks i:first-child { background: var(--cyan); }
+#forecast-ready-marks i { position: absolute; top: -2px; width: 9px; height: 9px; background: #b0f5af; border: 1px solid #123b29; transform: translateX(-50%) rotate(45deg); }
+#forecast-axis #forecast-ready-label { top: -9px; color: #b0f5af; font-size: 8px; line-height: 9px; }
+#forecast-time { appearance: none; position: relative; display: block; width: 100%; height: 22px; min-height: 22px; min-width: 0; margin: 0; padding: 0; border: 0; border-radius: 0; background: transparent; cursor: ew-resize; touch-action: none; }
+#forecast-time::-webkit-slider-runnable-track { height: 6px; background: transparent; }
+#forecast-time::-moz-range-track { height: 6px; background: transparent; }
+#forecast-time::-webkit-slider-thumb { appearance: none; width: 14px; height: 14px; margin-top: -4px; border-radius: 50%; border: 2px solid #0b151e; background: var(--thumb-color, var(--cyan)); }
+#forecast-time::-moz-range-thumb { width: 10px; height: 10px; border-radius: 50%; border: 2px solid #0b151e; background: var(--thumb-color, var(--cyan)); }
+#forecast-time:focus-visible { outline: 1px solid var(--cyan); outline-offset: 2px; }
+#forecast-time:disabled { opacity: .5; cursor: default; }
 #time-forecast { pointer-events: none; }
 #time-forecast path { stroke-width: 1.5; }
 #time-forecast .forecast-route { stroke: var(--cyan); stroke-dasharray: 5 5; opacity: .65; }
@@ -227,6 +244,9 @@ legend { color: var(--muted); font-size: 11px; margin-bottom: 8px; }
 .gun-buttons button { min-width: 0; height: 40px; font-size: 11px; line-height: 12px; padding: 4px 6px; }
 #queue-shot { border-color: var(--amber); color: #1c1208; background: var(--amber); font-weight: 700; }
 #queue-shot:hover:not(:disabled) { border-color: #ffd09b; background: #ffd09b; }
+#queue-shot { white-space: pre-line; }
+#queue-shot[data-unreachable="true"]:disabled { opacity: 1; color: var(--amber); border-color: var(--amber); background: #30251a; }
+#gun-feedback[data-invalid="true"] { color: #ffad92; }
 #gun-feedback { height: 24px; overflow: auto; font: 10px/12px ui-monospace, monospace; color: var(--muted); margin: 5px 0 0; }
 #mission-overlay { position: absolute; inset: 0; width: 100%; height: 100%; pointer-events: none; touch-action: none; overflow: hidden; }
 #mission-overlay path, #mission-goal { fill: none; }

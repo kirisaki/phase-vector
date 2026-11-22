@@ -13,7 +13,7 @@ export function drawMissionMap(svg, state, { aim, solution, arrival, forecast, f
   el('mission-goal').setAttribute('cx', gx); el('mission-goal').setAttribute('cy', gy);
   el('mission-goal').setAttribute('r', Math.max(3, m.goal_radius / view.metresPerPixel));
   el('goal-label').setAttribute('x', gx + 8); el('goal-label').setAttribute('y', gy + 4);
-  el('enemy-prediction').setAttribute('d', path(forecast ? [m.prediction[0], forecast.enemy_position] : m.prediction));
+  el('enemy-prediction').setAttribute('d', path(forecast ? [m.prediction[0], forecast.enemy_position, ...(arrival ? [arrival.position] : [])] : m.prediction));
   el('prediction-label').textContent = `Observed velocity · +${state.timing.forecast_seconds} s`;
   const [px, py] = project(m.prediction[1]);
   el('prediction-label').setAttribute('text-anchor', px > view.width - 180 ? 'end' : 'start');
@@ -45,7 +45,7 @@ export function drawMissionMap(svg, state, { aim, solution, arrival, forecast, f
     el('aim-grip').querySelector('.grip-control').setAttribute('transform', `translate(${gripX} ${gripY})`);
   }
   const arrivalContact = el('arrival-contact');
-  arrivalContact.style.display = arrival && !done && !forecast ? '' : 'none';
+  arrivalContact.style.display = arrival && !done ? '' : 'none';
   el('prediction-label').style.display = (arrival && !done) || forecast ? 'none' : '';
   if (arrival && !done) {
     const [x, y] = project(arrival.position);
@@ -118,7 +118,7 @@ function drawForecast(group, view, forecast) {
   };
   const speed = Math.hypot(forecast.own.velocity.x, forecast.own.velocity.y) / 1000;
   marker(forecast.own.position, forecast.own.velocity, 'own', `${view.width < 600 ? 'Own' : 'Own preview'} · ${speed.toFixed(1)} km/s`, 'M0 -10L9 8H-9Z');
-  marker(forecast.enemy_position, forecast.enemy_velocity, 'enemy', 'Enemy estimate', 'M0 -10L10 0L0 10L-10 0Z');
+  marker(forecast.enemy_position, forecast.enemy_velocity, 'enemy', `Enemy at fire · ${forecast.time_seconds.toFixed(0)} s`, 'M0 -10L10 0L0 10L-10 0Z');
   for (const round of forecast.rounds) {
     marker(round.position, null, 'round', `#${round.order_id}`, 'M-4 -4L4 4M-4 4L4 -4').dataset.shotId = round.order_id;
   }

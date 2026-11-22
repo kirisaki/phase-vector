@@ -8,7 +8,7 @@ and delta-v expenditure.
 
 ## Status
 
-**Step 4 complete: future preview and arrival-time shooting.** One friendly ship must stop a non-firing enemy
+**Step 4 complete: future preview and scheduled shooting.** One friendly ship must stop a non-firing enemy
 from reaching its exit before 1,320 seconds. Fire an unguided railgun at a future
 point; the enemy reacts only to delivered attack observations and tries to
 recover its course. Win by disabling it or delaying it past the deadline.
@@ -20,8 +20,9 @@ use delayed observations. The Lua console exposes true state separately for
 diagnostics. The UI and Lua share the same validated command API.
 
 The time slider previews future friendly, observed enemy, and ballistic positions.
-Choose a world point and arrival time to solve and reserve a launch; editable timed
-shots are recalculated when the maneuver changes. Live retains automatic timing.
+Choose a world point and firing time to reserve a shot. AIM leads beyond the
+selected instant by the computed flight time. Maneuver changes recompute shot
+direction and arrival while retaining firing time and target. Live retains automatic timing.
 Formal scoring and paused parameter editing remain step 5. Tuning is provisional;
 the current enemy is conservative. See [step 4 planning](docs/step-4-planning.md)
 for timing tolerance, replanning priority, validation, and prediction limits.
@@ -131,11 +132,11 @@ share the status area; longer messages can be scrolled inside it.
 
 | Control | Behavior |
 | --- | --- |
-| Time slider / Live | Preview a future absolute time and use it for new shot arrivals / return to current positions and automatic shot timing; scrubbing never changes existing reservations |
+| Time slider / Live | Preview a future absolute time and use it for new shot launches / return to current positions and automatic shot timing; scrubbing never changes existing reservations |
 | Aim crosshair | Drag the future target point; within 12 screen pixels of observed lead, snap to intercept tracking. Hold Shift to bypass snapping. Arrows move it by 100 km (Shift: 10 km); Home restores lead tracking |
 | Fine aim (mouse/touch) | Drag the separate round grip to move the target at 35% sensitivity. Available on desktop and mobile; keeps the crosshair clear of a finger and bypasses snapping |
 | Track lead | Follow the constant-velocity intercept from the last received enemy observation; this is a prediction, not a guaranteed hit |
-| Queue shot | In Live, add a shot at the earliest free reload slot. In future preview, reserve the selected point and arrival time; the solver determines launch time and direction |
+| Queue shot | In Live, add a shot at the earliest free reload slot. In future preview, reserve the selected point and firing time; the solver determines direction and arrival |
 | Cancel / Clear queue | Remove one numbered reservation / all editable reservations; shots committed to the current interval and flying rounds stay unchanged |
 | Retry (game controls) | Available after victory or defeat; restore the complete initial scenario |
 | Ship-centered Burn handle | Available while running or paused; drag directly without switching modes or changing the camera |
@@ -179,7 +180,7 @@ recomputed from the predicted launch state; the actual launch solves again.
 Valid reservations are sorted by launch time and keep stable IDs. In Live with the default
 reload, four initial additions fire at 0, 30, 60, and 90 seconds. Each press of
 Queue shot still reserves exactly one round. Cancellation leaves other Live launch
-slots unchanged; editable timed requests are re-solved against the freed window.
+slots unchanged; editable Lua arrival-constrained requests are re-solved against the freed window.
 The next Live addition fills the earliest free slot. No launch can be queued at or beyond the mission deadline. Future firing
 states assume the draft burn repeats after the frozen current interval, including
 acceleration and delta-v limits. Targets stay fixed; changing a target requires
@@ -483,25 +484,50 @@ not require a game server or custom domain.
 
 ## Future planning
 
-Move the time slider to preview a future time in the same map. Cyan shows the
-friendly forecast; amber shows the observed enemy estimate. Numbered markers
-show where existing and reserved rounds would be, assuming unobstructed flight.
-Queue uses the selected absolute time as the requested arrival. Track lead follows
-the observed enemy at that time; Aim and Fine aim can place a different target.
-Live restores automatic timing. Reaching the selected time during playback also
-returns to Live. No simulation time passes from scrubbing alone.
+Move the time slider to choose an absolute **firing time** and preview positions
+at that instant. The cyan portion reserves 40% of the bar for now through the
+next command boundary; amber covers later times through the planning limit.
+Marks show 120-second boundaries. Pointer/touch input lightly snaps near them
+(within 5 pixels and 6 seconds). Arrow keys bypass snapping and move one
+0.25-second tick; Page Up/Down move 120 seconds, Home selects now, and End selects
+the preview limit. The scale stays fixed during a drag even while Auto runs.
+The two portions use different scales; labels show absolute seconds.
 
-Timed reservations retain their target and requested arrival when a maneuver
-changes. Their launch ticks are recalculated around locked orders and existing
-reload windows. Infeasible orders stay visible with an error; cancel them or
-revise the maneuver before starting the next interval. Earlier reservation IDs
-have priority during replanning. Current-interval orders and flying rounds are
-unchanged. The planning horizon is bounded to 3,600 seconds and the mission deadline.
+Green diamonds mark the start of each free firing window, including openings
+between existing reservations. **Ready 30 s**, for example, identifies the next
+reload opening. These marks update on queue/cancel, firing, and command boundaries,
+and disappear when all four reservation slots are occupied or the mission ends.
+Pointer/touch input snaps within 5 pixels of a green mark, with priority over
+nearby command ticks. Arrow keys still bypass snapping. Marks use the same gun
+schedule as Queue; they do not reserve a shot or guarantee an intercept.
 
-Lua can use `game.forecast(seconds)`, `game.preview_shot_at(x, y, seconds)`, and
-`game.fire_at(x, y, seconds)` through the same forecast and command APIs. Times
-are absolute simulation seconds and coordinates are metres. See the complete
-[planning rules and examples](docs/step-4-planning.md).
+AIM uses the friendly ship's predicted firing position and velocity, then leads
+the observed enemy by the projectile flight time. The enemy-at-fire marker and
+the later arrival estimate are distinct. For example, selecting 120 seconds
+reserves a shot firing at 120 seconds, not one that must arrive in 120 seconds.
+Drag Aim or Fine aim to choose a different fixed world point. Queue stores that
+point and firing tick. Track lead restores the computed intercept.
+
+Press **Q** while the timeline is focused or being dragged, or hold one finger
+on the timeline and tap **Queue** with another. Holding Q does not repeat shots,
+and Q does not intercept Lua text entry. Existing orders stay fixed as the bar
+moves. Reload conflicts, a full queue, or firing inside the locked active interval
+reject the reservation with a reason. Firing must precede the mission deadline.
+The preview can show the deadline, but Queue cannot schedule a launch there.
+
+Cyan map markers show the friendly forecast, amber markers show the observed
+enemy, and numbered markers show existing/reserved rounds. These forecasts do
+not predict enemy decisions or hits. Live restores earliest-free-slot timing;
+reaching the selected time during playback also returns to Live. Scrubbing
+never advances the world. The horizon is bounded to 3,600 seconds and the deadline.
+
+Maneuver changes preserve fixed firing ticks and targets while recomputing the
+ballistic previews. Active orders and flying rounds remain unchanged. Lua shares
+this workflow through `game.aim_at(seconds)`, `game.preview_launch(x, y, seconds)`,
+and `game.fire_at_launch(x, y, seconds)`. The original arrival-constrained solver
+remains available through `game.preview_shot_at` and `game.fire_at`; those requests
+can change their firing ticks after a maneuver. See [planning rules](docs/step-4-planning.md)
+for both APIs, validation, and replanning priority.
 
 ## Assumptions and limitations
 
@@ -536,7 +562,7 @@ are absolute simulation seconds and coordinates are metres. See the complete
 - The normal view extrapolates the latest received enemy track. The initial track
   is supplied by the briefing. Lua inspection intentionally exposes true state.
 - One constant burn repeats each interval; a shot reservation fires only once.
-  Timed arrivals use a 0.25-second tolerance because launch times stay on the physical tick grid. The solved arrival time is shown explicitly; the target and muzzle speed stay fixed.
+  Lua arrival-constrained shots use a 0.25-second tolerance because launch times stay on the physical tick grid. The solved arrival time is shown explicitly; the target and muzzle speed stay fixed.
 - Projectiles have no expiry or map culling. Contacts consume projectiles and
   record events; hitting the enemy ends the mission with disablement. Terminal
   physics is frozen at the end of the event tick; result time includes its fraction.

@@ -1,5 +1,5 @@
 // Observation-only estimate shared by the map marker and weapon feedback.
-// The current gun solver chooses arrival time; arbitrary-time planning remains step 4.
+// The shot solver supplies arrival time, including flight after the selected firing time.
 export function shotArrivalEstimate(state, solution) {
   if (!solution) return null;
   const { prediction, contact } = state.mission;

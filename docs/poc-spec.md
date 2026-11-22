@@ -10,6 +10,8 @@ delta-v expenditure.
 This document records the requested behavior, not completed functionality.
 Step 4 is complete for the PoC scope: observation-based future preview, timed
 shot scheduling, maneuver-driven recalculation, and browser/Lua integration.
+The current normal UI selects firing time and computes arrival; the original
+arrival-constrained solver remains available through the shared API and Lua.
 See [blockade rules](step-3-blockade.md) and [planning implementation](step-4-planning.md)
 for adopted assumptions, acceptance coverage, and limits. In particular, physical
 launches use the 0.25-second grid and timed arrivals accept at most 0.25 seconds
