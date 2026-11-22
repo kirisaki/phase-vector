@@ -250,13 +250,12 @@ legend { color: var(--muted); font-size: 11px; margin-bottom: 8px; }
 #aim-handle { pointer-events: all; cursor: crosshair; outline: none; }
 #aim-handle path, #aim-handle circle:not(.handle-hit) { fill: none; stroke: white; }
 #aim-handle text { fill: white; pointer-events: none; }
-#aim-grip { display: none; }
+#aim-grip { display: inline; }
 #aim-handle #aim-grip circle { fill: #14232d; stroke: var(--amber); stroke-width: 2; }
 #aim-grip .grip-link { opacity: .5; stroke-dasharray: 2 4; pointer-events: none; }
 #aim-grip .grip-control { cursor: move; }
 #arrival-contact path { stroke: var(--amber); stroke-dasharray: 3 3; }
 #arrival-contact text { fill: var(--amber); paint-order: stroke; stroke: #070f16; stroke-width: 3px; stroke-linejoin: round; }
-@media (any-pointer: coarse), (max-width: 600px) { #aim-grip { display: inline; } }
 @media (max-width: 600px) { #arrival-contact text { display: none; } }
 #aim-handle:focus-visible { outline: none; }
 #aim-handle:focus-visible circle:not(.handle-hit) { stroke: var(--cyan); stroke-width: 3; }

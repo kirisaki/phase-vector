@@ -133,7 +133,7 @@ share the status area; longer messages can be scrolled inside it.
 | --- | --- |
 | Time slider / Live | Preview a future absolute time and use it for new shot arrivals / return to current positions and automatic shot timing; scrubbing never changes existing reservations |
 | Aim crosshair | Drag the future target point; within 12 screen pixels of observed lead, snap to intercept tracking. Hold Shift to bypass snapping. Arrows move it by 100 km (Shift: 10 km); Home restores lead tracking |
-| Fine aim (touch/narrow screens) | Drag the separate round grip to move the target at 35% sensitivity without hiding the crosshair under a finger. Fine aim bypasses snapping |
+| Fine aim (mouse/touch) | Drag the separate round grip to move the target at 35% sensitivity. Available on desktop and mobile; keeps the crosshair clear of a finger and bypasses snapping |
 | Track lead | Follow the constant-velocity intercept from the last received enemy observation; this is a prediction, not a guaranteed hit |
 | Queue shot | In Live, add a shot at the earliest free reload slot. In future preview, reserve the selected point and arrival time; the solver determines launch time and direction |
 | Cancel / Clear queue | Remove one numbered reservation / all editable reservations; shots committed to the current interval and flying rounds stay unchanged |
