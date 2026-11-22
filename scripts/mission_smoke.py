@@ -61,7 +61,12 @@ def main():
                 page.wait_for_timeout(120)
 
             def retry():
+                unfinished = state()['mission']['outcome'] == 'running'
                 page.locator('#result-retry' if page.locator('#mission-result').is_visible() else '#retry').click()
+                if unfinished:
+                    expect(page.locator('#retry-confirmation')).to_be_visible()
+                    page.locator('#retry-confirm').click()
+                expect(page.locator('#retry-confirmation')).to_be_hidden()
                 expect(page.locator('#ticks')).to_have_text('0')
                 expect(page.locator('#mission-result')).to_be_hidden()
                 assert state()['mission']['shots'] == []
@@ -86,7 +91,68 @@ def main():
             assert page.locator('#enemy-prediction').get_attribute('d')
             assert page.locator('#mission-goal').get_attribute('r')
             expect(page.locator('#queue-shot')).to_be_enabled()
-            expect(page.locator('#retry')).to_be_disabled()
+            expect(page.locator('#retry')).to_be_enabled()
+            # Retry is a game action during planning and playback, including at tick zero.
+            for playback in [None, 'toggle', 'commit']:
+                page.locator('#queue-shot').click()
+                if playback:
+                    page.locator('[data-speed="1"]').click()
+                    page.locator('#' + playback).click()
+                    page.wait_for_function('readState().mission.shots.length > 0')
+                    page.locator('#queue-shot').click()
+                else:
+                    page.locator('#forecast-time').focus()
+                    page.keyboard.press('PageUp')
+                    page.locator('#aim-handle').focus()
+                    page.keyboard.press('ArrowLeft')
+                page.locator('#numeric-burn summary').click()
+                page.locator('#burn-x').fill('1')  # Leave an unapplied draft.
+                if not playback:
+                    before_cancel = state()
+                    selected = page.locator('#forecast-time').get_attribute('aria-valuenow')
+                    for dismissal in ['button', 'escape', 'outside']:
+                        page.locator('#retry').click()
+                        expect(page.locator('#retry-cancel')).to_be_focused()
+                        if dismissal == 'button':
+                            page.screenshot(path=str(artifacts / 'retry-confirmation-desktop.png'))
+                            page.set_viewport_size({'width': 390, 'height': 844})
+                            expect(page.locator('#retry-confirm')).to_be_in_viewport()
+                            expect(page.locator('#retry-cancel')).to_be_in_viewport()
+                            page.screenshot(path=str(artifacts / 'retry-confirmation-phone.png'))
+                            page.locator('#retry-cancel').click()
+                            page.set_viewport_size({'width': 1360, 'height': 1000})
+                        elif dismissal == 'escape':
+                            page.keyboard.press('Escape')
+                        else:
+                            page.mouse.click(5, 5)
+                        expect(page.locator('#retry-confirmation')).to_be_hidden()
+                    assert state()['world'] == before_cancel['world']
+                    assert state()['mission']['queued'] == before_cancel['mission']['queued']
+                    expect(page.locator('#burn-x')).to_have_value('1')
+                    expect(page.locator('#forecast-time')).to_have_attribute('aria-valuenow', selected)
+                    expect(page.locator('#gun-feedback')).to_contain_text('Apply numeric edits')
+                else:
+                    page.locator('#retry').click()
+                    expect(page.locator('#retry-confirmation')).to_be_visible()
+                    stopped = state()
+                    assert stopped['paused']
+                    page.wait_for_timeout(300)
+                    assert state()['world'] == stopped['world']
+                    page.keyboard.press('Escape')
+                    assert not state()['paused']
+                    assert state()['stop_at_boundary'] == (playback == 'commit')
+                retry()
+                fresh = state()
+                assert fresh['paused'] and fresh['world'] == current['world']
+                assert fresh['mission']['outcome'] == 'running'
+                assert fresh['planned_burn'] == current['planned_burn']
+                expect(page.locator('#burn-x')).to_have_value('0')
+                expect(page.locator('#forecast-live')).to_have_attribute('aria-pressed', 'true')
+                expect(page.locator('#gun-feedback')).to_contain_text('Lead assist')
+                expect(page.locator('#toggle')).to_be_enabled()
+                expect(page.locator('#queue-shot')).to_be_enabled()
+                page.locator('#numeric-burn summary').click()
+            print('PASS: in-game Retry confirmation on desktop/phone, Cancel/Escape/outside dismissal, frozen world and resumed Auto/Commit, cleared drafts and paused initial world on confirmation')
             # Enemy indicators use delivered motion and stay legible at phone size.
             expect(page.locator('#enemy-speed')).to_have_text('Enemy · 37.5 km/s')
             expect(page.locator('#enemy-symbol')).to_have_attribute('transform', 'rotate(90)')

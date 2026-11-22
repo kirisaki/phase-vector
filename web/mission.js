@@ -10,14 +10,27 @@ import { createAimEditor } from './aim-editor.js';
 const el = (id) => document.getElementById(id);
 const decimal = (n) => n.toFixed(1);
 
-export function createMissionControls(onChange) {
+export function createMissionControls(onChange, onBeforeRetry) {
   const svg = el('mission-overlay'), handle = el('aim-handle');
   let state, ready = false, blocked = false, solution, error = '';
   let lastTick = 0;
+  let resumeAfterRetry = null;
   const timeline = createTimeline(() => { error = ''; onChange(); });
   const panel = createMissionPanel({
     onCancelShot: (id) => invoke(() => cancel_shot(id)),
-    onRetry: () => { invoke(() => { aimEditor.clear(); timeline.reset(); command('retry'); }); el('toggle').focus({ preventScroll: true }); },
+    onRetry: () => {
+      if (finished()) { retry(); return; }
+      resumeAfterRetry = state.paused ? null : state.stop_at_boundary ? 'commit' : 'play';
+      if (!state.paused) invoke(() => command('pause'));
+      panel.confirmRetry();
+    },
+    onConfirmRetry: retry,
+    onCancelRetry: () => {
+      const resume = resumeAfterRetry;
+      resumeAfterRetry = null;
+      if (resume) invoke(() => command(resume));
+      el('retry').focus({ preventScroll: true });
+    },
   });
   const finished = () => state?.mission?.outcome !== 'running';
   const leadTarget = () => timeline.seconds === null ? state.mission.aim?.target : timeline.forecast?.aim?.target;
@@ -72,6 +85,16 @@ export function createMissionControls(onChange) {
   function invoke(action) {
     try { action(); error = ''; } catch (e) { error = String(e); }
     onChange();
+  }
+
+  function retry() {
+    resumeAfterRetry = null;
+    invoke(() => {
+      aimEditor.cancel();
+      onBeforeRetry();
+      aimEditor.clear(); timeline.reset(); command('retry');
+    });
+    el('toggle').focus({ preventScroll: true });
   }
 
   const queue = el('queue-shot');

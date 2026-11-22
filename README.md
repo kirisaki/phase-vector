@@ -142,7 +142,7 @@ share the status area; longer messages can be scrolled inside it.
 | Track lead | Follow the constant-velocity intercept from the last received enemy observation; this is a prediction, not a guaranteed hit |
 | Queue shot | In Live, add a shot at the earliest free reload slot. In future preview, reserve the selected point and firing time; the solver determines direction and arrival |
 | Cancel / Clear queue | Remove one numbered reservation / all editable reservations; shots committed to the current interval and flying rounds stay unchanged |
-| Retry (game controls) | Available after victory or defeat; restore the complete initial scenario |
+| Retry (game controls) | Confirm a restart while playing or paused; restart directly after the result. Clear drafts and restore the initial scenario, paused at time zero |
 | Ship-centered Burn handle | Available while running or paused; drag directly without switching modes or changing the camera |
 | Drag / release | Preview the burn, delta-v cost, remaining delta-v, and arrival velocity; release to queue the next interval; the current interval keeps its active order |
 | Drag outside the ring | Clamp the handle to the reachable circle in the cursor's direction |
@@ -354,7 +354,11 @@ setters.
 does not modify the Rust state.
 `game.command("reset")` (also `retry`) restores the current scenario at tick zero
 with full delta-v and 32× playback while retaining Lua globals. The normal Retry
-button is enabled after mission completion. `game.command("sandbox")` selects
+button is available during play, while paused, and after mission completion.
+During an unfinished mission it opens an in-game confirmation dialog and pauses
+playback. Cancel, Escape, or clicking outside keeps plans and inputs intact and
+restores the previous Auto/Commit playback mode. Confirming clears UI drafts and stops active editing
+gestures. `game.command("sandbox")` selects
 the original physics sandbox; `game.command("mission")` starts a new blockade.
 The URL query `?sandbox=1` also starts the sandbox for development and regression
 testing.

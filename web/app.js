@@ -19,7 +19,12 @@ const routeEditor = createRouteEditor((applied) => {
   refresh();
 });
 
-const missionControls = createMissionControls(() => refresh());
+const missionControls = createMissionControls(() => refresh(), () => {
+  routeEditor.cancel();
+  mapNavigation.cancel();
+  dirtyPlan = false;
+  lastPlan = '';
+});
 const mapNavigation = createMapNavigation({
   onChange: () => refresh(),
   onError: (error) => invoke(() => { throw error; }),

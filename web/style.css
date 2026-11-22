@@ -360,16 +360,16 @@ legend { color: var(--muted); font-size: 11px; margin-bottom: 8px; }
 
 .canvas-wrap[data-navigating="true"], .canvas-wrap[data-navigating="true"] * { cursor: grabbing !important; }
 
-#mission-result { position: fixed; inset: 0; margin: auto; width: min(420px, calc(100vw - 32px)); max-height: calc(100dvh - 32px); overflow: auto; padding: 28px; border: 1px solid var(--cyan); border-top-width: 4px; background: #101e27; color: #d8e4eb; box-shadow: 0 20px 80px #0009; }
-#mission-result::backdrop { background: transparent; }
+.game-dialog { position: fixed; inset: 0; margin: auto; width: min(420px, calc(100vw - 32px)); max-height: calc(100dvh - 32px); overflow: auto; padding: 28px; border: 1px solid var(--cyan); border-top-width: 4px; background: #101e27; color: #d8e4eb; box-shadow: 0 20px 80px #0009; }
+.game-dialog::backdrop { background: transparent; }
 #mission-result[data-outcome="defeat"] { border-color: #ff8c80; }
 .result-kicker { margin: 0 0 8px; font: 11px ui-monospace, monospace; letter-spacing: .15em; color: var(--muted); }
-#result-title { margin: 0; font-size: clamp(32px, 8vw, 48px); font-weight: 750; letter-spacing: .06em; color: var(--cyan); }
+#result-title, #retry-title { margin: 0; font-size: clamp(32px, 8vw, 48px); font-weight: 750; letter-spacing: .06em; color: var(--cyan); }
 #mission-result[data-outcome="defeat"] #result-title { color: #ff8c80; }
-#result-reason { line-height: 1.5; margin: 12px 0 22px; }
+#result-reason, #retry-reason { line-height: 1.5; margin: 12px 0 22px; }
 .result-metrics { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; margin: 0 0 24px; }
 .result-metrics dt { font-size: 10px; color: var(--muted); margin-bottom: 6px; }
 .result-metrics dd { margin: 0; font: 13px ui-monospace, monospace; }
 .result-actions { display: flex; gap: 10px; }
 .result-actions button { flex: 1; min-height: 44px; }
-#result-retry { color: #071319; background: var(--cyan); border-color: var(--cyan); font-weight: 650; }
+#result-retry, #retry-confirm { color: #071319; background: var(--cyan); border-color: var(--cyan); font-weight: 650; }

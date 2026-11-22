@@ -5,8 +5,9 @@ const decimal = (n) => n.toFixed(1);
 
 
 // Render mission feedback and forward user actions; commands belong to the controller.
-export function createMissionPanel({ onCancelShot, onRetry }) {
+export function createMissionPanel({ onCancelShot, onRetry, onConfirmRetry, onCancelRetry }) {
   const result = el('mission-result');
+  const confirmation = el('retry-confirmation');
   let shownOutcome;
 
   function renderResult(m, own) {
@@ -27,18 +28,25 @@ export function createMissionPanel({ onCancelShot, onRetry }) {
   }
 
   function dismissResult() { result.close(); el('retry').focus({ preventScroll: true }); }
-  const outsideResult = (event) => {
-    const box = result.getBoundingClientRect();
-    return event.clientX < box.left || event.clientX > box.right || event.clientY < box.top || event.clientY > box.bottom;
-  };
-  let pressedOutside = false;
-  result.addEventListener('pointerdown', (event) => { pressedOutside = event.target === result && outsideResult(event); });
-  result.addEventListener('click', (event) => {
-    if (pressedOutside && event.target === result && outsideResult(event)) dismissResult();
-    pressedOutside = false;
-  });
-  result.addEventListener('cancel', (event) => { event.preventDefault(); dismissResult(); });
+  function dismissDialog(dialog, dismiss) {
+    const outside = (event) => {
+      const box = dialog.getBoundingClientRect();
+      return event.clientX < box.left || event.clientX > box.right || event.clientY < box.top || event.clientY > box.bottom;
+    };
+    let pressedOutside = false;
+    dialog.addEventListener('pointerdown', (event) => { pressedOutside = event.target === dialog && outside(event); });
+    dialog.addEventListener('click', (event) => {
+      if (pressedOutside && event.target === dialog && outside(event)) dismiss();
+      pressedOutside = false;
+    });
+    dialog.addEventListener('cancel', (event) => { event.preventDefault(); dismiss(); });
+  }
+  dismissDialog(result, dismissResult);
   el('result-view').addEventListener('click', dismissResult);
+  const cancelRetry = () => { confirmation.close(); onCancelRetry(); };
+  dismissDialog(confirmation, cancelRetry);
+  el('retry-cancel').addEventListener('click', cancelRetry);
+  el('retry-confirm').addEventListener('click', () => { confirmation.close(); onConfirmRetry(); });
 
   function renderQueue(m, stepSeconds, done) {
     const list = el('shot-queue');
@@ -92,13 +100,13 @@ export function createMissionPanel({ onCancelShot, onRetry }) {
   el('retry').addEventListener('click', onRetry);
   el('result-retry').addEventListener('click', onRetry);
 
-  return { render(state, ready) {
+  return { confirmRetry() { confirmation.showModal(); }, render(state, ready) {
     const m = state?.mission;
-    if (!m || !ready) { result.close(); shownOutcome = undefined; return; }
+    el('retry').disabled = !m || !ready;
+    if (!m || !ready) { result.close(); confirmation.close(); shownOutcome = undefined; return; }
     const done = m.outcome !== 'running';
     const titles = { running: 'Prevent breakthrough', breakthrough: 'Defeat · Enemy reached the exit',
       disabled: 'Victory · Enemy disabled', timeout: 'Victory · Deadline exceeded' };
-    el('retry').disabled = !done;
     el('mission-status').textContent = titles[m.outcome];
     el('mission-status').dataset.outcome = m.outcome;
     const own = state.world.ships.find((ship) => ship.id === state.player_id);
