@@ -9,7 +9,7 @@ and delta-v expenditure.
 ## Status
 
 **Step 4 complete: future preview and scheduled shooting.** One friendly ship must stop a non-firing enemy
-from reaching its exit before 1,320 seconds. Fire an unguided railgun at a future
+from reaching its exit before 1,230 seconds. Fire an unguided railgun at a future
 point; the enemy reacts only to delivered attack observations and tries to
 recover its course. Win by disabling it or delaying it past the deadline.
 
@@ -160,9 +160,13 @@ share the status area; longer messages can be scrolled inside it.
 | Reload page | Start a new simulation and Lua session |
 
 The red **EXIT** circle marks the enemy's destination. Prevent entry until the
-1,320-second deadline. A hit wins immediately; fuel exhaustion or a temporary
+1,230-second deadline. A hit wins immediately; fuel exhaustion or a temporary
 course deviation alone does not win. Terminal results freeze time and report the
-reason, event time, shot count, and friendly delta-v spent. Exact simultaneous
+reason, event time, shot count, and friendly delta-v spent.
+The standard deadline leaves about 57 seconds beyond unopposed entry; the prior
+1,320-second trial required about 147 seconds of delay. See the
+[balance trials](docs/step-3-blockade.md#tuning-and-scope-limits) for reproducible
+placement-dependent wins with twelve shots. Exact simultaneous
 impact/entry favors disablement; entry at the deadline beats timeout. No formal
 points formula is implemented yet.
 
@@ -447,7 +451,7 @@ python scripts/browser_smoke.py --url http://127.0.0.1:5173/ --rebuild
 
 The mission smoke test uses the default game and checks observed prediction,
 mouse/touch target dragging, queue/cancel, running reservations, 30-second salvo timing, frozen active shots,
-ballistic persistence, no-attack defeat, 16-shot non-hit timeout victory,
+ballistic persistence, no-attack defeat, 12-shot non-hit timeout victory,
 terminal locks, retry, desktop/phone layouts, mouse panning, anchored touch
 pinching, and cancellation of editor drafts when a second finger takes over.
 It also accepts `--url` and

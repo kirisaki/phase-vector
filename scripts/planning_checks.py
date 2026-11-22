@@ -18,7 +18,8 @@ def check_planning(page, artifacts):
     # The imminent interval is expanded; pointer input snaps gently, keys remain precise.
     slider = page.locator('#forecast-time')
     box = slider.bounding_box()
-    for position, seconds in [(0.4, 120), (0.58, 480)]:
+    deadline = state()['mission']['deadline_seconds']
+    for position, seconds in [(0.4, 120), (0.4 + 0.6 * (480 - 120) / (deadline - 120), 480)]:
         page.mouse.click(box['x'] + 7 + (box['width'] - 14) * position + 0.2,
                          box['y'] + box['height'] / 2)
         expect(slider).to_have_attribute('aria-valuenow', str(seconds))
@@ -283,7 +284,8 @@ def check_reload_markers(page, artifacts):
 
     def choose(seconds, offset_pixels=0):
         box = slider.bounding_box()
-        fraction = 0.4 * seconds / 120 if seconds <= 120 else 0.4 + 0.6 * (seconds - 120) / 1200
+        deadline = page.evaluate('readState().mission.deadline_seconds')
+        fraction = 0.4 * seconds / 120 if seconds <= 120 else 0.4 + 0.6 * (seconds - 120) / (deadline - 120)
         page.mouse.click(box['x'] + 7 + (box['width'] - 14) * fraction + offset_pixels,
                          box['y'] + box['height'] / 2)
 

@@ -242,20 +242,31 @@ def main():
             expect(page.locator('#mission-result')).to_be_hidden()
             assert state()['world'] == end
             retry()
-            # Cover observed evasion routes with 16 rounds, no friendly burn or hits.
+            # Cover observed evasion routes with 12 rounds spaced 900 km apart.
             for turn in range(math.ceil(state()['mission']['deadline_seconds'] / timing['interval_seconds'])):
-                if turn < 4:
+                if turn < 3:
                     for round_index in range(4):
                         page.locator('#track-aim').click()
-                        page.locator('#aim-handle').focus()
-                        for _ in range(round_index * 3):
-                            page.keyboard.press('ArrowUp')
+                        if round_index:
+                            grip = page.locator('#aim-grip .grip-control')
+                            point = grip.evaluate('''node => {
+                                const p = new DOMPoint(0, 0).matrixTransform(node.getScreenCTM());
+                                return { x: p.x, y: p.y };
+                            }''')
+                            metres_per_pixel = page.evaluate('''async () => {
+                                const { mapProjection } = await import(new URL('./map-overlay.js', location.href).href);
+                                return mapProjection(document.querySelector('#mission-overlay'), readState().map).metresPerPixel;
+                            }''')
+                            page.mouse.move(point['x'], point['y'])
+                            page.mouse.down()
+                            page.mouse.move(point['x'], point['y'] - round_index * 900_000 / metres_per_pixel / 0.35, steps=3)
+                            page.mouse.up()
                         page.locator('#queue-shot').click()
                     assert len(state()['mission']['shots']) == turn * 4
                 next_turn()
                 if turn == 0:
                     assert len(state()['world']['projectiles']) == 4
-                assert len(state()['mission']['shots']) == min(turn + 1, 4) * 4
+                assert len(state()['mission']['shots']) == min(turn + 1, 3) * 4
                 if turn == 4:
                     shots = state()['mission']['shots']
                     expect(page.locator('#launch-list > div')).to_have_text([
@@ -274,8 +285,8 @@ def main():
             expect(page.locator('#mission-result')).to_be_visible()
             expect(page.locator('#result-title')).to_have_text('VICTORY')
             expect(page.locator('#result-reason')).to_contain_text('missed its deadline')
-            expect(page.locator('#result-shots')).to_have_text('16')
-            expect(page.locator('#mission-metrics')).to_contain_text('16 shots')
+            expect(page.locator('#result-shots')).to_have_text('12')
+            expect(page.locator('#mission-metrics')).to_contain_text('12 shots')
             assert page.locator('#tactical-map').bounding_box() == canvas
             page.screenshot(path=str(artifacts / 'mission-victory.png'))
             page.locator('#result-view').click()
@@ -366,7 +377,7 @@ def main():
                     client.detach()
                 page.screenshot(path=str(artifacts / f'mission-{width}x{height}.png'))
             assert not errors, errors
-            print('PASS: observed prediction, pointer/touch aiming, four-round 30-second salvo/locked orders/individual cancel/full queue, boundary firing, persistence, no-attack defeat, 16-shot non-hit victory, frozen results, retry, and responsive layout')
+            print('PASS: observed prediction, pointer/touch aiming, four-round 30-second salvo/locked orders/individual cancel/full queue, boundary firing, persistence, no-attack defeat, 12-shot non-hit victory, frozen results, retry, and responsive layout')
         except Exception:
             page.screenshot(path=str(artifacts / 'mission-failure.png'), full_page=True)
             raise

@@ -931,3 +931,36 @@ fn a_second_observed_round_can_block_the_preferred_evasion() {
     assert!(both.reason.contains("evaluating 2 observed tracks"));
     assert!(both.acceleration.length() <= own.max_acceleration);
 }
+
+#[test]
+fn standard_deadline_allows_three_salvos_with_a_wider_spread() {
+    // Several offsets and a one-turn delay must work, not just one exact script.
+    for spacing_km in [800.0, 900.0, 1000.0] {
+        for start_turn in [0, 1] {
+            let mut s = Session::blockade();
+            for _ in 0..start_turn {
+                s.dispatch(C::NextTurn).unwrap();
+            }
+            for _ in 0..3 {
+                for round in 0..4 {
+                    let offset = V::new(
+                        0.0,
+                        round as f64 * spacing_km * phase_vector::units::METRES_PER_KILOMETRE,
+                    );
+                    s.dispatch(C::QueueShot(s.aim().unwrap().target + offset))
+                        .unwrap();
+                }
+                s.dispatch(C::NextTurn).unwrap();
+            }
+            run_to_end(&mut s);
+            assert_eq!(
+                s.mission().unwrap().outcome,
+                Outcome::Timeout,
+                "spacing={spacing_km}, start={start_turn}"
+            );
+            assert_eq!(s.mission().unwrap().shots.len(), 12);
+            assert!(s.world().impacts.is_empty());
+            assert!(s.world().ships[1].remaining_dv > 0.0);
+        }
+    }
+}

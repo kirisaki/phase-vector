@@ -27,7 +27,7 @@ the frozen physical state is at the end of that tick.
 | Initial separation, velocities, acceleration, delta-v | Existing 240,000 km / 75 and 37.5 km/s / 5 G / 60 km/s trial |
 | Goal center | Enemy's initial X, Y = -45,000 km |
 | Goal radius | 1,000 km; entry uses the ship center |
-| Deadline | 1,320 s (eleven command intervals) |
+| Deadline | 1,230 s (ten command intervals plus 30 s) |
 | No-attack entry time | 1,173.333333 s |
 | Relative muzzle speed / projectile radius | 660 km/s / 1 m |
 | Reload | 30 s; no ammunition-count limit |
@@ -40,12 +40,13 @@ the frozen physical state is at the end of that tick.
 | Cruise recovery response | 120 s |
 
 These are provisional game tuning assumptions. The deadline provides about
-147 seconds of slack beyond unopposed entry. The previous 1,000 km warning
-corridor, 120-second full-thrust evasion, and 1,200-second deadline let repeated
-automatic lead salvos win by delay alone. The current controller reevaluates
-short burns and can resume progress sooner. Physical hit radii, reaction horizon,
-reload, and the four-slot firing UX are unchanged. This is a deterministic
-balance trial, not a claim that all repetitive strategies have been eliminated.
+57 seconds of slack beyond unopposed entry. The previous 1,320-second trial
+required about 147 seconds of delay and was too demanding for standard play.
+The deadline is now 90 seconds shorter; the enemy controller, warning corridor,
+physical hit radii, reaction horizon, reload, and four-slot firing UX are unchanged.
+Repeated automatic lead salvos still lose, while fewer deliberately placed shots
+can prevent breakthrough. This is a deterministic balance trial, not a claim
+that every offset or firing schedule succeeds.
 
 ## Gun and command timing
 
@@ -167,26 +168,33 @@ agreement, and full mission replay.
 
 `cargo run --example blockade_trials` compares these reproducible patterns.
 All targeting uses the current observed lead for each reload slot, with no
-friendly burn. The spread adds world Y offsets of 0, +300, +600, and +900 km
-within each salvo, covering alternative evasion routes. Both 16-round patterns
-fire only during the first four command intervals.
+friendly burn. Each salvo contains four shots at the default reload spacing.
+The 12-round spread adds world Y offsets of 0, +900, +1,800, and +2,700 km per
+salvo, during the first three intervals. The original 16-round spread uses
+0, +300, +600, and +900 km during the first four intervals.
 
 | Pattern | Shots | Hits | Outcome / time | Enemy delta-v spent |
 | --- | ---: | ---: | --- | ---: |
 | No attack | 0 | 0 | Breakthrough / 1,173.333 s | 0 km/s |
 | Automatic lead, first four salvos | 16 | 0 | Breakthrough / 1,201.480 s | 11.81 km/s |
 | Automatic lead, every interval | 40 | 0 | Breakthrough / 1,183.797 s | 19.45 km/s |
-| Spread, first four salvos | 16 | 0 | Timeout / 1,320 s | 40.75 km/s |
+| Wider spread, first three salvos | 12 | 0 | Timeout / 1,230 s | 19.62 km/s |
+| Original spread, first four salvos | 16 | 0 | Timeout / 1,230 s | 40.32 km/s |
 
-The same shot count now has different outcomes, and successful blockade leaves
-the enemy with fuel. These scenarios do not prove universal difficulty balance;
-the finite candidate set and constant-burn prediction can still be exploited.
+The 12-shot regression also checks 800 and 1,000 km spacing and a first salvo
+starting at 120 seconds instead of zero. All six combinations win without hits
+or fuel exhaustion. With the old deadline, the same three start-at-zero patterns
+lost at about 1,235.651, 1,245.235, and 1,252.724 seconds respectively.
+The same 16-shot count still has different outcomes depending on placement.
+These scenarios do not prove universal difficulty balance; the finite candidate
+set and constant-burn prediction can still be exploited, and some evasions help
+the enemy's forward progress. Waiting two full intervals before firing is not
+covered by this easier acceptance case.
 
 `scripts/mission_smoke.py` plays the default mission in Chromium, including a
-no-attack defeat and the 16-shot spread victory without hits. It exercises
-mouse/touch aiming, queue/cancel, running edits, launch boundaries, frozen
-outcomes, and retry. Arrow Up moves the target by +100 km, so three presses per
-spacing increment reproduce the spread through normal controls.
+no-attack defeat and the 12-shot spread victory without hits. It uses actual
+Fine aim dragging for the wider offsets and exercises mouse/touch aiming,
+queue/cancel, running edits, launch boundaries, frozen outcomes, and retry.
 
 The browser renders the default blockade; `?sandbox=1` retains the original
 sandbox for `scripts/browser_smoke.py` regression checks.
