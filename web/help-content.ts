@@ -56,8 +56,8 @@ export const helpContent: Record<HelpTopic, Section> = {
           'Restart the mission. An unfinished run asks for confirmation. Retry retains custom starting settings and discards mid-play parameter edits.') },
       ] },
       { id: 'weapons', title: t('照準と射撃', 'Aiming and firing'), entries: [
-        { title: t('Aim / Fine aim / Track lead', 'Aim / Fine aim / Track lead'), text: t('Aim はマウスでも指でもドラッグできます。Fine aim は小さく動かすための補助ハンドルです。Aim は予測迎撃点付近で吸着し、Shift を押すと吸着を解除できます。',
-          'Drag Aim with a mouse or finger. Fine aim is a separate grip for smaller movements. Aim snaps near the predicted intercept; hold Shift to bypass snapping.') },
+        { title: t('Aim / Fine aim / Track lead', 'Aim / Fine aim / Track lead'), text: t('Aim はマウスでも指でもドラッグできます。Fine aim の近くに拡大図が現れ、弾道と敵の予測航路を表示します。輪郭の艦影は弾着時点の予測、塗りつぶしの艦影は現在位置の推定です。枠端の矢印は範囲外の弾着予測位置を示します。Aim は予測迎撃点付近で吸着し、Shift を押すと吸着を解除できます。',
+          'Drag Aim with a mouse or finger. An inset follows Fine aim and shows the ballistic path and observed enemy course. An outlined ship predicts the enemy at impact; a filled ship estimates its current position. An edge arrow indicates an arrival prediction outside the inset. Aim snaps near the predicted intercept; hold Shift to bypass snapping.') },
         { title: t('タイミングバー / Live', 'Timeline / Live'), text: t('バーで選ぶのは弾着時刻ではなく発射時刻です。Aim はそこから弾が飛ぶ時間を考慮します。水色は次の指揮時点まで、橙色はそれ以降。Live で自動の発射時刻に戻ります。',
           'The timeline selects firing time, not impact time. Aim also accounts for flight time. Cyan covers the current command window; amber covers later times. Live restores automatic firing time.') },
         { title: t('Queue / Clear queue', 'Queue / Clear queue'), text: t('Queue は 1 発を予約し、再装填と予約上限があります。実現不能な指定はボタン下に理由を表示します。Clear queue や個別の取消で未確定の予約を消せます。飛翔中の弾は取り消せません。',

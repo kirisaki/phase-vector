@@ -149,7 +149,7 @@ share the status area; longer messages can be scrolled inside it.
 | --- | --- |
 | Time slider / Live | Preview a future absolute time and use it for new shot launches / return to current positions and automatic shot timing; scrubbing never changes existing reservations |
 | Aim crosshair | Drag the future target point; within 12 screen pixels of observed lead, snap to intercept tracking. Hold Shift to bypass snapping. Arrows move it by 100 km (Shift: 10 km); Home restores lead tracking |
-| Fine aim (mouse/touch) | Drag the separate round grip to move the target at 35% sensitivity. Available on desktop and mobile; keeps the crosshair clear of a finger and bypasses snapping |
+| Fine aim (mouse/touch) | Drag the separate round grip to move the target at 35% sensitivity. Shows a magnified aim detail; keeps the crosshair clear of a finger and bypasses snapping |
 | Track lead | Follow the constant-velocity intercept from the last received enemy observation; this is a prediction, not a guaranteed hit |
 | Queue shot | In Live, add a shot at the earliest free reload slot. In future preview, reserve the selected point and firing time; the solver determines direction and arrival |
 | Cancel / Clear queue | Remove one numbered reservation / all editable reservations; shots committed to the current interval and flying rounds stay unchanged |
@@ -621,6 +621,30 @@ AIM uses the friendly ship's predicted firing position and velocity, then leads
 the observed enemy by the projectile flight time. The enemy-at-fire marker and
 the later arrival estimate are distinct. For example, selecting 120 seconds
 reserves a shot firing at 120 seconds, not one that must arrive in 120 seconds.
+While dragging Fine aim, a passive inset centers on the target at eight times
+the main map's scale at gesture start. It follows the Fine aim handle, choosing
+an adjacent position within the map that avoids the pointer and crosshair when
+space permits. Its world scale stays fixed for the gesture. The inset shows the
+approaching ballistic segment and the same observation-based enemy arrival
+estimate as the main map, with offset and a scale bar in kilometres. An outlined
+ship marked `At impact` shows the predicted arrival position, oriented along the
+observed velocity. An orange dotted route extends from the current estimated
+position to the forecast horizon or shot arrival, whichever is later. When the
+current estimate falls inside the inset, a filled ship and `Now · est.` label
+distinguish it from the arrival prediction. An edge arrow and `Off view` indicate
+an arrival estimate outside the inset. Marker sizes are symbolic. Missing shot
+solutions clear the ballistic segment and arrival marker; the observed course
+remains available. Neither the ships nor the route read privileged enemy state.
+
+The inset follows the existing preview while playing or paused, without changing
+time, aim sensitivity, orders, or camera framing. It remains for 1.5 real seconds
+after release. Cancellation (including a second finger taking over navigation),
+Retry, help, or mission completion removes it immediately. Regular Aim dragging
+and keyboard nudges do not open it. The inset's dimensions adapt to the map;
+it may overlap other map labels and changes sides when needed near edges.
+Desktop and phone-sized Chromium interaction checks cover the inset; physical
+phone and Safari testing remains outstanding.
+
 Drag Aim or Fine aim to choose a different fixed world point. Queue stores that
 point and firing tick. Track lead restores the computed intercept.
 
@@ -707,7 +731,7 @@ Shared numerical settings have distinct owners:
 | Sensor sampling/retention and AI decision cadence | Named constants in `observation.rs` and `ai.rs` |
 | Independent threat horizon, safety corridor, evasion/recovery duration | `ai::Policy::default()` |
 | Score weights | `src/evaluation.rs` |
-| Aim sensitivity, timeline snapping/geometry, navigation and burn gestures, command pulse, history length | `web/ui-settings.ts` |
+| Aim sensitivity and magnifier scale/lifetime, timeline snapping/geometry, navigation and burn gestures, command pulse, history length | `web/ui-settings.ts` |
 
 Whole-second durations become ticks through `timing::seconds_to_ticks`; the
 playback clock must be an integer multiple of the physics frequency. Equal
@@ -757,7 +781,8 @@ the pure time mapping and snap policy, while `web/timeline.ts` owns selection,
 pointer ownership, forecast caching, and DOM updates. `web/mission-panel.ts`
 renders status, reservation/history rows, and the result dialog, forwarding actions
 through controller callbacks. `web/mission-preview.ts` computes one observation-only
-arrival estimate for both weapon feedback and the map. `web/mission-map.ts` draws
+arrival estimate for weapon feedback, the map, and the passive inset in
+`web/aim-detail.ts`. `web/mission-map.ts` draws
 the supplied state and preview without issuing commands. These are plain modules;
 they do not introduce a separate simulation or command API. Keep the existing
 command-boundary and gesture behavior when changing presentation.

@@ -46,7 +46,21 @@
               <g id="shot-paths"/><g id="shot-labels"/><path id="queued-shot-line"/><g id="queued-shot-markers"/><path id="aim-line"/>
               <g id="time-forecast"/><g id="arrival-contact"><path/><text/></g>
               <g id="aim-handle" role="button" tabindex="0" aria-label="Drag shot target. Near observed lead, aim snaps to the intercept. Hold Shift to bypass snapping. Arrow keys adjust; Home tracks observed lead."><circle r="28" class="handle-hit"/><path d="M-12 0H12M0 -12V12"/><circle r="7"/><text x="14" y="-12">Aim</text><g id="aim-grip"><path class="grip-link"/><g class="grip-control"><circle r="22"/><path d="M-8 0H8M0 -8V8"/><text y="34" text-anchor="middle">Fine aim</text></g></g></g>
-            </svg><div class="map-caption"><div class="map-scale"><span id="grid-label">GRID / km</span><span id="range-label">RANGE / —</span><span id="railgun-label">RAILGUN / —</span></div><span id="command-number">COMMAND 01</span></div></div>
+            </svg><div class="map-caption"><div class="map-scale"><span id="grid-label">GRID / km</span><span id="range-label">RANGE / —</span><span id="railgun-label">RAILGUN / —</span></div><span id="command-number">COMMAND 01</span></div>
+            <div id="aim-detail" hidden aria-hidden="true">
+              <div class="aim-detail-heading"><strong>Fine aim</strong><span id="aim-detail-note">At impact</span></div>
+              <svg id="aim-detail-map">
+                <defs><clipPath id="aim-detail-clip"><rect/></clipPath></defs>
+                <g clip-path="url(#aim-detail-clip)">
+                  <path class="detail-grid"/><path class="detail-route"/><path class="detail-current"/><text class="detail-current-label">Now · est.</text><path class="detail-shot"/>
+                  <path class="detail-offset"/><path class="detail-enemy"/>
+                  <path class="detail-crosshair"/>
+                </g>
+                <path class="detail-scale"/><text class="detail-scale-label"/>
+              </svg>
+              <span id="aim-detail-offset"></span>
+            </div>
+          </div>
           <div id="timeline-controls" hidden><button id="forecast-live" aria-pressed="true" title="Return to live positions and automatic firing time">Live</button><label for="forecast-time" id="forecast-label">Live · drag to plan firing</label><div id="forecast-scale" title="Cyan: until the next command. Amber: later firing times. Green diamonds: firing windows after reload. Arrow keys fine-tune time. Q queues a shot while adjusting time; touch users can tap Queue with another finger.">
             <div id="forecast-axis" aria-hidden="true"><div id="forecast-ticks"></div><div id="forecast-ready-marks"></div><span id="forecast-ready-label"></span><span class="forecast-now">Now</span><span id="forecast-boundary"></span><span id="forecast-end"></span></div>
             <input id="forecast-time" type="range" min="0" max="1" step="any" value="0" aria-label="Future preview and shot firing time. Press Q to queue a shot." aria-keyshortcuts="Q">

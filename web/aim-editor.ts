@@ -7,36 +7,43 @@ interface AimOptions {
   svg: SVGSVGElement; handle: SVGGElement; projection: () => Projection;
   leadTarget: () => Vector2 | null | undefined; enabled: () => boolean;
   onChange: () => void; onMove: () => void; onEditingChange: (editing: boolean) => void;
+  onFineStart: (view: Projection) => void;
+  onFineEnd: (applied: boolean) => void;
 }
 
 // Own the draft target and pointer lifecycle; the mission controller issues commands.
-export function createAimEditor({ svg, handle, projection, leadTarget, enabled, onChange, onMove, onEditingChange }: AimOptions) {
+export function createAimEditor({ svg, handle, projection, leadTarget, enabled, onChange, onMove, onEditingChange, onFineStart, onFineEnd }: AimOptions) {
   let target: Vector2 | null = null, beforeDrag: Vector2 | null = null;
   let pointer: number | undefined;
-  let aimGesture: { view: Projection; source: Vector2; x: number; y: number; gain: number } | undefined;
+  let aimGesture: { view: Projection; source: Vector2; x: number; y: number; gain: number; fine: boolean; pointer: Vector2 } | undefined;
   let dragging = false;
   function finish(apply: boolean) {
     if (!dragging) return;
+    const fine = aimGesture?.fine;
     dragging = false;
     aimGesture = undefined;
     if (!apply) target = beforeDrag;
     const captured = pointer; pointer = undefined;
     if (captured !== undefined && svg.hasPointerCapture(captured)) svg.releasePointerCapture(captured);
+    if (fine) onFineEnd(apply);
     onEditingChange(false);
   }
   handle.addEventListener('pointerdown', (event) => {
     if (!enabled() || dragging || event.button !== 0) return;
     const source = target ?? leadTarget();
     if (!source) return;
+    const fine = event.target instanceof Element && Boolean(event.target.closest('#aim-grip'));
     aimGesture = { view: projection(), source, x: event.clientX, y: event.clientY,
-      gain: event.target instanceof Element && event.target.closest('#aim-grip') ? AIM.fineGain : 1 };
+      gain: fine ? AIM.fineGain : 1, fine, pointer: { x: event.clientX, y: event.clientY } };
     event.preventDefault(); beforeDrag = target; dragging = true; pointer = event.pointerId;
     handle.focus({ preventScroll: true }); svg.setPointerCapture(pointer);
+    if (fine) onFineStart(aimGesture.view);
     onEditingChange(true);
   });
   svg.addEventListener('pointermove', (event) => {
     if (!dragging || event.pointerId !== pointer) return;
     const { view, source, x, y, gain } = required(aimGesture);
+    required(aimGesture).pointer = { x: event.clientX, y: event.clientY };
     target = { x: source.x + (event.clientX - x) * view.metresPerPixel * gain,
       y: source.y - (event.clientY - y) * view.metresPerPixel * gain };
     const lead = leadTarget();
@@ -66,6 +73,8 @@ export function createAimEditor({ svg, handle, projection, leadTarget, enabled, 
   return {
     get target() { return target; },
     get dragging() { return dragging; },
+    get fineDragging() { return Boolean(dragging && aimGesture?.fine); },
+    get finePointer() { return aimGesture?.fine ? aimGesture.pointer : undefined; },
     clear() { target = null; },
     cancel() { finish(false); },
   };

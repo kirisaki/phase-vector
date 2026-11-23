@@ -9,6 +9,7 @@ import { createMissionPanel } from './mission-panel.js';
 import { shotArrivalEstimate } from './mission-preview.js';
 import { createTimeline } from './timeline.js';
 import { createAimEditor } from './aim-editor.js';
+import { createAimDetail } from './aim-detail.js';
 
 const decimal = (n: number) => n.toFixed(1);
 
@@ -19,6 +20,7 @@ export function createMissionControls(onChange: () => void, onBeforeRetry: () =>
   let lastTick = 0;
   let resumeAfterRetry: 'commit' | 'play' | null = null;
   const timeline = createTimeline(() => { error = ''; onChange(); });
+  const aimDetail = createAimDetail();
   const panel = createMissionPanel({
     onCancelShot: (id) => invoke(() => cancel_shot(id)),
     onRetry: () => {
@@ -41,9 +43,14 @@ export function createMissionControls(onChange: () => void, onBeforeRetry: () =>
   const aimEditor = createAimEditor({
     svg, handle, projection: () => mapProjection(svg, state.map), leadTarget,
     enabled: () => ready && !finished() && !blocked,
-    onChange: render,
+    onChange: () => { aimDetail.hide(); render(); },
     onMove: () => { error = ''; render(); },
-    onEditingChange: (editing) => { set_route_editing(editing); onChange(); },
+    onFineStart: aimDetail.start,
+    onFineEnd: aimDetail.finish,
+    onEditingChange: (editing) => {
+      if (editing && !aimEditor.fineDragging) aimDetail.hide();
+      set_route_editing(editing); onChange();
+    },
   });
 
   function render() {
@@ -54,7 +61,7 @@ export function createMissionControls(onChange: () => void, onBeforeRetry: () =>
     query('.badge').textContent = m ? '05 / EVALUATION' : '02 / PHYSICS & WEGO';
     panel.render(state, ready);
     timeline.sync(state, ready, aimEditor.dragging || blocked);
-    if (!m || !ready) { svg.setAttribute('hidden', ''); return; }
+    if (!m || !ready) { aimDetail.hide(); svg.setAttribute('hidden', ''); return; }
     svg.removeAttribute('hidden');
     const done = finished();
     const aim = aimEditor.target ?? leadTarget();
@@ -83,6 +90,11 @@ export function createMissionControls(onChange: () => void, onBeforeRetry: () =>
       (timeline.seconds !== null && solution ? `Fire ${decimal(solution.launch_tick * state.timing.step_seconds)} s · arrival ${solution.arrival_seconds.toFixed(2)} s · flight ${decimal(solution.flight_seconds)} s · ${estimate}` :
       `${aimEditor.target ? 'Fixed point' : 'Lead assist'} · fire ${solution ? decimal(solution.launch_tick * state.timing.step_seconds) : '—'} s · flight ${solution ? decimal(solution.flight_seconds) : '—'} s · ${estimate}`));
     drawMissionMap(svg, { ...state, mission: m }, { aim, solution, arrival, forecast: timeline.forecast, fixedTarget: Boolean(aimEditor.target), done });
+    if (done) aimDetail.hide();
+    else aimDetail.render(aim, solution, arrival, {
+      position: m.prediction[0], velocity: m.contact.velocity,
+      horizonSeconds: Math.max(state.timing.forecast_seconds, arrival?.secondsFromNow ?? 0),
+    }, aimEditor.finePointer);
   }
 
   function invoke(action: () => void) {
@@ -94,6 +106,7 @@ export function createMissionControls(onChange: () => void, onBeforeRetry: () =>
     resumeAfterRetry = null;
     invoke(() => {
       aimEditor.cancel();
+      aimDetail.hide();
       onBeforeRetry();
       aimEditor.clear(); timeline.reset(); command('retry');
     });
@@ -138,14 +151,14 @@ export function createMissionControls(onChange: () => void, onBeforeRetry: () =>
     queueCurrentShot();
   });
   el('cancel-shot').addEventListener('click', () => invoke(() => command('cancel_shot')));
-  el('track-aim').addEventListener('click', () => { aimEditor.clear(); error = ''; render(); });
+  el('track-aim').addEventListener('click', () => { aimDetail.hide(); aimEditor.clear(); error = ''; render(); });
 
   new ResizeObserver(() => { if (state) render(); }).observe(required(svg.parentElement));
-  return { get dragging() { return aimEditor.dragging; }, cancel() { aimEditor.cancel(); }, sync(value: State, isReady: boolean, isBlocked: boolean) {
+  return { get dragging() { return aimEditor.dragging; }, cancel() { aimEditor.cancel(); aimDetail.hide(); }, sync(value: State, isReady: boolean, isBlocked: boolean) {
     const reset = value.world.tick < lastTick || Boolean(state?.mission) !== Boolean(value.mission);
     state = value; ready = isReady; blocked = isBlocked;
     if (aimEditor.dragging && (reset || finished())) aimEditor.cancel();
-    if (reset) { aimEditor.clear(); error = ''; timeline.reset(); }
+    if (reset) { aimDetail.hide(); aimEditor.clear(); error = ''; timeline.reset(); }
     lastTick = state.world.tick;
     render();
   } };

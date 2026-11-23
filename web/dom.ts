@@ -42,6 +42,10 @@ interface Elements {
   'arrival-contact': SVGGElement;
   'aim-handle': SVGGElement;
   'aim-grip': SVGGElement;
+  'aim-detail': HTMLDivElement;
+  'aim-detail-map': SVGSVGElement;
+  'aim-detail-offset': HTMLSpanElement;
+  'aim-detail-note': HTMLSpanElement;
   'grid-label': HTMLElementTagNameMap['span'];
   'range-label': HTMLElementTagNameMap['span'];
   'railgun-label': HTMLElementTagNameMap['span'];

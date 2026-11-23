@@ -10,6 +10,7 @@ from map_navigation_checks import check_map_navigation
 from planning_checks import check_planning
 from browser_controls import read_ui_settings, connect_engine
 from diagnostic_checks import check_parameters, check_evaluation
+from aim_detail_checks import check_aim_detail
 
 ROOT = Path(__file__).resolve().parents[1]
 
@@ -45,6 +46,7 @@ def main():
             connect_engine(page)
             check_parameters(page)
             check_evaluation(page)
+            check_aim_detail(page)
             ui_settings = read_ui_settings(page)
             fine_gain = ui_settings['AIM']['fineGain']
 
