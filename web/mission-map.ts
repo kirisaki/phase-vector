@@ -56,10 +56,11 @@ export function drawMissionMap(svg: SVGSVGElement, state: MissionState, { aim, s
     arrivalContact.setAttribute('transform', `translate(${x} ${y})`);
     query<SVGPathElement>('path', arrivalContact).setAttribute('d', 'M0 -10L10 0L0 10L-10 0Z');
     const label = query<SVGTextElement>('text', arrivalContact);
-    label.setAttribute('x', String(x > view.width - 130 ? -14 : 14));
-    label.setAttribute('y', String(22));
-    label.setAttribute('text-anchor', x > view.width - 130 ? 'end' : 'start');
     label.textContent = `Enemy +${arrival.secondsFromNow.toFixed(0)} s · estimate`;
+    const left = x + label.getComputedTextLength() + 14 > view.width;
+    label.setAttribute('x', String(left ? -14 : 14));
+    label.setAttribute('y', String(22));
+    label.setAttribute('text-anchor', left ? 'end' : 'start');
   }
   query<SVGTextElement>('text', handle).textContent = fixedTarget ? 'Aim · fixed' : 'Aim · lead';
   el('shot-paths').replaceChildren();
@@ -157,7 +158,9 @@ function drawContact(el: (id: string) => SVGElement, state: MissionState, view: 
   el('enemy-speed').textContent = speedLabel;
   el('enemy-motion').textContent = labels[motion];
   el('enemy-contact').setAttribute('aria-label', `${speedLabel}. ${labels[motion]}. Contact age ${m.contact_age.toFixed(1)} seconds.`);
-  const left = x > view.width - 155;
+  const labelWidth = Math.max(...['enemy-speed', 'enemy-motion'].map(id =>
+    query<SVGTextElement>(`#${id}`, el('enemy-contact')).getComputedTextLength()));
+  const left = x + labelWidth + 18 > view.width;
   for (const [id, offset] of [['enemy-speed', -20], ['enemy-motion', -7]] as const) {
     el(id).setAttribute('x', String(left ? -18 : 18));
     el(id).setAttribute('y', String(offset));

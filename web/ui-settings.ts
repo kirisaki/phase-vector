@@ -10,7 +10,7 @@ export const AIM_DETAIL = Object.freeze({
   magnification: 8,
   lingerMs: 1500,
   markerInsetPixels: 10,
-  scaleAreaPixels: 20,
+  scaleAreaPixels: 24,
   edgePaddingPixels: 8,
   handleGapPixels: 32,
   pointerClearancePixels: 24,

@@ -105,9 +105,9 @@ export function createAimDetail() {
       current.setAttribute('d', currentVisible ? shipSymbol : '');
       current.setAttribute('transform', `translate(${now.x} ${now.y}) rotate(${heading})`);
       currentLabel.style.display = currentVisible ? '' : 'none';
-      currentLabel.setAttribute('x', String(now.x > cx ? now.x - 12 : now.x + 12));
-      currentLabel.setAttribute('text-anchor', now.x > cx ? 'end' : 'start');
-      currentLabel.setAttribute('y', String(Math.max(10, now.y - 10)));
+      currentLabel.setAttribute('x', String(Math.max(0, Math.min(w - currentLabel.getComputedTextLength(), now.x + 12))));
+      currentLabel.setAttribute('text-anchor', 'start');
+      currentLabel.setAttribute('y', String(Math.max(12, now.y - 12)));
 
       // Draw only the approach to the target; the main preview ends there too.
       if (solution) {

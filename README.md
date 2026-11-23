@@ -144,6 +144,10 @@ and short landscape screens retain their compact layouts.
 Clock, telemetry, and status rows reserve their space so planning, playback,
 pause/resume, and changing digits do not resize the map. Numeric-edit warnings
 share the status area; longer messages can be scrolled inside it.
+Shared CSS type sizes use 12–14 px for labels, telemetry, and buttons, and 16 px
+for help body text and Lua input. Timeline, status, and history rows reserve room
+for the larger text. Narrow mission layouts retain at least 160 px of map height
+and scroll the controls internally; short keyboard-sized viewports use the compact layout.
 
 | Control | Behavior |
 | --- | --- |

@@ -253,7 +253,12 @@ def main():
             for width, height in [(390, 844), (320, 568)]:
                 page.set_viewport_size({'width': width, 'height': height})
                 page.wait_for_timeout(300)
+                # Larger text keeps the map visible and scrolls the control panel.
+                page.locator('#shot-history').scroll_into_view_if_needed()
                 expect(page.locator('#shot-history')).to_be_in_viewport()
+                expect(page.locator('#tactical-map')).to_be_in_viewport()
+                for line in page.locator('#launch-list > div').all():
+                    expect(line).to_be_in_viewport()
                 assert page.evaluate('document.documentElement.scrollWidth <= innerWidth && document.documentElement.scrollHeight <= innerHeight')
                 page.screenshot(path=str(artifacts / f'shot-history-{width}.png'))
             page.set_viewport_size({'width': 1360, 'height': 1000})
