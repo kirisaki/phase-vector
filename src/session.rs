@@ -148,7 +148,7 @@ impl Session {
 
     pub fn blockade() -> Self {
         Self::with_mission(
-            crate::scenario::initial_world(),
+            crate::scenario::blockade_world(),
             1,
             crate::mission::Config::default(),
         )
@@ -377,7 +377,7 @@ impl Session {
         if self.parameter_edits.iter().any(|edit| edit.during_play) {
             RunKind::Debug
         } else if self.initial_mission.as_ref() != Some(&crate::mission::Config::default())
-            || self.initial != crate::scenario::initial_world()
+            || self.initial != crate::scenario::blockade_world()
         {
             RunKind::Custom
         } else {
@@ -582,9 +582,11 @@ impl Snapshot<'_> {
 
     pub fn aim(&self) -> Result<crate::mission::Solution, String> {
         let tick = self.next_shot_tick()?;
+        let ship = self.planning_ship_at(tick);
         self.mission
             .unwrap()
-            .aim(&self.planning_ship_at(tick), tick)
+            .aim(&ship, tick)
+            .map(|s| self.cover_solution(s))
     }
 
     pub fn preview_shot_at(
@@ -592,7 +594,11 @@ impl Snapshot<'_> {
         target: Vector2,
         tick: u64,
     ) -> Result<crate::mission::Solution, String> {
-        crate::mission::solve_shot(&self.planning_ship_at(tick), target, tick)
+        let ship = self.planning_ship_at(tick);
+        if ship.disabled {
+            return Err("Firing ship will be disabled by an asteroid before launch.".into());
+        }
+        crate::mission::solve_shot(&ship, target, tick).map(|s| self.cover_solution(s))
     }
 
     pub fn presentation_world(&self) -> World {
@@ -617,21 +623,37 @@ impl Snapshot<'_> {
             .unwrap()
             .clone();
         for t in self.world.tick..tick {
-            ship.advance(self.planning_burn_at(t));
+            self.advance_planning_ship(&mut ship, t);
         }
         ship
     }
 
     /// Preview the queued interval, including the frozen remainder as a route prefix.
     pub fn planned_route(&self, acceleration: Vector2) -> crate::maneuver::Preview {
-        let mut route = crate::maneuver::preview(&self.planning_ship(), acceleration);
+        let terrain: Vec<_> = self
+            .world
+            .asteroids
+            .iter()
+            .cloned()
+            .map(|mut a| {
+                a.position =
+                    a.position + a.velocity * (self.order_start_seconds - self.time_seconds);
+                a
+            })
+            .collect();
+        let mut route = crate::maneuver::preview_ticks_in_terrain(
+            &self.planning_ship(),
+            acceleration,
+            crate::timing::INTERVAL_TICKS,
+            &terrain,
+        );
         let ship = self
             .world
             .ships
             .iter()
             .find(|s| s.id == self.player_id)
             .unwrap();
-        route.forecast = Some(crate::maneuver::forecast(
+        route.forecast = Some(crate::maneuver::forecast_in_terrain(
             ship,
             if self.phase == Phase::Executing {
                 self.active_burn
@@ -640,12 +662,17 @@ impl Snapshot<'_> {
             },
             acceleration,
             (self.remaining_seconds / STEP_SECONDS) as u64,
+            &self.world.asteroids,
         ));
+        if let Some(hit) = route.forecast.as_mut().and_then(|f| f.collision.as_mut()) {
+            hit.seconds += self.time_seconds;
+        }
         if self.phase == Phase::Executing {
-            let mut prefix = crate::maneuver::preview_ticks(
+            let mut prefix = crate::maneuver::preview_ticks_in_terrain(
                 ship,
                 self.active_burn,
                 (self.remaining_seconds / STEP_SECONDS) as u64,
+                &self.world.asteroids,
             )
             .points;
             prefix.pop();

@@ -26,6 +26,7 @@ pub struct Preview {
 
 #[derive(Serialize)]
 pub struct Forecast {
+    pub collision: Option<crate::physics::AsteroidHit>,
     pub points: Vec<Vector2>,
     pub boundaries: Vec<ForecastBoundary>,
 }
@@ -40,6 +41,17 @@ pub struct ForecastBoundary {
 
 /// Predict the configured command boundaries, retaining the active first interval.
 pub fn forecast(ship: &Ship, active: Vector2, queued: Vector2, first_ticks: u64) -> Forecast {
+    forecast_in_terrain(ship, active, queued, first_ticks, &[])
+}
+
+pub fn forecast_in_terrain(
+    ship: &Ship,
+    active: Vector2,
+    queued: Vector2,
+    first_ticks: u64,
+    asteroids: &[crate::physics::Asteroid],
+) -> Forecast {
+    let mut collision = None;
     let mut predicted = ship.clone();
     let mut points = vec![ship.position];
     let mut boundaries = Vec::with_capacity(FORECAST_INTERVALS);
@@ -52,7 +64,12 @@ pub fn forecast(ship: &Ship, active: Vector2, queued: Vector2, first_ticks: u64)
         };
         let burn = if turn == 0 { active } else { queued };
         for tick in 1..=ticks {
-            predicted.advance(burn);
+            if let Some(mut hit) =
+                predicted.advance_in_terrain(burn, asteroids, elapsed as f64 * STEP_SECONDS)
+            {
+                hit.seconds += elapsed as f64 * STEP_SECONDS;
+                collision = Some(hit);
+            }
             elapsed += 1;
             if elapsed % ROUTE_SAMPLE_TICKS == 0 || tick == ticks {
                 points.push(predicted.position);
@@ -65,7 +82,11 @@ pub fn forecast(ship: &Ship, active: Vector2, queued: Vector2, first_ticks: u64)
             remaining_dv: predicted.remaining_dv,
         });
     }
-    Forecast { points, boundaries }
+    Forecast {
+        points,
+        boundaries,
+        collision,
+    }
 }
 
 fn displacement(ship: &Ship, acceleration: f64, ticks: u64) -> f64 {
@@ -88,12 +109,21 @@ pub fn preview(ship: &Ship, acceleration: Vector2) -> Preview {
 
 /// Predict the remaining execution ticks using exactly the same integration as playback.
 pub fn preview_ticks(ship: &Ship, acceleration: Vector2, ticks: u64) -> Preview {
+    preview_ticks_in_terrain(ship, acceleration, ticks, &[])
+}
+
+pub fn preview_ticks_in_terrain(
+    ship: &Ship,
+    acceleration: Vector2,
+    ticks: u64,
+    asteroids: &[crate::physics::Asteroid],
+) -> Preview {
     let mut coast = ship.clone();
     let mut planned = ship.clone();
     let mut points = vec![ship.position];
     for tick in 1..=ticks {
-        coast.advance(Vector2::ZERO);
-        planned.advance(acceleration);
+        coast.advance_in_terrain(Vector2::ZERO, asteroids, (tick - 1) as f64 * STEP_SECONDS);
+        planned.advance_in_terrain(acceleration, asteroids, (tick - 1) as f64 * STEP_SECONDS);
         if tick % ROUTE_SAMPLE_TICKS == 0 || tick == ticks {
             points.push(planned.position);
         }

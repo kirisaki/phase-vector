@@ -41,6 +41,8 @@ pub struct VisibleWorld<'a> {
     pub ships: Vec<VisibleShip>,
     pub projectiles: &'a [Projectile],
     pub impacts: &'a [Impact],
+    pub asteroids: &'a [crate::physics::Asteroid],
+    pub asteroid_impacts: &'a [crate::physics::AsteroidImpact],
     next_projectile_id: u64,
 }
 
@@ -51,6 +53,7 @@ pub struct VisibleShip {
     pub velocity: Vector2,
     pub radius: f64,
     pub max_acceleration: f64,
+    pub disabled: bool,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub remaining_dv: Option<f64>,
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -65,6 +68,7 @@ impl VisibleShip {
             velocity: ship.velocity,
             radius: ship.radius,
             max_acceleration: ship.max_acceleration,
+            disabled: !hide_fuel && ship.disabled,
             remaining_dv: (!hide_fuel).then_some(ship.remaining_dv),
             spent_dv: (!hide_fuel).then_some(ship.spent_dv),
         }
@@ -173,6 +177,8 @@ impl<'a> State<'a> {
                     .collect(),
                 projectiles: &snapshot.world.projectiles,
                 impacts: &snapshot.world.impacts,
+                asteroids: &snapshot.world.asteroids,
+                asteroid_impacts: &snapshot.world.asteroid_impacts,
                 next_projectile_id: snapshot.world.next_projectile_id(),
             },
             mission,

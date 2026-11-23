@@ -28,9 +28,43 @@ pub struct Forecast {
     pub enemy_velocity: Vector2,
     pub aim: Option<Solution>,
     pub rounds: Vec<ForecastRound>,
+    pub asteroids: Vec<crate::physics::Asteroid>,
+    pub own_collision: Option<crate::physics::AsteroidHit>,
 }
 
 impl Snapshot<'_> {
+    /// Shared tick integration for own-ship planning, including known terrain.
+    pub(crate) fn advance_planning_ship(
+        &self,
+        ship: &mut Ship,
+        tick: u64,
+    ) -> Option<crate::physics::AsteroidHit> {
+        let offset = (tick - self.world.tick) as f64 * STEP_SECONDS;
+        let mut hit =
+            ship.advance_in_terrain(self.planning_burn_at(tick), &self.world.asteroids, offset)?;
+        hit.seconds += tick as f64 * STEP_SECONDS;
+        Some(hit)
+    }
+
+    /// A blocked ballistic solution remains queueable, but its first cover contact is explicit.
+    pub(crate) fn cover_solution(&self, mut solution: Solution) -> Solution {
+        let launch_seconds = solution.launch_tick as f64 * STEP_SECONDS;
+        let velocity = (solution.target - solution.origin) * (1.0 / solution.flight_seconds);
+        solution.obstruction = crate::physics::asteroid_contact(
+            &self.world.asteroids,
+            solution.origin,
+            velocity,
+            launch_seconds - self.time_seconds,
+            solution.flight_seconds,
+            crate::scenario::PROJECTILE_RADIUS,
+        )
+        .map(|mut hit| {
+            hit.seconds += launch_seconds;
+            hit
+        });
+        solution
+    }
+
     fn planning_tick(&self, seconds: f64) -> Result<u64, String> {
         let mission = self
             .mission
@@ -51,6 +85,7 @@ impl Snapshot<'_> {
         self.mission
             .unwrap()
             .aim(&self.planning_ship_at(tick), tick)
+            .map(|s| self.cover_solution(s))
     }
 
     /// Reserve an explicit firing tick; arrival follows from fixed muzzle speed.
@@ -114,7 +149,8 @@ impl Snapshot<'_> {
         let mut best: Option<(f64, Solution)> = None;
         let mut reload_conflict = false;
         for tick in self.world.tick..=end {
-            if tick >= self.order_start_tick
+            if !ship.disabled
+                && tick >= self.order_start_tick
                 && (tick as f64 * STEP_SECONDS) < seconds
                 && let Ok(solution) = crate::mission::solve_shot(&ship, target, tick)
             {
@@ -124,14 +160,14 @@ impl Snapshot<'_> {
                 {
                     if slots.slot_available(tick) {
                         if best.as_ref().is_none_or(|(distance, _)| error < *distance) {
-                            best = Some((error, solution));
+                            best = Some((error, self.cover_solution(solution)));
                         }
                     } else {
                         reload_conflict = true;
                     }
                 }
             }
-            ship.advance(self.planning_burn_at(tick));
+            self.advance_planning_ship(&mut ship, tick);
         }
         best.map(|(_, solution)| solution).ok_or_else(|| if reload_conflict {
             "Arrival conflicts with the gun's reload window or another reservation.".into()
@@ -163,7 +199,7 @@ impl Snapshot<'_> {
         Ok(solution)
     }
 
-    /// Future positions are estimates; this does not run enemy AI or predict collisions.
+    /// Future enemy positions are estimates; known terrain contacts use swept prediction.
     pub fn forecast(&self, seconds: f64) -> Result<Forecast, String> {
         let tick = self.planning_tick(seconds)?;
         let mission = self.mission.unwrap();
@@ -175,8 +211,12 @@ impl Snapshot<'_> {
             .unwrap()
             .clone();
         let mut own_path = vec![own.position];
+        let mut own_collision = None;
         for t in self.world.tick..tick {
-            own.advance(self.planning_burn_at(t));
+            let hit = self.advance_planning_ship(&mut own, t);
+            if own_collision.is_none() {
+                own_collision = hit;
+            }
             if (t + 1 - self.world.tick).is_multiple_of(FORECAST_SAMPLE_TICKS) || t + 1 == tick {
                 own_path.push(own.position);
             }
@@ -189,6 +229,18 @@ impl Snapshot<'_> {
                 .iter()
                 .find(|shot| shot.projectile_id == projectile.id)
             {
+                if crate::physics::asteroid_contact(
+                    &self.world.asteroids,
+                    projectile.position,
+                    projectile.velocity,
+                    0.0,
+                    time_seconds - self.time_seconds,
+                    projectile.radius,
+                )
+                .is_some()
+                {
+                    continue;
+                }
                 rounds.push(ForecastRound {
                     order_id: shot.order_id,
                     position: projectile.position
@@ -205,6 +257,18 @@ impl Snapshot<'_> {
             if let Ok(solution) = self.preview_order(order) {
                 let ship = self.planning_ship_at(order.launch_tick);
                 let velocity = ship.velocity + solution.direction * crate::scenario::RAILGUN_SPEED;
+                if crate::physics::asteroid_contact(
+                    &self.world.asteroids,
+                    solution.origin,
+                    velocity,
+                    order.launch_tick as f64 * STEP_SECONDS - self.time_seconds,
+                    time_seconds - order.launch_tick as f64 * STEP_SECONDS,
+                    crate::scenario::PROJECTILE_RADIUS,
+                )
+                .is_some()
+                {
+                    continue;
+                }
                 rounds.push(ForecastRound {
                     order_id: order.id,
                     position: solution.origin
@@ -216,7 +280,21 @@ impl Snapshot<'_> {
         }
         Ok(Forecast {
             time_seconds,
-            aim: mission.aim(&own, tick).ok(),
+            aim: (!own.disabled)
+                .then(|| mission.aim(&own, tick).ok())
+                .flatten()
+                .map(|s| self.cover_solution(s)),
+            asteroids: self
+                .world
+                .asteroids
+                .iter()
+                .cloned()
+                .map(|mut a| {
+                    a.position = a.position + a.velocity * (time_seconds - self.time_seconds);
+                    a
+                })
+                .collect(),
+            own_collision,
             own,
             own_path,
             enemy_position: mission.sensors.contact.position_at(tick),

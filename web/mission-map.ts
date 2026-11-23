@@ -1,3 +1,4 @@
+import { drawAsteroids } from './asteroid-map.js';
 import { query, required } from './dom.js';
 import type { MissionState, Vector2, Forecast, Solution, ArrivalEstimate } from './types.js';
 import type { Projection } from './map-overlay.js';
@@ -13,6 +14,7 @@ export function drawMissionMap(svg: SVGSVGElement, state: MissionState, { aim, s
   const handle = el('aim-handle'), m = state.mission;
   const view = mapProjection(svg, state.map), { project, path } = view;
   svg.dataset.preview = String(Boolean(forecast));
+  drawAsteroids(svg, state, view, forecast, solution);
   drawForecast(el('time-forecast'), view, forecast);
   const [gx, gy] = project(m.goal);
   el('mission-goal').setAttribute('cx', String(gx)); el('mission-goal').setAttribute('cy', String(gy));
@@ -25,16 +27,16 @@ export function drawMissionMap(svg: SVGSVGElement, state: MissionState, { aim, s
   el('prediction-label').setAttribute('x', String(px + (px > view.width - 180 ? -8 : 8)));
   el('prediction-label').setAttribute('y', String(py + 16));
   drawContact(el, state, view, done);
-  el('aim-line').setAttribute('d', solution && !done ? path([solution.origin, solution.target]) : '');
+  el('aim-line').setAttribute('d', solution && !done ? path([solution.origin, solution.obstruction?.position ?? solution.target]) : '');
   el('queued-shot-line').setAttribute('d', done ? '' : m.queued
-    .flatMap(({ solution }) => solution ? [path([solution.origin, solution.target])] : []).join(' '));
+    .flatMap(({ solution }) => solution ? [path([solution.origin, solution.obstruction?.position ?? solution.target])] : []).join(' '));
   el('queued-shot-markers').replaceChildren();
   if (!done) for (const order of m.queued) {
     if (forecast?.rounds.some((round) => round.order_id === order.id)) continue;
     const [x, y] = project(order.target);
     const marker = document.createElementNS(ns, 'text');
     marker.setAttribute('x', String(x + 8)); marker.setAttribute('y', String(y - 10));
-    marker.textContent = `#${order.id}`;
+    marker.textContent = `#${order.id}${order.solution?.obstruction ? " · blocked" : ""}`;
     el('queued-shot-markers').append(marker);
   }
   handle.style.display = aim && !done ? '' : 'none';
@@ -72,7 +74,7 @@ export function drawMissionMap(svg: SVGSVGElement, state: MissionState, { aim, s
     if (state.time_seconds < shot.arrival_seconds) {
       const remaining = document.createElementNS(ns, 'path');
       remaining.dataset.shotId = String(shot.order_id);
-      remaining.setAttribute('d', path([projectile.position, shot.target]));
+      remaining.setAttribute('d', path([projectile.position, shot.obstruction?.position ?? shot.target]));
       el('shot-paths').append(remaining);
     }
     const [x, y] = project(projectile.position);

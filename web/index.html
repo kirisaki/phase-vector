@@ -37,6 +37,7 @@
               <path id="arrival-arrow"/><path id="burn-vector"/><text id="burn-label"/>
               <g id="arrival-handle" role="button" tabindex="0" aria-label="Edit burn direction"><circle class="handle-hit" r="22"/><circle class="handle-dot" r="7"/><text x="12" y="-12">Burn</text></g>
             </svg><svg id="mission-overlay" role="group" aria-label="Blockade target and observed enemy prediction" hidden>
+              <g id="asteroid-map"/><g id="asteroid-forecast"/><g id="cover-contact"/>
               <circle id="mission-goal"/><text id="goal-label">EXIT</text>
               <path id="enemy-prediction"/><text id="prediction-label">Observed velocity forecast</text>
               <g id="enemy-contact" role="img" aria-label="Observed enemy ship">
@@ -104,7 +105,7 @@
               <p id="route-feedback" role="status"></p>
               <details id="numeric-burn"><summary>Numeric thrust</summary><fieldset id="burn-fields" disabled><legend>Constant acceleration for the next interval</legend><div class="burn-inputs"><label for="burn-x">ax / m/s²<input id="burn-x" type="number" value="0" step="any" required></label><label for="burn-y">ay / m/s²<input id="burn-y" type="number" value="0" step="any" required></label><button id="apply-burn" type="submit">Apply burn</button></div></fieldset></details></form>
           </div>
-          <p class="legend"><span class="cyan">△</span> Friendly <span class="amber">▷</span> Observed enemy · Dots: predicted routes · White: gun · Enemy bright arrow: observed acceleration · Symbols enlarged · Radius rings visible when zoomed in</p>
+          <p class="legend"><span class="cyan">△</span> Friendly <span class="amber">▷</span> Observed enemy · Brown: asteroid cover · Dots: predicted routes · White: gun · Enemy bright arrow: observed acceleration · Symbols enlarged · Radius rings visible when zoomed in</p>
           </div>
         </section>
         <section id="console-panel" class="console-panel" aria-labelledby="console-title" tabindex="-1" hidden>

@@ -204,7 +204,7 @@ fn lua_timed_commands_share_validation_and_replay_preserves_results() {
     for _ in 0..3 {
         s.dispatch(C::NextTurn).unwrap();
     }
-    let mut world = scenario::initial_world();
+    let mut world = scenario::blockade_world();
     let mut mission = Mission::new(&world, 1, Config::default()).unwrap();
     for record in s.snapshot().command_log {
         mission.queued = record.shots.clone();

@@ -38,7 +38,7 @@ def check_aim_detail(page):
             const shot = JSON.parse(firingTime === null ? wasm.preview_shot(target.x, target.y)
                 : wasm.preview_launch_shot(target.x, target.y, firingTime));
             const dt = shot.arrival_seconds - s.time_seconds;
-            return {x: m.prediction[0].x + m.contact.velocity.x * dt,
+            return {obstruction: shot.obstruction, x: m.prediction[0].x + m.contact.velocity.x * dt,
                 y: m.prediction[0].y + m.contact.velocity.y * dt};
         }''', {'target': target, 'firingTime': firing_time})
         box = page.locator('#aim-detail-map').bounding_box()
@@ -52,7 +52,7 @@ def check_aim_detail(page):
         x, y = [float(v) for v in re.search(r'translate\(([^)]+)\)', transform)[1].split()]
         assert abs(x - cx - dx / ratio) < 0.1
         assert abs(y - cy - dy / ratio) < 0.1
-        expect(page.locator('#aim-detail-note')).to_have_text('Off view' if ratio > 1 else 'At impact')
+        expect(page.locator('#aim-detail-note')).to_have_text(f'Blocked · A{expected["obstruction"]["asteroid_id"]}' if expected['obstruction'] else 'Off view' if ratio > 1 else 'At impact')
         offset = ((expected['x'] - target['x']) ** 2 + (expected['y'] - target['y']) ** 2) ** 0.5
         displayed = float(re.search(r'Offset ([\d,.]+) km', page.locator('#aim-detail-offset').inner_text())[1].replace(',', ''))
         assert abs(displayed - offset / 1000) <= 0.051, (displayed, offset / 1000)
@@ -123,7 +123,7 @@ def check_aim_detail(page):
 
     p = begin()
     page.mouse.move(p['x'] - 70, p['y'] - 10)
-    expect(page.locator('#aim-detail-note')).to_have_text('Off view')
+    expect(page.locator('#aim-detail-note')).to_have_text(re.compile(r'Off view|Blocked · A1'))
     page.keyboard.press('Escape')
     expect(detail).to_be_hidden()
     page.mouse.up()

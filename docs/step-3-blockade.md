@@ -1,5 +1,9 @@
 # Step 3: blockade mission
 
+The original open-space tuning below is retained as historical regression evidence.
+The default mission now includes [moving asteroid cover](asteroid-cover.md), which
+adds ship-contact outcomes and requires maneuvering to open firing corridors.
+
 Step 3 is complete for the PoC scope: the mission core, shared command API,
 observation-limited enemy, and browser mission controls are implemented and
 verified. The acceptance coverage below distinguishes native simulation checks

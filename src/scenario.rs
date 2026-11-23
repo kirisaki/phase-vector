@@ -54,3 +54,21 @@ pub fn initial_world() -> World {
     ])
     .expect("unique scenario ship IDs")
 }
+
+/// Provisional cover fixture, kept separate from the original open-space sandbox.
+/// Adjust this single definition when comparing maneuver and firing strategies.
+pub fn blockade_world() -> World {
+    let mut world = initial_world();
+    world.asteroids.push(default_asteroid());
+    world
+}
+
+pub fn default_asteroid() -> crate::physics::Asteroid {
+    crate::physics::Asteroid::new(
+        1,
+        Vector2::new(-100_000.0, -3_100.0) * METRES_PER_KILOMETRE,
+        Vector2::new(0.0, 65.625) * METRES_PER_KILOMETRE,
+        450.0 * METRES_PER_KILOMETRE,
+    )
+    .expect("valid provisional asteroid")
+}

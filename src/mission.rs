@@ -46,6 +46,7 @@ pub enum Outcome {
     Running,
     Breakthrough,
     Disabled,
+    OwnDisabled,
     Timeout,
 }
 impl Outcome {
@@ -54,6 +55,7 @@ impl Outcome {
             Self::Running => "running",
             Self::Breakthrough => "breakthrough",
             Self::Disabled => "disabled",
+            Self::OwnDisabled => "own_disabled",
             Self::Timeout => "timeout",
         }
     }
@@ -68,6 +70,7 @@ pub struct QueuedShot {
 }
 #[derive(Clone, Debug, PartialEq, Serialize)]
 pub struct Shot {
+    pub obstruction: Option<crate::physics::AsteroidHit>,
     pub projectile_id: u64,
     pub order_id: u32,
     pub launch_tick: u64,
@@ -81,6 +84,7 @@ pub struct Solution {
     pub origin: Vector2,
     pub target: Vector2,
     pub direction: Vector2,
+    pub obstruction: Option<crate::physics::AsteroidHit>,
     pub flight_seconds: f64,
     pub launch_tick: u64,
     pub arrival_seconds: f64,
@@ -119,6 +123,9 @@ fn intercept_time(r: Vector2, velocity: Vector2) -> Result<f64, String> {
         .ok_or_else(|| "Target is unreachable at this muzzle speed.".into())
 }
 pub fn solve_shot(ship: &Ship, target: Vector2, launch_tick: u64) -> Result<Solution, String> {
+    if ship.disabled {
+        return Err("Disabled ships cannot fire.".into());
+    }
     if !target.valid() {
         return Err("Shot target must be finite and within bounds.".into());
     }
@@ -129,6 +136,7 @@ pub fn solve_shot(ship: &Ship, target: Vector2, launch_tick: u64) -> Result<Solu
         origin: ship.position,
         target,
         direction,
+        obstruction: None,
         flight_seconds: t,
         launch_tick,
         arrival_seconds: launch_tick as f64 * STEP_SECONDS + t,
@@ -328,7 +336,20 @@ impl Mission {
         let target = order.target;
         let projectile_id =
             world.launch(player_id, origin, velocity, scenario::PROJECTILE_RADIUS)?;
+        let obstruction = crate::physics::asteroid_contact(
+            &world.asteroids,
+            origin,
+            velocity,
+            0.0,
+            solution.flight_seconds,
+            scenario::PROJECTILE_RADIUS,
+        )
+        .map(|mut hit| {
+            hit.seconds += world.tick as f64 * STEP_SECONDS;
+            hit
+        });
         self.shots.push(Shot {
+            obstruction,
             projectile_id,
             order_id: order.id,
             launch_tick: world.tick,
@@ -357,11 +378,11 @@ impl Mission {
             .find(|s| s.id == self.config.enemy_id)
             .unwrap();
         if world.tick.is_multiple_of(ai::DECISION_TICKS) {
-            self.decision = ai::decide(
+            self.decision = ai::decide_with_terrain(
                 enemy,
                 self.config.goal,
                 self.config.cruise_speed,
-                &self.sensors.threats,
+                (&self.sensors.threats, &world.asteroids),
                 world.tick,
                 self.config.policy,
                 &self.decision,
@@ -370,6 +391,7 @@ impl Mission {
         let previous = enemy.position;
         let tick = world.tick;
         let impacts = world.impacts.len();
+        let terrain_impacts = world.asteroid_impacts.len();
         world
             .step(&[
                 Burn {
@@ -398,6 +420,12 @@ impl Mission {
             .iter()
             .filter(|i| i.ship_id == self.config.enemy_id)
             .map(|i| i.fraction)
+            .chain(
+                world.asteroid_impacts[terrain_impacts..]
+                    .iter()
+                    .filter(|i| i.ship_id == Some(self.config.enemy_id))
+                    .map(|i| i.fraction),
+            )
             .min_by(f64::total_cmp);
         // Earlier events win; an exact hit/entry tie favors disablement.
         let event = match (hit, arrival) {
@@ -405,6 +433,18 @@ impl Mission {
             (_, Some(a)) => Some((Outcome::Breakthrough, a)),
             (Some(h), None) => Some((Outcome::Disabled, h)),
             _ => None,
+        };
+        let own_hit = world.asteroid_impacts[terrain_impacts..]
+            .iter()
+            .filter(|i| i.ship_id == Some(player_id))
+            .map(|i| i.fraction)
+            .min_by(f64::total_cmp);
+        // Own loss wins an exact terminal tie. Otherwise the earliest event wins.
+        let event = match own_hit {
+            Some(fraction) if event.is_none_or(|(_, other)| fraction <= other) => {
+                Some((Outcome::OwnDisabled, fraction))
+            }
+            _ => event,
         };
         if let Some((outcome, fraction)) = event {
             self.outcome = outcome;

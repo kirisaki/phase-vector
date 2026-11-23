@@ -398,3 +398,11 @@ legend { color: var(--muted); font-size: var(--text-sm); margin-bottom: 8px; }
 }
 
 .canvas-wrap[data-navigating="true"], .canvas-wrap[data-navigating="true"] * { cursor: grabbing !important; }
+
+#asteroid-map, #asteroid-forecast { stroke: #b4a38b; stroke-width: 1.5; fill: #514a3c; pointer-events: none; }
+#asteroid-map text, #asteroid-forecast text { stroke: none; fill: #d8c9ae; font: var(--text-xs) ui-monospace, monospace; }
+#asteroid-map .asteroid-route { fill: none; stroke-dasharray: 2 6; opacity: .65; }
+#asteroid-forecast circle { fill: #514a3c44; stroke-dasharray: 4 3; }
+#cover-contact { fill: none; stroke: #ff8c80; stroke-width: 2; pointer-events: none; }
+#cover-contact text { stroke: none; fill: #ff8c80; font: var(--text-xs) ui-monospace, monospace; }
+#gun-feedback[data-cover="true"], #mission-status[data-outcome="own_disabled"] { color: #ff8c80; }

@@ -101,7 +101,7 @@ settings and true enemy state do not enter normal prediction rendering.
   score, and baseline restoration on desktop, portrait, and landscape layouts.
 - Existing browser checks retain coverage of planning, observation-based aiming,
   touch, Auto/Commit/Skip, results, and in-game Retry confirmation.
-- Current placement trials: no attack and repeated lead shots
+- Historical open-space placement trials: no attack and repeated lead shots
   lose (0 points); eight spread shots win without hits (1,840 points) at the
   current 1,215-second deadline; twelve spread shots win without hits (1,760 points);
   sixteen spread shots win without hits (1,680 points).
@@ -109,5 +109,7 @@ settings and true enemy state do not enter normal prediction rendering.
 Chromium interaction checks exercise the built artifact under the GitHub Pages
 project path and the Vite development build. They do not establish compatibility
 with every physical phone or Safari. Score weights and difficulty remain provisional;
-step 6 is the remaining tuning/playtesting milestone. Closest-approach feedback,
+the main step 6 acceptance cases are covered. The default mission now adds
+[moving asteroid cover](asteroid-cover.md), with separate maneuver-and-placement
+trials and fuel-dependent scores. Closest-approach feedback,
 general scenario editing, saved replays, and a full modding framework are excluded.

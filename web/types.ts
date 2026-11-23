@@ -3,15 +3,19 @@
 export interface Vector2 { x: number; y: number }
 export interface VisibleShip {
   id: number; position: Vector2; velocity: Vector2; radius: number;
-  max_acceleration: number; remaining_dv?: number; spent_dv?: number;
+  disabled: boolean; max_acceleration: number; remaining_dv?: number; spent_dv?: number;
 }
 export interface Ship extends VisibleShip { remaining_dv: number; spent_dv: number }
+export interface Asteroid { id: number; position: Vector2; velocity: Vector2; radius: number }
+export interface AsteroidHit { asteroid_id: number; seconds: number; position: Vector2 }
 export interface Projectile { id: number; position: Vector2; velocity: Vector2; radius: number }
 export interface Solution {
+  obstruction: AsteroidHit | null;
   origin: Vector2; target: Vector2; direction: Vector2; flight_seconds: number;
   launch_tick: number; arrival_seconds: number;
 }
 export interface Shot {
+  obstruction: AsteroidHit | null;
   projectile_id: number; order_id: number; launch_tick: number; arrival_seconds: number;
   origin: Vector2; target: Vector2; velocity: Vector2;
 }
@@ -19,7 +23,7 @@ export interface QueuedShot {
   id: number; target: Vector2; launch_tick: number; requested_arrival_seconds: number | null;
   planning_error: string | null; locked: boolean; solution: Solution | null; error: string | null;
 }
-export type Outcome = 'running' | 'breakthrough' | 'disabled' | 'timeout';
+export type Outcome = 'running' | 'breakthrough' | 'disabled' | 'own_disabled' | 'timeout';
 export interface Evaluation {
   total: number; victory_points: number; shot_points: number; fuel_points: number;
   shots_fired: number; spent_delta_v: number;
@@ -46,17 +50,18 @@ export interface ManeuverPreview {
   coast_endpoint: Vector2; endpoint: Vector2; arrival_velocity: Vector2;
   delta_v: number; remaining_dv: number; reachable_radius: number; points: Vector2[];
   // Snapshot::planned_route always attaches the multi-interval forecast.
-  forecast: { points: Vector2[]; boundaries: {
+  forecast: { collision: AsteroidHit | null; points: Vector2[]; boundaries: {
     seconds_ahead: number; position: Vector2; velocity: Vector2; remaining_dv: number;
   }[] };
 }
 export interface Forecast {
+  asteroids: Asteroid[]; own_collision: AsteroidHit | null;
   time_seconds: number; own: Ship; own_path: Vector2[]; enemy_position: Vector2;
   enemy_velocity: Vector2; aim: Solution | null;
   rounds: { order_id: number; position: Vector2; velocity: Vector2; reserved: boolean }[];
 }
 export interface State {
-  world: { tick: number; ships: VisibleShip[]; projectiles: Projectile[] };
+  world: { tick: number; ships: VisibleShip[]; projectiles: Projectile[]; asteroids: Asteroid[] };
   mission: Mission | null;
   scale: { light_speed_mps: number; railgun_speed_mps: number; reference_flight_seconds: number; reference_range_m: number };
   timing: {

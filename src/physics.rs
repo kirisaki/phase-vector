@@ -76,6 +76,7 @@ pub struct Ship {
     pub max_acceleration: f64,
     pub remaining_dv: f64,
     pub spent_dv: f64,
+    pub disabled: bool,
 }
 
 impl Ship {
@@ -106,10 +107,40 @@ impl Ship {
             max_acceleration,
             remaining_dv: delta_v,
             spent_dv: 0.0,
+            disabled: false,
         })
     }
 
+    pub(crate) fn advance_in_terrain(
+        &mut self,
+        acceleration: Vector2,
+        asteroids: &[Asteroid],
+        offset: f64,
+    ) -> Option<AsteroidHit> {
+        let start = self.position;
+        let disabled = self.disabled;
+        self.advance(acceleration);
+        if disabled {
+            return None;
+        }
+        let hit = asteroid_contact(
+            asteroids,
+            start,
+            self.velocity,
+            offset,
+            STEP_SECONDS,
+            self.radius,
+        )?;
+        self.disabled = true;
+        Some(hit)
+    }
+
     pub(crate) fn advance(&mut self, acceleration: Vector2) {
+        let acceleration = if self.disabled {
+            Vector2::ZERO
+        } else {
+            acceleration
+        };
         let requested = acceleration.clamped(self.max_acceleration) * STEP_SECONDS;
         let magnitude = requested.length();
         let consumed = magnitude.min(self.remaining_dv);
@@ -121,6 +152,82 @@ impl Ship {
         // Semi-implicit Euler: kick once, then drift linearly for this whole tick.
         self.position = self.position + self.velocity * STEP_SECONDS;
     }
+}
+
+/// Known, indestructible circular terrain. Positions use the world's current tick.
+#[derive(Clone, Debug, PartialEq, Serialize)]
+pub struct Asteroid {
+    pub id: u32,
+    pub position: Vector2,
+    pub velocity: Vector2,
+    pub radius: f64,
+}
+impl Asteroid {
+    pub fn new(id: u32, position: Vector2, velocity: Vector2, radius: f64) -> Result<Self, String> {
+        if !position.valid() || !velocity.valid() || !valid_number(radius) || radius <= 0.0 {
+            return Err(
+                "Asteroid position, velocity and positive radius must be finite and within bounds."
+                    .into(),
+            );
+        }
+        Ok(Self {
+            id,
+            position,
+            velocity,
+            radius,
+        })
+    }
+}
+
+#[derive(Clone, Debug, PartialEq, Serialize)]
+pub struct AsteroidHit {
+    pub asteroid_id: u32,
+    /// Seconds from the start of the tested segment.
+    pub seconds: f64,
+    pub position: Vector2,
+}
+
+/// Shared swept terrain query for physics, ballistic previews, and observed AI threats.
+pub fn asteroid_contact(
+    asteroids: &[Asteroid],
+    origin: Vector2,
+    velocity: Vector2,
+    start_seconds: f64,
+    duration: f64,
+    radius: f64,
+) -> Option<AsteroidHit> {
+    asteroids
+        .iter()
+        .filter_map(|asteroid| {
+            let start = asteroid.position + asteroid.velocity * start_seconds;
+            swept_contact(
+                origin,
+                origin + velocity * duration,
+                start,
+                start + asteroid.velocity * duration,
+                radius + asteroid.radius,
+            )
+            .map(|fraction| AsteroidHit {
+                asteroid_id: asteroid.id,
+                seconds: fraction * duration,
+                position: origin + velocity * (fraction * duration),
+            })
+        })
+        .min_by(|a, b| {
+            a.seconds
+                .total_cmp(&b.seconds)
+                .then(a.asteroid_id.cmp(&b.asteroid_id))
+        })
+}
+
+#[derive(Clone, Debug, PartialEq, Serialize)]
+pub struct AsteroidImpact {
+    pub tick: u64,
+    pub fraction: f64,
+    pub asteroid_id: u32,
+    pub projectile_id: Option<u64>,
+    pub ship_id: Option<u32>,
+    pub position: Vector2,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Serialize)]
@@ -153,6 +260,8 @@ pub struct World {
     pub ships: Vec<Ship>,
     pub projectiles: Vec<Projectile>,
     pub impacts: Vec<Impact>,
+    pub asteroids: Vec<Asteroid>,
+    pub asteroid_impacts: Vec<AsteroidImpact>,
     next_projectile_id: u64,
 }
 
@@ -172,6 +281,8 @@ impl World {
             ships,
             projectiles: Vec::new(),
             impacts: Vec::new(),
+            asteroids: Vec::new(),
+            asteroid_impacts: Vec::new(),
             next_projectile_id: 0,
         })
     }
@@ -225,6 +336,29 @@ impl World {
                 .map_or(Vector2::ZERO, |b| b.acceleration);
             ship.advance(acceleration);
         }
+        let mut terrain_contacts = Vec::new();
+        for (old, ship) in previous.iter().zip(&mut self.ships) {
+            if !old.disabled
+                && let Some(hit) = asteroid_contact(
+                    &self.asteroids,
+                    old.position,
+                    ship.velocity,
+                    0.0,
+                    STEP_SECONDS,
+                    ship.radius,
+                )
+            {
+                ship.disabled = true;
+                terrain_contacts.push(AsteroidImpact {
+                    tick: self.tick,
+                    fraction: hit.seconds / STEP_SECONDS,
+                    asteroid_id: hit.asteroid_id,
+                    projectile_id: None,
+                    ship_id: Some(ship.id),
+                    position: hit.position,
+                });
+            }
+        }
         let mut contacts = Vec::new();
         self.projectiles.retain_mut(|projectile| {
             let start = projectile.position;
@@ -244,7 +378,28 @@ impl World {
                     .map(|fraction| (fraction, ship.id))
                 })
                 .min_by(|a, b| a.0.total_cmp(&b.0).then(a.1.cmp(&b.1)));
-            if let Some((fraction, ship_id)) = first {
+            let obstacle = asteroid_contact(
+                &self.asteroids,
+                start,
+                projectile.velocity,
+                0.0,
+                STEP_SECONDS,
+                projectile.radius,
+            );
+            // Terrain wins exact ties: a round touching cover cannot penetrate it.
+            if let Some(hit) = obstacle.filter(|hit| {
+                first.is_none_or(|(fraction, _)| hit.seconds / STEP_SECONDS <= fraction)
+            }) {
+                terrain_contacts.push(AsteroidImpact {
+                    tick: self.tick,
+                    fraction: hit.seconds / STEP_SECONDS,
+                    asteroid_id: hit.asteroid_id,
+                    projectile_id: Some(projectile.id),
+                    ship_id: None,
+                    position: hit.position,
+                });
+                false
+            } else if let Some((fraction, ship_id)) = first {
                 contacts.push(Impact {
                     tick: self.tick,
                     fraction,
@@ -265,6 +420,17 @@ impl World {
                 .then(a.ship_id.cmp(&b.ship_id))
         });
         self.impacts.extend(contacts);
+        terrain_contacts.sort_by(|a, b| {
+            a.fraction
+                .total_cmp(&b.fraction)
+                .then(a.asteroid_id.cmp(&b.asteroid_id))
+                .then(a.ship_id.cmp(&b.ship_id))
+                .then(a.projectile_id.cmp(&b.projectile_id))
+        });
+        self.asteroid_impacts.extend(terrain_contacts);
+        for asteroid in &mut self.asteroids {
+            asteroid.position = asteroid.position + asteroid.velocity * STEP_SECONDS;
+        }
         self.tick = next_tick;
         Ok(())
     }

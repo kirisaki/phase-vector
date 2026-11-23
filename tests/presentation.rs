@@ -3,7 +3,6 @@ use phase_vector::timing::{
 };
 use phase_vector::{
     map::MapView,
-    mission::solve_shot,
     physics::{STEP_SECONDS, Vector2 as V},
     presentation::State,
     session::{Command as C, Session},
@@ -102,7 +101,7 @@ fn presentation_keeps_reservations_and_flight_separate_without_advancing_time() 
     assert_eq!(shown.shots.len(), 1);
     assert_eq!(shown.queued[0].order.launch_tick, INTERVAL_TICKS);
     assert_eq!(shown.queued[0].order.target, target);
-    let solution = solve_shot(&snapshot.planning_ship(), target, INTERVAL_TICKS).unwrap();
+    let solution = snapshot.preview_shot_at(target, INTERVAL_TICKS).unwrap();
     assert_eq!(shown.queued[0].solution.as_ref().unwrap(), &solution);
     assert_eq!(shown.aim.as_ref().unwrap(), &session.aim().unwrap());
     assert_eq!(

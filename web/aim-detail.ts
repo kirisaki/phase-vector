@@ -112,7 +112,7 @@ export function createAimDetail() {
         gap.setAttribute('d', `M${cx} ${cy}L${x} ${y}`);
         enemy.setAttribute('d', offscreen ? 'M6 0L-4 -5L-4 5Z' : shipSymbol);
         enemy.setAttribute('transform', `translate(${x} ${y}) rotate(${offscreen ? Math.atan2(dy, dx) * 180 / Math.PI : heading})`);
-        note.textContent = offscreen ? 'Off view' : 'At impact';
+        note.textContent = solution?.obstruction ? `Blocked · A${solution.obstruction.asteroid_id}` : offscreen ? 'Off view' : 'At impact';
         offset.textContent = `Offset ${km.format(arrival.offsetMetres / 1000)} km`;
       } else {
         enemy.setAttribute('d', ''); gap.setAttribute('d', '');

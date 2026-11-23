@@ -173,6 +173,10 @@ impl Host {
                         ] {
                             table.set(ctx, key, value)?;
                         }
+                        if let Some(hit) = &solution.obstruction {
+                            table.set(ctx, "blocked_by", hit.asteroid_id as f64)?;
+                            table.set(ctx, "blocked_seconds", hit.seconds)?;
+                        }
                         stack.replace(ctx, table);
                         Ok(CallbackReturn::Return)
                     }),
@@ -192,6 +196,7 @@ impl Host {
                     let table = Table::new(&ctx);
                     table.set(ctx, "time_seconds", forecast.time_seconds)?;
                     table.set(ctx, "own", ship_table(ctx, &forecast.own)?)?;
+                    table.set(ctx, "asteroids", asteroid_table(ctx, &forecast.asteroids)?)?;
                     table.set(ctx, "enemy_x", forecast.enemy_position.x)?;
                     table.set(ctx, "enemy_y", forecast.enemy_position.y)?;
                     table.set(ctx, "enemy_vx", forecast.enemy_velocity.x)?;
@@ -471,6 +476,16 @@ impl Host {
                         }
                     }
                     snapshot.set(ctx, "ships", ships)?;
+                    snapshot.set(
+                        ctx,
+                        "asteroids",
+                        asteroid_table(ctx, &view.world.asteroids)?,
+                    )?;
+                    snapshot.set(
+                        ctx,
+                        "asteroid_impact_count",
+                        view.world.asteroid_impacts.len() as f64,
+                    )?;
                     snapshot.set(ctx, "projectile_count", view.world.projectiles.len() as f64)?;
                     snapshot.set(ctx, "impact_count", view.world.impacts.len() as f64)?;
                     stack.replace(ctx, snapshot);
@@ -606,6 +621,28 @@ fn track_table<'gc>(
     Ok(table)
 }
 
+fn asteroid_table<'gc>(
+    ctx: Context<'gc>,
+    asteroids: &[crate::physics::Asteroid],
+) -> Result<Table<'gc>, piccolo::Error<'gc>> {
+    let list = Table::new(&ctx);
+    for (index, a) in asteroids.iter().enumerate() {
+        let item = Table::new(&ctx);
+        for (key, value) in [
+            ("id", a.id as f64),
+            ("x", a.position.x),
+            ("y", a.position.y),
+            ("vx", a.velocity.x),
+            ("vy", a.velocity.y),
+            ("radius", a.radius),
+        ] {
+            item.set(ctx, key, value)?;
+        }
+        list.set(ctx, (index + 1) as i64, item)?;
+    }
+    Ok(list)
+}
+
 fn ship_table<'gc>(ctx: Context<'gc>, ship: &Ship) -> Result<Table<'gc>, piccolo::Error<'gc>> {
     let table = Table::new(&ctx);
     for (key, value) in [
@@ -620,6 +657,7 @@ fn ship_table<'gc>(ctx: Context<'gc>, ship: &Ship) -> Result<Table<'gc>, piccolo
     ] {
         table.set(ctx, key, value)?;
     }
+    table.set(ctx, "disabled", ship.disabled)?;
     Ok(table)
 }
 

@@ -10,6 +10,7 @@ from planning_checks import check_planning
 from browser_controls import read_ui_settings, connect_engine
 from diagnostic_checks import check_parameters, check_evaluation
 from aim_detail_checks import check_aim_detail
+from asteroid_checks import check_asteroids, plan_slowdown, coast
 
 ROOT = Path(__file__).resolve().parents[1]
 
@@ -37,6 +38,7 @@ def main():
             connect_engine(page)
             check_parameters(page)
             check_evaluation(page)
+            check_asteroids(page, artifacts)
             check_aim_detail(page)
             ui_settings = read_ui_settings(page)
             fine_gain = ui_settings['AIM']['fineGain']
@@ -146,13 +148,19 @@ def main():
             # Enemy indicators use delivered motion and stay legible at phone size.
             expect(page.locator('#enemy-speed')).to_have_text('Enemy · 37.5 km/s')
             expect(page.locator('#enemy-symbol')).to_have_attribute('transform', 'rotate(90)')
+            plan_slowdown(page)
+            next_turn()
+            next_turn()
+            coast(page)
             page.locator('#queue-shot').click()
             next_turn()
             next_turn()
             expect(page.locator('#enemy-contact')).to_have_attribute('data-motion', 'coasting')
             assert page.locator('#enemy-acceleration').get_attribute('d') == ''
-            for _ in range(2):
+            for _ in range(12):
                 page.locator('#step').click()
+                if page.locator('#enemy-contact').get_attribute('data-motion') in ('slowing', 'speeding', 'turning'):
+                    break
             assert page.locator('#enemy-contact').get_attribute('data-motion') in ('slowing', 'speeding', 'turning')
             assert page.locator('#enemy-acceleration').get_attribute('d')
             acceleration = state()['mission']['observed_acceleration']
@@ -213,7 +221,7 @@ def main():
                 const view = mapProjection(svg, s.map), shot = s.mission.shots[0];
                 const projectile = s.world.projectiles.find(p => p.id === shot.projectile_id);
                 const actual = document.querySelector('#shot-paths path').getAttribute('d');
-                return actual === view.path([projectile.position, shot.target]) &&
+                return actual === view.path([projectile.position, shot.obstruction?.position ?? shot.target]) &&
                     actual !== view.path([shot.origin, shot.target]);
             }''')
             locked = state()['mission']['queued']
@@ -309,8 +317,15 @@ def main():
             expect(page.locator('#mission-result')).to_be_hidden()
             assert state()['world'] == end
             retry()
+            # Clear the moving cover first, then place the same 12-round spread.
+            plan_slowdown(page)
+            next_turn()
+            next_turn()
+            coast(page)
+            expect(page.locator('#gun-feedback')).not_to_contain_text('Blocked by')
+            assert state()['world']['ships'][0]['spent_dv'] > 11000
             # Cover observed evasion routes with 12 rounds spaced 900 km apart.
-            for turn in range(math.ceil(state()['mission']['deadline_seconds'] / timing['interval_seconds'])):
+            for turn in range(math.ceil((state()['mission']['deadline_seconds'] - state()['time_seconds']) / timing['interval_seconds'])):
                 if turn < 3:
                     for round_index in range(4):
                         page.locator('#track-aim').click()
@@ -351,7 +366,7 @@ def main():
             expect(page.locator('#mission-status')).to_contain_text('Victory')
             expect(page.locator('#mission-result')).to_be_visible()
             expect(page.locator('#result-title')).to_have_text('VICTORY')
-            expect(page.locator('#result-score')).to_have_text('1760')
+            expect(page.locator('#result-score')).to_have_text('1661')
             expect(page.locator('#result-run-kind')).to_have_text('Standard')
             expect(page.locator('#result-reason')).to_contain_text('missed its deadline')
             expect(page.locator('#result-shots')).to_have_text('12')
@@ -385,7 +400,8 @@ def main():
             page.locator('#step').click()
             expect(page.locator('#ticks')).to_have_text(str(timing['interval_ticks'] + timing['step_forward_ticks']))
             assert len(state()['mission']['shots']) == 2
-            assert state()['world']['projectiles'][0]['velocity'] == projectile['velocity']
+            assert state()['mission']['shots'][0]['velocity'] == projectile['velocity']
+            assert any(h['projectile_id'] == projectile['id'] for h in state()['world']['asteroid_impacts'])
             # Retry through Lua is the same command API; responsive/touch controls remain usable.
             page.evaluate("wasm.command('reset')")
             page.wait_for_timeout(200)
@@ -446,7 +462,7 @@ def main():
                     client.detach()
                 page.screenshot(path=str(artifacts / f'mission-{width}x{height}.png'))
             assert not errors, errors
-            print('PASS: observed prediction, pointer/touch aiming, four-round 30-second salvo/locked orders/individual cancel/full queue, boundary firing, persistence, no-attack defeat, 12-shot non-hit victory, frozen results, retry, and responsive layout')
+            print('PASS: observed prediction, pointer/touch aiming, four-round 30-second salvo/locked orders/individual cancel/full queue, boundary firing, persistence, no-attack defeat, maneuver-enabled 12-shot non-hit victory, frozen results, retry, and responsive layout')
         except Exception:
             page.screenshot(path=str(artifacts / 'mission-failure.png'), full_page=True)
             raise

@@ -60,6 +60,56 @@ pub fn decide(
     policy: Policy,
     previous: &Decision,
 ) -> Decision {
+    decide_with_terrain(
+        own,
+        goal,
+        cruise_speed,
+        (tracks, &[]),
+        now,
+        policy,
+        previous,
+    )
+}
+
+pub fn decide_with_terrain(
+    own: &Ship,
+    goal: Vector2,
+    cruise_speed: f64,
+    observed: (&[Track], &[crate::physics::Asteroid]),
+    now: u64,
+    policy: Policy,
+    previous: &Decision,
+) -> Decision {
+    let (tracks, asteroids) = observed;
+    let mut hazards: Vec<_> = tracks
+        .iter()
+        .map(|track| Hazard {
+            id: Some(track.id),
+            position: track.position_at(now),
+            velocity: track.velocity,
+            radius: track.radius,
+            lifetime: crate::physics::asteroid_contact(
+                asteroids,
+                track.position,
+                track.velocity,
+                -((now - track.sampled_tick) as f64 * STEP_SECONDS),
+                (now - track.sampled_tick) as f64 * STEP_SECONDS + policy.reaction_seconds,
+                track.radius,
+            )
+            .map_or(policy.reaction_seconds, |hit| {
+                (hit.seconds - (now - track.sampled_tick) as f64 * STEP_SECONDS).max(0.0)
+            }),
+        })
+        .filter(|hazard| hazard.lifetime > 0.0)
+        .collect();
+    // Ephemerides are shared briefing data. Unknown rounds never enter this list.
+    hazards.extend(asteroids.iter().map(|a| Hazard {
+        id: None,
+        position: a.position,
+        velocity: a.velocity,
+        radius: a.radius,
+        lifetime: policy.reaction_seconds,
+    }));
     let mut decision = previous.clone();
     if own.remaining_dv <= 0.0 {
         decision.acceleration = Vector2::ZERO;
@@ -95,16 +145,16 @@ pub fn decide(
         * own.max_acceleration
         * policy.reaction_seconds
         * (policy.reaction_seconds + STEP_SECONDS);
-    let relevant: Vec<_> = tracks
+    let relevant: Vec<_> = hazards
         .iter()
         .filter(|track| {
-            let r = track.position_at(now) - own.position;
+            let r = track.position - own.position;
             let v = track.velocity - own.velocity;
             let speed2 = dot(v, v);
             if speed2 == 0.0 {
                 return r.length() <= policy.safety_radius + own.radius + track.radius + travel;
             }
-            let t = (-dot(r, v) / speed2).clamp(0.0, policy.reaction_seconds);
+            let t = (-dot(r, v) / speed2).clamp(0.0, track.lifetime);
             (r + v * t).length() <= policy.safety_radius + own.radius + track.radius + travel
         })
         .collect();
@@ -112,7 +162,7 @@ pub fn decide(
         return decision;
     }
     let recovery = decision.acceleration;
-    let (recovery_clearance, threat) = clearance(own, recovery, &relevant, now, policy);
+    let (recovery_clearance, threat) = clearance(own, recovery, &relevant, policy);
     if recovery_clearance >= 1.0 {
         return decision;
     }
@@ -121,7 +171,7 @@ pub fn decide(
     let mut best_clearance = recovery_clearance;
     let mut best_cost = f64::INFINITY;
     let mut consider = |acceleration: Vector2| {
-        let (margin, _) = clearance(own, acceleration, &relevant, now, policy);
+        let (margin, _) = clearance(own, acceleration, &relevant, policy);
         let cost = acceleration.length() + 2.0 * (-dot(acceleration, goal_direction)).max(0.0);
         let safe = margin >= 1.0;
         let best_safe = best_clearance >= 1.0;
@@ -158,13 +208,24 @@ pub fn decide(
         decision.evasions += 1;
     }
     decision.reason = format!(
-        "Evading observed projectile {} with {:.1}% thrust; evaluating {} observed tracks",
-        threat.unwrap_or(0),
+        "Avoiding {} with {:.1}% thrust; evaluating {} observed tracks / terrain",
+        threat.map_or_else(
+            || "known asteroid".to_string(),
+            |id| format!("observed projectile {id}")
+        ),
         100.0 * best.length() / own.max_acceleration.max(1.0),
         relevant.len()
     );
 
     decision
+}
+
+struct Hazard {
+    id: Option<u64>,
+    position: Vector2,
+    velocity: Vector2,
+    radius: f64,
+    lifetime: f64,
 }
 
 fn dot(a: Vector2, b: Vector2) -> f64 {
@@ -176,8 +237,7 @@ fn dot(a: Vector2, b: Vector2) -> f64 {
 fn clearance(
     own: &Ship,
     acceleration: Vector2,
-    tracks: &[&Track],
-    now: u64,
+    tracks: &[&Hazard],
     policy: Policy,
 ) -> (f64, Option<u64>) {
     let magnitude = acceleration.length();
@@ -195,12 +255,12 @@ fn clearance(
     let mut minimum = f64::INFINITY;
     let mut threat = None;
     for track in tracks {
-        let origin = track.position_at(now);
+        let origin = track.position;
         let radius = (policy.safety_radius + own.radius + track.radius).max(1.0);
         let mut time = 0.0;
         let mut relative = own.position - origin;
-        while time < policy.reaction_seconds {
-            let next_time = (time + PREDICTION_STEP_SECONDS).min(policy.reaction_seconds);
+        while time < track.lifetime {
+            let next_time = (time + PREDICTION_STEP_SECONDS).min(track.lifetime);
             let next = position(next_time) - (origin + track.velocity * next_time);
             let delta = next - relative;
             let u = if dot(delta, delta) > 0.0 {
@@ -212,7 +272,7 @@ fn clearance(
             let ratio = dot(distance, distance) / (radius * radius);
             if ratio < minimum {
                 minimum = ratio;
-                threat = Some(track.id);
+                threat = track.id;
             }
             relative = next;
             time = next_time;

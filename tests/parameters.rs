@@ -71,7 +71,7 @@ fn initial_edits_require_an_empty_queue_and_retry_preserves_the_baseline() {
     assert!(s.dispatch(C::Configure(P::ReloadSeconds, 30.0)).is_err());
     s.dispatch(C::Reset).unwrap();
     assert_eq!(s.mission().unwrap().config, baseline);
-    assert_eq!(s.world(), &phase_vector::scenario::initial_world());
+    assert_eq!(s.world(), &phase_vector::scenario::blockade_world());
     assert_eq!(s.snapshot().run_kind, RunKind::Custom);
     assert!(s.snapshot().parameter_edits.is_empty());
     assert!(s.snapshot().paused);

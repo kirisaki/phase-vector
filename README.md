@@ -8,8 +8,10 @@ and delta-v expenditure.
 
 ## Status
 
-**Step 5 complete: diagnostic settings, evaluation, and retry.** One friendly ship must stop a non-firing enemy
-from reaching its exit before 1,215 seconds. Fire an unguided railgun at a future
+**Steps 1–5 complete; Step 6 acceptance exercised, with a provisional moving-cover extension.**
+One friendly ship must stop a non-firing enemy
+from reaching its exit before 1,215 seconds. Maneuver around one moving asteroid
+to clear your firing corridor. Fire an unguided railgun at a future
 point; the enemy reacts only to delivered attack observations and tries to
 recover its course. Win by disabling it or delaying it past the deadline.
 
@@ -213,7 +215,9 @@ reason, event time, shot count, and friendly delta-v spent.
 The standard deadline leaves about 42 seconds beyond unopposed entry, down from
 about 57 seconds at the previous 1,230-second deadline. See the
 [balance trials](docs/step-3-blockade.md#tuning-and-scope-limits) for reproducible
-placement-dependent wins with eight or twelve shots. Exact simultaneous
+placement-dependent wins with eight or twelve shots in the open-space baseline.
+The default asteroid trial additionally requires clearing the firing corridor; see
+[asteroid cover](docs/asteroid-cover.md). Exact simultaneous
 impact/entry favors disablement; entry at the deadline beats timeout. Both victory
 types receive the same base score.
 
@@ -513,6 +517,7 @@ cargo fmt --all -- --check
 cargo clippy --locked --all-targets -- -D warnings
 cargo test --locked
 cargo run --locked --example blockade_trials
+cargo run --locked --example asteroid_trials
 cargo clippy --locked --target wasm32-unknown-unknown -- -D warnings
 python3 scripts/build_web.py
 npm run check
@@ -569,7 +574,8 @@ python scripts/browser_smoke.py --url http://127.0.0.1:5173/ --rebuild
 
 The mission smoke test uses the default game and checks observed prediction,
 mouse/touch target dragging, queue/cancel, running reservations, 30-second salvo timing, frozen active shots,
-ballistic persistence, no-attack defeat, 12-shot non-hit timeout victory,
+ballistic persistence, asteroid interception, no-attack defeat, maneuver-enabled
+12-shot non-hit timeout victory,
 terminal locks, retry, desktop/phone layouts, mouse panning, anchored touch
 pinching, and cancellation of editor drafts when a second finger takes over.
 It also accepts `--url` and
@@ -603,6 +609,25 @@ gh run watch RUN_ID --repo kirisaki/phase-vector --exit-status
 Use `GET` to inspect an existing Pages configuration and `PUT` to change it;
 the creation command is only needed once. This publishes static files and does
 not require a game server or custom domain.
+
+## Moving asteroid cover
+
+The default blockade includes one moving asteroid. Brown **A1** shows its physical
+radius and dotted predicted route; scrubbing the firing-time slider shows its
+future position. **Blocked by A1** and a red contact cross warn when a round will
+be absorbed before reaching its target. Queue still accepts such a shot, and
+maneuver changes recalculate reservations. Own-ship collision loses the mission;
+enemy collision disables it. The asteroid is indestructible and blocks rounds
+from either side, but does not block sensors.
+
+Use Burn on the map to change your firing position. For a reproducible starting
+experiment, drag Burn down to maximum slowdown, advance two intervals, then use
+Home while Burn is focused to coast. From 240 s, three salvos of four shots with
+900 km vertical spacing can deny entry without a hit. The same shots and timing
+while coasting are absorbed; repeated lead shots after maneuvering still lose.
+This is a provisional example, not the only winning strategy. See
+[asteroid rules and measured trials](docs/asteroid-cover.md) for tuning values,
+collision ordering, diagnostics, assumptions, and verification.
 
 ## Future planning
 
@@ -715,7 +740,7 @@ for both APIs, validation, and replanning priority.
 - Goal circles have a minimum display radius of 3 px for readability; physical
   entry uses the specified 1,000 km radius. Symbols are also enlarged.
 - Scoring weights are provisional; diagnostic settings cover only the documented subset. The default balance
-  demonstrates placement-dependent denial and is not final difficulty tuning.
+  demonstrates maneuver- and placement-dependent denial and is not final difficulty tuning.
 - First-load size and performance are not final. Browser errors are shown in the
   page; details are also available in the browser developer console.
 

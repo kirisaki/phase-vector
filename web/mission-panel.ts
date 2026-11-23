@@ -17,11 +17,12 @@ export function createMissionPanel({ onCancelShot, onRetry, onConfirmRetry, onCa
 
   function renderResult(m: Mission) {
     if (m.outcome === 'running') { result.close(); shownOutcome = undefined; return; }
-    const victory = m.outcome !== 'breakthrough';
+    const victory = m.outcome === 'disabled' || m.outcome === 'timeout';
     result.dataset.outcome = victory ? 'victory' : 'defeat';
     el('result-title').textContent = victory ? 'VICTORY' : 'DEFEAT';
-    el('result-reason').textContent = { disabled: 'Enemy disabled by a direct hit.',
+    el('result-reason').textContent = { disabled: 'Enemy disabled by an impact.',
       timeout: 'Blockade successful. The enemy missed its deadline.',
+      own_disabled: 'Your ship collided with an asteroid.',
       breakthrough: 'The enemy reached the exit before the deadline.' }[m.outcome];
     el('result-time').textContent = `${decimal(required(m.ended_seconds))} s`;
     const score = required(m.evaluation);
@@ -71,7 +72,7 @@ export function createMissionPanel({ onCancelShot, onRetry, onConfirmRetry, onCa
       const sibling = list.querySelectorAll<HTMLElement>('[data-shot-id]')[index];
       if (sibling !== row) list.insertBefore(row, sibling ?? null);
       query('span', row).textContent = order.error ? `#${order.id} · ${order.error}` :
-        `#${order.id} · fire ${decimal(order.launch_tick * stepSeconds)} s · arrival ${order.solution ? decimal(order.solution.arrival_seconds) + ' s' : 'unreachable'}${order.requested_arrival_seconds !== null ? ` · requested ${decimal(order.requested_arrival_seconds)} s` : ''}`;
+        `#${order.id} · fire ${decimal(order.launch_tick * stepSeconds)} s · arrival ${order.solution ? decimal(order.solution.arrival_seconds) + ' s' : 'unreachable'}${order.solution?.obstruction ? ' · blocked by asteroid' : ''}${order.requested_arrival_seconds !== null ? ` · requested ${decimal(order.requested_arrival_seconds)} s` : ''}`;
       row.title = order.error || `Target (${decimal(order.target.x / 1000)}, ${decimal(order.target.y / 1000)}) km`;
       row.classList.toggle('invalid', Boolean(order.error));
       query<HTMLButtonElement>('button', row).disabled = done || order.locked;
@@ -108,7 +109,7 @@ export function createMissionPanel({ onCancelShot, onRetry, onConfirmRetry, onCa
     if (!m || !ready) { result.close(); confirmation.close(); shownOutcome = undefined; return; }
     const done = m.outcome !== 'running';
     const titles = { running: 'Prevent breakthrough', breakthrough: 'Defeat · Enemy reached the exit',
-      disabled: 'Victory · Enemy disabled', timeout: 'Victory · Deadline exceeded' };
+      own_disabled: 'Defeat · Your ship hit an asteroid', disabled: 'Victory · Enemy disabled', timeout: 'Victory · Deadline exceeded' };
     el('mission-status').textContent = `${titles[m.outcome]}${m.run_kind === 'standard' ? '' : ` · ${runLabels[m.run_kind]}`}`;
     el('mission-status').dataset.outcome = m.outcome;
     const own = ownShip(state);

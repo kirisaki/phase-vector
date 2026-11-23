@@ -58,7 +58,7 @@ export function createMissionControls(onChange: () => void, onBeforeRetry: () =>
     el('mission-controls').hidden = !m;
     el('game-controls').hidden = !m;
     document.body.classList.toggle('mission-active', Boolean(m));
-    query('.badge').textContent = m ? '05 / EVALUATION' : '02 / PHYSICS & WEGO';
+    query('.badge').textContent = m ? '06 / ASTEROID COVER' : '02 / PHYSICS & WEGO';
     panel.render(state, ready);
     timeline.sync(state, ready, aimEditor.dragging || blocked);
     if (!m || !ready) { aimDetail.hide(); svg.setAttribute('hidden', ''); return; }
@@ -79,11 +79,12 @@ export function createMissionControls(onChange: () => void, onBeforeRetry: () =>
     el('queue-shot').dataset.unreachable = String(unreachable);
     el('queue-shot').title = failure || 'Queue the current target and firing time. Q works while the timeline is focused.';
     el('gun-feedback').dataset.invalid = String(Boolean(failure || error));
+    el('gun-feedback').dataset.cover = String(Boolean(solution?.obstruction));
     el('queue-shot').setAttribute('aria-label', `Queue shot (${m.queued.length} of ${m.queue_capacity} reserved)`);
     el('track-aim').disabled = done || aimEditor.dragging;
     el('cancel-shot').disabled = !m.queued.some((order) => !order.locked) || done;
     const arrival = shotArrivalEstimate({ ...state, mission: m }, solution);
-    const estimate = arrival ? `◇ predicted offset ${decimal(arrival.offsetMetres / 1000)} km; enemy may evade` : 'No solution';
+    const estimate = solution?.obstruction ? `Blocked by A${solution.obstruction.asteroid_id} at ${decimal(solution.obstruction.seconds)} s · maneuver to clear the shot` : arrival ? `◇ predicted offset ${decimal(arrival.offsetMetres / 1000)} km; enemy may evade` : 'No solution';
     el('gun-feedback').textContent = error || timeline.error || failure || (done ? 'Retry restores the initial scenario.' :
       blocked ? 'Apply numeric edits or finish the burn gesture before queuing a shot.' :
       m.queued.find((order) => order.error)?.error || m.queue_error ||

@@ -20,7 +20,11 @@ repeating draft burn rather than independent multi-turn waypoints.
 Step 5 is complete: bounded paused parameter editing, terminal score breakdowns,
 custom/debug run identification, and reproducible Retry baselines are implemented.
 See [evaluation and diagnostic settings](step-5-evaluation.md) for exact scope
-and limits. Step 6 tuning remains.
+and limits. The main Step 6 acceptance cases have been exercised in native and
+browser tests; scoring and difficulty remain provisional. The subsequent asteroid
+extension adds known inertial terrain, swept cover/ship contacts, and
+maneuver-dependent firing corridors. See [asteroid cover](asteroid-cover.md) for
+its assumptions, adjustable fixture, and measured acceptance cases.
 
 ## Scope and implementation approach
 

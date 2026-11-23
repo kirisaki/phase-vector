@@ -1,4 +1,4 @@
-//! Compare shot placement using only observed lead points for targeting.
+//! Open-space regression baseline: compare shot placement using only observed lead points for targeting.
 use phase_vector::{
     physics::Vector2 as V,
     session::{Command as C, Session},
@@ -14,7 +14,12 @@ fn main() {
         ("Spread / 12 rounds", 3, 900.0),
         ("Spread / 16 rounds", 4, 300.0),
     ] {
-        let mut s = Session::blockade();
+        let mut s = Session::with_mission(
+            phase_vector::scenario::initial_world(),
+            1,
+            phase_vector::mission::Config::default(),
+        )
+        .unwrap();
         let mut turn = 0;
         while !s.finished() {
             if turn < firing_turns {
