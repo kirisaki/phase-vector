@@ -67,8 +67,8 @@ pub fn blockade_world() -> World {
 pub fn default_asteroid() -> crate::physics::Asteroid {
     crate::physics::Asteroid::new(
         1,
-        Vector2::new(-100_000.0, -3_100.0) * METRES_PER_KILOMETRE,
-        Vector2::new(0.0, 65.625) * METRES_PER_KILOMETRE,
+        Vector2::new(-95_000.0, -3_800.0) * METRES_PER_KILOMETRE,
+        Vector2::new(0.0, 63.28125) * METRES_PER_KILOMETRE,
         450.0 * METRES_PER_KILOMETRE,
     )
     .expect("valid provisional asteroid")
@@ -78,8 +78,8 @@ pub fn default_asteroid() -> crate::physics::Asteroid {
 pub fn enemy_cover() -> crate::physics::Asteroid {
     crate::physics::Asteroid::new(
         2,
-        Vector2::new(100_000.0, -3_100.0) * METRES_PER_KILOMETRE,
-        Vector2::new(0.0, -28.125) * METRES_PER_KILOMETRE,
+        Vector2::new(95_000.0, -3_900.0) * METRES_PER_KILOMETRE,
+        Vector2::new(0.0, -25.78125) * METRES_PER_KILOMETRE,
         150.0 * METRES_PER_KILOMETRE,
     )
     .expect("valid enemy-side asteroid")

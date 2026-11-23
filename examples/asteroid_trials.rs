@@ -11,18 +11,22 @@ fn main() {
     let compare = std::env::args().any(|arg| arg == "--compare");
     let variants = if compare {
         vec![
-            (1, 120.0),
-            (2, 120.0),
-            (2, 110.0),
-            (2, 105.0),
-            (2, 90.0),
-            (2, 60.0),
+            (1, 120.0, true),
+            (2, 120.0, true),
+            (2, 90.0, true),
+            (2, 120.0, false),
+            (2, 110.0, false),
+            (2, 90.0, false),
+            (2, 60.0, false),
         ]
     } else {
-        vec![(2, Policy::default().reaction_seconds)]
+        vec![(2, Policy::default().reaction_seconds, false)]
     };
-    for (count, reaction) in variants {
-        println!("\nAsteroids={count}, reaction horizon={reaction:.0}s");
+    for (count, reaction, previous_layout) in variants {
+        println!(
+            "\nAsteroids={count}, reaction horizon={reaction:.0}s, axial gap={}km",
+            if previous_layout { 20_000 } else { 25_000 }
+        );
         for (name, burn, start_turn, salvos, spacing) in [
             ("No attack", 0.0, 0, 0, 0.0),
             ("Coast / 200 km spread", 0.0, 2, 3, 200_000.0),
@@ -78,6 +82,13 @@ fn main() {
             ),
         ] {
             let mut world = scenario::blockade_world();
+            if previous_layout {
+                // Historical placement anchors; keep comparison independent of later tuning.
+                world.asteroids[0].position = V::new(-100_000_000.0, -3_100_000.0);
+                world.asteroids[0].velocity = V::new(0.0, 65_625.0);
+                world.asteroids[1].position = V::new(100_000_000.0, -3_100_000.0);
+                world.asteroids[1].velocity = V::new(0.0, -28_125.0);
+            }
             world.asteroids.truncate(count);
             let mut session = Session::with_mission(
                 world,

@@ -36,15 +36,17 @@ an empty-terrain sandbox and the historical open-space test fixture.
 
 | Property | A1: own-side cover | A2: enemy-side cover |
 | --- | --- | --- |
-| Initial center | (-100,000, -3,100) km | (+100,000, -3,100) km |
-| Velocity | (0, +65.625) km/s | (0, -28.125) km/s |
+| Initial center | (-95,000, -3,800) km | (+95,000, -3,900) km |
+| Velocity | (0, +63.28125) km/s | (0, -25.78125) km/s |
 | Physical radius | 450 km | 150 km |
-| Initial axis distance from the nearer ship | 20,000 km | 20,000 km |
+| Initial axis distance from the nearer ship | 25,000 km | 25,000 km |
 
 A2 is near the enemy-side center of the firing corridor, not centered on the
-enemy hull or its unopposed route. Both are known inertial bodies. A1 remains
-unchanged from the first cover trial. Its placement near coasting lead-shot
-crossings means that waiting alone does not clear early shots. A2 adds a smaller
+enemy hull or its unopposed route. Both are known inertial bodies. Each starts
+5,000 km farther inward than in the previous layout. Vertical positions and
+velocities also change to retain cover near coasting lead-shot crossings, so
+waiting alone does not clear early shots. Ship collisions remain reachable with
+a sustained unsafe burn. A2 adds a smaller
 second obstruction; clearing A1 no longer guarantees a clear complete shot.
 
 The enemy threat horizon is shortened from 120 to **90 seconds**, independently
@@ -129,21 +131,24 @@ Current two-asteroid / 90-second-horizon examples (12 shots, zero ship hits):
 | Coast, +200 km spacing | 240 s | 12 by A1 | Breakthrough at 1,173.333 s | 0 km/s | 0 |
 | Slow at 5 G for 240 s, repeated lead | 240 s | 0 | Breakthrough at 1,201.630 s | 11.768 km/s | 0 |
 | Slow at 5 G for 240 s, +200 km spacing | 240 s | 4 by A2 | Timeout at 1,215 s | 11.768 km/s | 1,661 |
-| Slow at 5 G for 240 s, +900 km spacing | 240 s | 0 | Breakthrough at 1,183.553 s | 11.768 km/s | 0 |
+| Slow at 5 G for 240 s, +900 km spacing | 240 s | 1 by A2 | Breakthrough at 1,193.850 s | 11.768 km/s | 0 |
 
 No attack still produces a breakthrough at 1,173.333 s, with no terrain collision.
 The successful equal-budget strategy needs both a firing-position change and
 shot placement. Not every unobstructed shot contributes useful delay.
 
 Use `cargo run --locked --example asteroid_trials -- --compare` to separate the
-layout and horizon changes. The comparison includes the old one-asteroid /
-120-second baseline, then two asteroids with 120, 110, 105, 90, and 60 seconds:
+layout and horizon changes. The comparison preserves the old 20,000 km layout
+as an explicit historical fixture, including its one-asteroid / 120-second
+baseline. It then tests the current 25,000 km layout at several threat horizons.
+Radii remain 450/150 km, and the standard threat horizon remains 90 s.
 
-| Same strategy | One asteroid, 120 s | Two asteroids, 120 s | Two asteroids, 90 s | Two asteroids, 60 s |
-| --- | --- | --- | --- | --- |
-| Slow 240 s, +900 km spacing | Timeout | Timeout | Breakthrough | Breakthrough |
-| Slow 360 s, +900 km spacing | Timeout | Breakthrough (2 rounds absorbed) | Breakthrough | Breakthrough |
-| Slow 240 s, +200 km spacing | Timeout | Timeout (4 rounds absorbed) | Timeout | Breakthrough at 1,213.741 s |
+| Same strategy, 90 s horizon | Previous 20,000 km gaps | Current 25,000 km gaps |
+| --- | --- | --- |
+| Coast, +200 km spacing | Breakthrough; all 12 absorbed | Breakthrough; all 12 absorbed |
+| Slow 240 s, repeated lead | Breakthrough | Breakthrough |
+| Slow 240 s, +200 km spacing | Timeout; 4 absorbed | Timeout; 4 absorbed |
+| Slow 240 s, +300 km spacing | Breakthrough at 1,198.800 s | Breakthrough at 1,206.083 s |
 
 `cargo run --locked --example cover_balance_sweep` samples 39 fixed placements
 per horizon: 13 spacings crossed with three starting offsets, after the same

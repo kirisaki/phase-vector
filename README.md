@@ -614,6 +614,7 @@ not require a game server or custom domain.
 
 The default blockade includes two moving asteroids. Brown **A1** (near your ship) and
 **A2** (near the enemy) show their physical radii and dotted predicted routes.
+Each starts 25,000 km inward from its nearer ship along the engagement axis.
 Scrubbing the firing-time slider shows their
 future positions. **Blocked by A1/A2** and a red contact cross warn when a round will
 be absorbed before reaching its target. Queue still accepts such a shot, and

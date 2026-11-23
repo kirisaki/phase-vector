@@ -90,16 +90,16 @@ def check_asteroids(page, artifacts):
     # A deliberately unsafe map-authored route must predict and produce own-ship loss.
     own=original['ships'][0]
     asteroid=original['asteroids'][0]
-    intercept=1000.0
+    intercept=1150.0
     factor=0.5*intercept*(intercept+state()['timing']['step_seconds'])
     acceleration={axis:(asteroid['position'][axis]+asteroid['velocity'][axis]*intercept
         -own['position'][axis]-own['velocity'][axis]*intercept)/factor for axis in ['x','y']}
     plan_burn(page, acceleration['x']/own['max_acceleration'], acceleration['y']/own['max_acceleration'])
     page.locator('#forecast-time').focus()
-    for _ in range(9): page.keyboard.press('PageUp')
+    for _ in range(10): page.keyboard.press('PageUp')
     expect(page.locator('#forecast-label')).to_contain_text('COLLISION')
     expect(page.locator('#cover-contact text')).to_contain_text('Collision')
-    for _ in range(9):
+    for _ in range(10):
         page.locator('#next-turn').click()
         page.wait_for_timeout(120)
         if state()['mission']['outcome'] != 'running': break

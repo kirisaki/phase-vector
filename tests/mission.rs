@@ -499,7 +499,7 @@ fn repeating_automatic_lead_salvos_does_not_prevent_breakthrough() {
         s.dispatch(C::NextTurn).unwrap();
     }
     assert_eq!(s.mission().unwrap().outcome, Outcome::Breakthrough);
-    assert_eq!(s.mission().unwrap().shots.len(), 40);
+    assert_eq!(s.mission().unwrap().shots.len(), 39);
     assert!(s.world().impacts.is_empty());
 }
 
