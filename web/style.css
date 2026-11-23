@@ -442,6 +442,12 @@ legend { color: var(--muted); font-size: var(--text-sm); margin-bottom: 8px; }
 #help-topics { flex: 0 0 auto; display: flex; gap: 6px; padding: 0 16px 12px; border-bottom: 1px solid var(--line); }
 #help-topics button { flex: 1; padding: 6px; }
 #help-body { min-height: 0; overflow: auto; overscroll-behavior: contain; padding: 16px; font-size: var(--text-body); line-height: 1.65; overflow-wrap: anywhere; }
+/* Keep the help reader's scroll position visible despite the game-wide reset. */
+#help-body { scrollbar-width: thin; scrollbar-color: var(--muted) #071017; scrollbar-gutter: stable; }
+#help-body::-webkit-scrollbar { display: block; width: 10px; height: 10px; }
+#help-body::-webkit-scrollbar-track { background: #071017; }
+#help-body::-webkit-scrollbar-thumb { background: var(--muted); border: 2px solid #071017; border-radius: 6px; }
+#help-body::-webkit-scrollbar-thumb:hover { background: var(--cyan); }
 #help-body h3 { margin: 0 0 8px; font-size: 18px; color: var(--cyan); }
 #help-body h4 { margin: 0 0 4px; font-size: var(--text-body); }
 #help-body p { margin: 0 0 12px; }

@@ -124,8 +124,9 @@ downgrade Vite automatically.
 
 ## Mission controls
 
-The application fills the available browser viewport without page scrolling or
-visible scrollbars. Desktop map panels at least 1,000 px wide place flight,
+The application fills the available browser viewport without page scrolling.
+The help reader shows a scrollbar when its content overflows; game panels keep
+scrollbars hidden. Desktop map panels at least 1,000 px wide place flight,
 weapon, mission, and ship controls in a 540 px sidebar on the right. The timeline
 stays below the map. Narrow panels use the remaining space above the controls;
 short, wide viewports also place controls beside the map. On narrow or short screens, opening
