@@ -5,6 +5,7 @@ import { createRouteEditor } from './route-editor.js';
 import { createMissionControls } from './mission.js';
 import { createMapNavigation } from './map-navigation.js';
 import { createLuaHighlight } from './lua-highlight.js';
+import { createHelp } from './help.js';
 
 const output = element('console-output');
 const input = element('lua-input');
@@ -32,6 +33,15 @@ const mapNavigation = createMapNavigation({
   onChange: () => refresh(),
   onError: (error) => invoke(() => { throw error; }),
   cancelEditors: () => { routeEditor.cancel(); missionControls.cancel(); },
+});
+const help = createHelp(() => {
+  routeEditor.cancel();
+  missionControls.cancel();
+  mapNavigation.cancel();
+  if (ready) invoke(() => command('pause'));
+}, (source) => {
+  input.value = source;
+  showConsole(true);
 });
 
 const narrowScreen = matchMedia('(max-width: 900px)');
@@ -153,6 +163,7 @@ function refresh() {
   element('railgun-label').textContent = `RAILGUN / ${km(state.scale.railgun_speed_mps)} km/s · reference flight ${state.scale.reference_flight_seconds.toFixed(1)} s`;
   element('run').disabled = !ready;
   input.disabled = !ready;
+  help.setReady(ready);
   const ship = ownShip(state);
   setVector('position', km(ship.position.x), km(ship.position.y));
   setVector('velocity', (ship.velocity.x / 1000).toFixed(3), (ship.velocity.y / 1000).toFixed(3));

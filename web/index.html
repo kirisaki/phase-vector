@@ -13,6 +13,7 @@
     <header>
       <a class="wordmark" href="./"><span class="mark" aria-hidden="true">↗</span> PHASE VECTOR</a>
       <span class="badge">03 / BLOCKADE</span>
+      <button id="help-open" type="button" aria-haspopup="dialog" aria-controls="help-dialog">Help</button>
       <button id="console-toggle" type="button" aria-controls="console-panel" aria-expanded="false">Show Lua console</button>
       <a class="source" href="https://github.com/kirisaki/phase-vector">Source ↗</a>
     </header>
@@ -118,6 +119,23 @@
       </div>
       <p id="error" role="alert" hidden></p>
     </main>
+    <dialog id="help-dialog" class="game-dialog" aria-labelledby="help-title" aria-describedby="help-pause-note">
+      <div class="help-header">
+        <h2 id="help-title">Help</h2>
+        <div id="help-language" role="group" aria-label="Help language / ヘルプの言語">
+          <button type="button" data-help-language="ja" lang="ja" aria-pressed="false">日本語</button>
+          <button type="button" data-help-language="en" lang="en" aria-pressed="false">English</button>
+        </div>
+        <button id="help-close" type="button" aria-label="Close help" autofocus>×</button>
+      </div>
+      <p id="help-pause-note"></p>
+      <nav id="help-topics" aria-label="Help topics">
+        <button type="button" data-help-topic="quick" aria-pressed="true" aria-controls="help-body">Quick start</button>
+        <button type="button" data-help-topic="controls" aria-pressed="false" aria-controls="help-body">Controls</button>
+        <button type="button" data-help-topic="lua" aria-pressed="false" aria-controls="help-body">Lua REPL</button>
+      </nav>
+      <div id="help-body" tabindex="0" role="region" aria-label="Help content"></div>
+    </dialog>
     <dialog id="mission-result" class="game-dialog" aria-labelledby="result-title" aria-describedby="result-reason">
       <p class="result-kicker">MISSION COMPLETE</p>
       <h2 id="result-title"></h2>

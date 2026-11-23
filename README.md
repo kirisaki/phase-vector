@@ -169,10 +169,25 @@ share the status area; longer messages can be scrolled inside it.
 | Skip | Immediately simulate to the next 120-second boundary and pause, preserving the queued order |
 | +10 s | Advance 10 simulated seconds while paused, stopping at the next planning boundary if sooner |
 | Playback speed buttons | Select 1×, 32×, 64×, or 128× (default 32×) beside Auto / Pause and Step; the active speed is highlighted and follows Lua changes |
+| Help | Open the in-game guide and pause playback; closing it leaves playback paused |
 | Show / Hide Lua console | Toggle the initially hidden REPL; input, output, and Lua globals are retained. Close or Escape returns focus to the toggle |
 | Run Lua | Evaluate input; Ctrl+Enter or Command+Enter also submits |
 | Example buttons | Fill the console input without executing it |
 | Reload page | Start a new simulation and Lua session |
+
+Help provides **Quick start**, **Controls**, and **Lua REPL** sections. Its language
+switch affects only help; game controls and Lua commands remain in English. On
+first use, a Japanese browser language selects Japanese and other languages use
+English. The choice is stored locally when browser storage is available. Switching
+language retains the current section and expanded references. The guide remains
+available while the engine is loading, but Lua insertion waits for readiness.
+
+Opening help pauses Auto or Commit without resetting the mission. Closing with
+the close button, Escape, or a click outside does not resume playback. Only the
+reading area scrolls, keeping language, section, and close controls reachable on
+small screens. The background stays visible without dimming. Lua examples replace
+the console input and focus it without executing; Run Lua remains an explicit
+action. Help is a compact reference, not an interactive tutorial or a full Lua manual.
 
 The Lua input colors keywords, strings, comments, and numbers as you type,
 including long bracket strings/comments and incomplete input. Coloring is lexical;
@@ -531,6 +546,9 @@ orders, and identical results from playback and manual stepping. A pointer-autho
 plan is executed through the actual Auto button and its final position, velocity,
 and delta-v are compared with the preview; running edits preserve the active burn.
 Continuous playback, repeated orders, and the interval pulse are also checked. The test also checks
+help pause/focus behavior, language persistence, section retention, Lua insertion
+without execution, and help layouts down to a 320 px phone viewport.
+It checks
 Lua persistence, validation, error recovery, direct map dragging and release-to-apply,
 radial clamping outside the reachable circle, automatic zoom and manual override,
 gesture cancellation, keyboard

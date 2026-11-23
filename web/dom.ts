@@ -1,5 +1,12 @@
 // Element identities in index.html. Keep this table aligned with the markup.
 interface Elements {
+  'help-open': HTMLButtonElement;
+  'help-dialog': HTMLDialogElement;
+  'help-title': HTMLHeadingElement;
+  'help-close': HTMLButtonElement;
+  'help-pause-note': HTMLParagraphElement;
+  'help-topics': HTMLElement;
+  'help-body': HTMLDivElement;
   'console-toggle': HTMLElementTagNameMap['button'];
   'map-title': HTMLElementTagNameMap['h2'];
   'engine-status': HTMLElementTagNameMap['span'];
