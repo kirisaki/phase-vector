@@ -36,7 +36,7 @@ export const helpContent: Record<HelpTopic, Section> = {
     groups: [{ id: 'victory', title: t('勝利のためのヒント', 'Blockade tips'), entries: [
       { title: t('小惑星を避けて射線を開く', 'Maneuver to clear asteroid cover'),
         text: t('茶色の A1・A2 は移動する小惑星です。弾は遮られ、艦艇が衝突すると行動不能になります。Blocked は遮蔽の予告です。Burn で射撃位置を変え、時間バーで小惑星の未来位置を確認しましょう。たとえば最初の 2 区間で減速し、Coast に戻してから敵の逃げ道を狙えます。',
-          'Brown A1 and A2 are moving asteroids. It stops rounds and disables ships on contact. Blocked warns of a cover intercept. Change your firing position with Burn and scrub time to inspect the asteroid. Try slowing for two intervals, then Coast and place shots across the enemy escape route.') },
+          'Brown A1 and A2 are moving asteroids. They stop rounds and disable ships on contact. Blocked warns of a cover intercept. Change your firing position with Burn and scrub time to inspect the asteroids. Try slowing for two intervals, then coast and place shots across the enemy escape route.') },
       { title: t('予測は確定した未来ではありません', 'A prediction is not a guarantee'),
         text: t('敵の予測航路は、遅れて届く観測からの推定です。敵は攻撃を観測すると回避します。同じ場所への連射だけでなく、逃げ道を塞ぐ配置を試しましょう。',
           'The enemy forecast extrapolates delayed observations. The enemy may evade once it observes attacks. Try covering escape routes instead of repeatedly targeting one point.') },
@@ -67,6 +67,14 @@ export const helpContent: Record<HelpTopic, Section> = {
           'Queue reserves one round, subject to reload and queue capacity. Unavailable shots show a reason below the button. Clear queue or individual cancellation removes editable reservations; flying rounds cannot be cancelled.') },
         { title: t('キーボード・タッチ補助', 'Keyboard and touch shortcuts'), text: t('Aim にフォーカスして矢印キーで微調整、Shift でさらに細かく、Home で追尾に戻します。バーの操作中は Q で予約でき、タッチでは別の指で Queue を押せます。',
           'Focus Aim and use arrow keys to adjust, Shift for finer steps, and Home to restore lead tracking. While the timeline is focused, Q queues a shot; on touch, tap Queue with another finger.') },
+      ] },
+      { id: 'asteroids', title: t('小惑星', 'Asteroids'), entries: [
+        { title: t('A1・A2 と矢印の見方', 'A1, A2 and velocity arrows'), text: t('茶色の円は小惑星の実際の大きさ、矢印は移動方向、点線は予測航路です。小惑星は一定速度で移動します。タイミングバーで時刻を選ぶと、その時刻の位置を破線の円と薄い矢印で表示します。',
+          'Brown circles show the physical size of each asteroid, arrows show travel direction, and dotted lines show predicted routes. Asteroids drift at constant velocity. Select a time on the timeline to see their positions then, with dashed circles and fainter arrows.') },
+        { title: t('遮蔽と射撃計画', 'Cover and firing plans'), text: t('小惑星は双方の弾を遮り、当たった弾は消えます。Blocked by A1/A2 は予測された遮蔽で、予約はできますが、その射線では弾が途中で止まります。Burn で射撃位置を変え、発射時刻も調整して射線を確保しましょう。未確定の射撃予約は機動変更時に再計算されます。',
+          'Asteroids stop rounds from either side and consume them on contact. Blocked by A1/A2 predicts an interception by cover: you can still queue the shot, but that path ends at the asteroid. Use Burn to change your firing position and adjust firing time to clear the shot. Editable reservations are recalculated after maneuver changes.') },
+        { title: t('衝突と勝敗', 'Collisions and outcomes'), text: t('艦艇が小惑星に衝突すると行動不能になります。自艦の衝突は敗北、敵艦の衝突は勝利です。Collision は自艦航路の衝突予測です。小惑星は破壊できず、索敵は遮りません。',
+          'A ship that collides with an asteroid is disabled. Your collision loses the mission; an enemy collision wins it. Collision marks a predicted contact on your route. Asteroids cannot be destroyed and do not block sensors.') },
       ] },
       { id: 'navigation', title: t('機動とマップ', 'Maneuvers and map'), entries: [
         { title: t('Burn', 'Burn'), text: t('自艦の Burn ハンドルをドラッグし、方向と燃焼量を選んで離すと計画に反映します。次の指揮区間から同じ加速度を繰り返し、Δv を消費します。中心は惰性飛行で、自動停止はしません。',

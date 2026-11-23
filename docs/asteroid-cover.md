@@ -93,6 +93,8 @@ is not a global path planner or an AI that optimizes hiding behind cover.
 - Brown **A1** and **A2** show live physical circular silhouettes and small
   symbolic center crosses. Each dotted track uses the same forecast horizon
   as the ship routes. Each label states physical radius in kilometres.
+- Solid arrows show inertial velocity direction outside each physical silhouette;
+  selected-time previews use fainter arrows. Stationary asteroids have no arrow.
 - Moving the firing-time slider adds a dashed circle for each asteroid at that time.
   It does not move the world. Ship and round forecasts use the same selected time;
   rounds predicted to have hit terrain are absent from the future round markers.
@@ -104,7 +106,8 @@ is not a global path planner or an AI that optimizes hiding behind cover.
   shows `COLLISION` when the selected future state is past that contact.
 - Actual cover contact removes the round and its remaining path/number. History
   still records that the shot was fired. Retry restores terrain and clears contacts.
-- Help includes the cover rule and a suggested maneuver-and-fire experiment.
+- Help → Controls → Asteroids explains map symbols, cover, and collision outcomes
+  in English and Japanese. Quick start also suggests a maneuver-and-fire experiment.
 
 Lua uses the same forecast and planning data:
 

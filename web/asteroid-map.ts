@@ -19,6 +19,17 @@ export function drawAsteroids(svg: SVGSVGElement, state: MissionState, view: Pro
     circle.setAttribute('r', String(a.radius / view.metresPerPixel));
     const center = document.createElementNS(ns, 'path');
     center.setAttribute('d', 'M-4 0H4M0 -4V4');
+    const speed = Math.hypot(a.velocity.x, a.velocity.y);
+    if (speed > 0) {
+      // Match ship velocity arrows; start outside the physical silhouette at any zoom.
+      const start = Math.max(8, a.radius / view.metresPerPixel + 4);
+      const end = start + Math.max(12, Math.min(72, speed / 1000));
+      const arrow = document.createElementNS(ns, 'path');
+      arrow.setAttribute('class', 'asteroid-velocity');
+      arrow.setAttribute('transform', `rotate(${Math.atan2(-a.velocity.y, a.velocity.x) * 180 / Math.PI})`);
+      arrow.setAttribute('d', `M${start} 0H${end}M${end - 5} -3L${end} 0L${end - 5} 3`);
+      node.append(arrow);
+    }
     const text = document.createElementNS(ns, 'text');
     // Enemy-side labels face inward and sit below the ship's motion labels.
     const left = x > view.width / 2;
