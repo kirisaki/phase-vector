@@ -1,11 +1,10 @@
 #!/usr/bin/env python3
 """Play the blockade through its real browser controls, including touch aiming."""
 import argparse
-import mimetypes
 import math
 from pathlib import Path
-from urllib.parse import unquote, urlparse
 from playwright.sync_api import sync_playwright, expect
+from browser_site import RELEASE_URL, route_release_site
 from map_navigation_checks import check_map_navigation
 from planning_checks import check_planning
 from browser_controls import read_ui_settings, connect_engine
@@ -30,18 +29,10 @@ def main():
         page.on('pageerror', lambda e: errors.append(str(e)))
         page.on('requestfailed', lambda r: errors.append(f'{r.url}: {r.failure}'))
         if not args.url:
-            def serve(route):
-                path = unquote(urlparse(route.request.url).path)
-                prefix = '/phase-vector/'
-                file = (ROOT / 'dist' / (path.removeprefix(prefix) or 'index.html')).resolve()
-                if not path.startswith(prefix) or not file.is_relative_to(ROOT / 'dist') or not file.is_file():
-                    route.fulfill(status=404, body='Not found')
-                    return
-                mime = 'application/wasm' if file.suffix == '.wasm' else mimetypes.guess_type(file)[0]
-                route.fulfill(path=str(file), content_type=mime or 'application/octet-stream')
-            page.route('https://phase-vector.test/**', serve)
+            route_release_site(page)
+
         try:
-            page.goto(args.url or 'https://phase-vector.test/phase-vector/')
+            page.goto(args.url or RELEASE_URL)
             expect(page.locator('body')).to_have_attribute('data-ready', 'true', timeout=90000)
             connect_engine(page)
             check_parameters(page)

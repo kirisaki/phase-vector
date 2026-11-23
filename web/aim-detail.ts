@@ -1,3 +1,4 @@
+import { placeAimDetail, type DetailPlacement } from './aim-detail-layout.js';
 import { element, query, required } from './dom.js';
 import type { Projection } from './map-overlay.js';
 import type { ArrivalEstimate, Solution, Vector2 } from './types.js';
@@ -25,7 +26,7 @@ export function createAimDetail() {
   let metresPerPixel = 1;
   let hideTimer: ReturnType<typeof setTimeout> | undefined;
   let lastPointer: Vector2 | undefined;
-  let placement = '';
+  let placement: DetailPlacement['side'] | undefined;
 
   function positionPanel(pointer?: Vector2) {
     if (pointer) lastPointer = pointer;
@@ -35,25 +36,9 @@ export function createAimDetail() {
       return { x: p.x - bounds.left, y: p.y - bounds.top };
     };
     const anchor = center(grip), aim = center(element('aim-handle'));
-    const { width: w, height: h } = panelBox;
-    const edge = AIM_DETAIL.edgePaddingPixels, gap = AIM_DETAIL.handleGapPixels;
-    const avoid = [anchor, aim, ...(lastPointer ? [{ x: lastPointer.x - bounds.left, y: lastPointer.y - bounds.top }] : [])];
-    const candidates = [
-      { side: 'above', x: anchor.x - w / 2, y: anchor.y - gap - h },
-      { side: 'below', x: anchor.x - w / 2, y: anchor.y + gap },
-      { side: 'left', x: anchor.x - gap - w, y: anchor.y - h / 2 },
-      { side: 'right', x: anchor.x + gap, y: anchor.y - h / 2 },
-    ].map(candidate => {
-      const x = Math.max(edge, Math.min(bounds.width - w - edge, candidate.x));
-      const y = Math.max(edge, Math.min(bounds.height - h - edge, candidate.y));
-      const distance = (p: Vector2) => Math.hypot(Math.max(x - p.x, 0, p.x - x - w), Math.max(y - p.y, 0, p.y - y - h));
-      const covered = avoid.filter(p => distance(p) === 0).length;
-      const overlap = avoid.reduce((sum, p) => sum + Math.max(0, AIM_DETAIL.pointerClearancePixels - distance(p)), 0);
-      // Avoid controls first, then stay near the handle. Prefer the previous side on ties.
-      return { side: candidate.side, x, y, covered, overlap, distance: distance(anchor), stable: candidate.side === placement };
-    });
-    candidates.sort((a, b) => a.covered - b.covered || a.overlap - b.overlap || a.distance - b.distance || Number(b.stable) - Number(a.stable));
-    const best = candidates[0];
+    const localPointer = lastPointer
+      ? { x: lastPointer.x - bounds.left, y: lastPointer.y - bounds.top } : undefined;
+    const best = placeAimDetail(bounds, panelBox, anchor, aim, localPointer, placement);
     placement = best.side;
     panel.dataset.placement = placement;
     panel.style.left = `${best.x}px`; panel.style.top = `${best.y}px`;
@@ -63,14 +48,14 @@ export function createAimDetail() {
     clearTimeout(hideTimer); hideTimer = undefined;
     panel.hidden = true;
     delete panel.dataset.phase;
-    lastPointer = undefined; placement = '';
+    lastPointer = undefined; placement = undefined;
   }
 
   return {
     hide,
     start(view: Projection) {
       clearTimeout(hideTimer); hideTimer = undefined;
-      lastPointer = undefined; placement = '';
+      lastPointer = undefined; placement = undefined;
       metresPerPixel = view.metresPerPixel / AIM_DETAIL.magnification;
       panel.dataset.phase = 'dragging';
       panel.hidden = false;

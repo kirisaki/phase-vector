@@ -2,13 +2,13 @@
 """Exercise the built site in Chromium under the GitHub Pages project subpath."""
 
 import argparse
-import mimetypes
 from pathlib import Path
 import subprocess
 import sys
-from urllib.parse import unquote, urljoin, urlparse
+from urllib.parse import urljoin
 
 from playwright.sync_api import sync_playwright, expect
+from browser_site import RELEASE_URL, route_release_site
 from browser_controls import connect_engine
 from repl_checks import check_repl_highlight
 from help_checks import check_help
@@ -52,26 +52,10 @@ def main():
         page.on('requestfailed', lambda request: failed_requests.append(f'{request.url}: {request.failure}'))
 
         if not args.url:
-            def serve(route):
-                path = unquote(urlparse(route.request.url).path)
-                prefix = '/phase-vector/'
-                if not path.startswith(prefix):
-                    route.fulfill(status=404, body='Wrong project base path')
-                    return
-                relative = path[len(prefix):] or 'index.html'
-                file = (ROOT / 'dist' / relative).resolve()
-                if not file.is_relative_to(ROOT / 'dist') or not file.is_file():
-                    route.fulfill(status=404, body='Not found')
-                    return
-                mime = 'application/wasm' if file.suffix == '.wasm' else mimetypes.guess_type(file)[0]
-                route.fulfill(path=str(file), content_type=mime or 'application/octet-stream')
-
-            # Real browser requests are fulfilled from the release artifact. No
-            # local listening port is required in restricted development sessions.
-            page.route('https://phase-vector.test/**', serve)
+            route_release_site(page)
 
         try:
-            base = args.url or 'https://phase-vector.test/phase-vector/'
+            base = args.url or RELEASE_URL
             response = page.goto(base + ('&' if '?' in base else '?') + 'sandbox=1')
             assert response.ok, response.status
             expect(page.locator('body')).to_have_attribute('data-ready', 'true', timeout=90000)

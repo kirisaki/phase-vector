@@ -1,3 +1,4 @@
+import { bindDialogDismiss } from './dialog.js';
 import { element } from './dom.js';
 import { helpContent, helpLabels, type HelpLanguage, type HelpTopic } from './help-content.js';
 
@@ -116,21 +117,11 @@ export function createHelp(onOpen: () => void, onInsert: (source: string) => voi
     body.scrollTop = positions[topic];
   });
   element('help-close').addEventListener('click', close);
-  dialog.addEventListener('cancel', (event) => { event.preventDefault(); close(); });
+  bindDialogDismiss(dialog, close);
   dialog.addEventListener('close', () => {
     remember();
     // Do not steal focus from a Lua example inserted immediately after closing.
     if (document.activeElement === document.body || dialog.contains(document.activeElement)) opener.focus();
-  });
-  const outside = (event: MouseEvent) => {
-    const box = dialog.getBoundingClientRect();
-    return event.clientX < box.left || event.clientX > box.right || event.clientY < box.top || event.clientY > box.bottom;
-  };
-  let pressedOutside = false;
-  dialog.addEventListener('pointerdown', (event) => { pressedOutside = event.target === dialog && outside(event); });
-  dialog.addEventListener('click', (event) => {
-    if (pressedOutside && event.target === dialog && outside(event)) close();
-    pressedOutside = false;
   });
   render();
   return { setReady(value: boolean) {

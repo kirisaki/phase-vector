@@ -1,3 +1,4 @@
+import { bindDialogDismiss } from './dialog.js';
 import { ownShip } from './api.js';
 import type { State, Mission } from './types.js';
 import { element as el, query, required } from './dom.js';
@@ -42,23 +43,10 @@ export function createMissionPanel({ onCancelShot, onRetry, onConfirmRetry, onCa
   }
 
   function dismissResult() { result.close(); el('retry').focus({ preventScroll: true }); }
-  function dismissDialog(dialog: HTMLDialogElement, dismiss: () => void) {
-    const outside = (event: MouseEvent) => {
-      const box = dialog.getBoundingClientRect();
-      return event.clientX < box.left || event.clientX > box.right || event.clientY < box.top || event.clientY > box.bottom;
-    };
-    let pressedOutside = false;
-    dialog.addEventListener('pointerdown', (event) => { pressedOutside = event.target === dialog && outside(event); });
-    dialog.addEventListener('click', (event) => {
-      if (pressedOutside && event.target === dialog && outside(event)) dismiss();
-      pressedOutside = false;
-    });
-    dialog.addEventListener('cancel', (event) => { event.preventDefault(); dismiss(); });
-  }
-  dismissDialog(result, dismissResult);
+  bindDialogDismiss(result, dismissResult);
   el('result-view').addEventListener('click', dismissResult);
   const cancelRetry = () => { confirmation.close(); onCancelRetry(); };
-  dismissDialog(confirmation, cancelRetry);
+  bindDialogDismiss(confirmation, cancelRetry);
   el('retry-cancel').addEventListener('click', cancelRetry);
   el('retry-confirm').addEventListener('click', () => { confirmation.close(); onConfirmRetry(); });
 

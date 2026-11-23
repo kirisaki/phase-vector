@@ -544,8 +544,9 @@ python scripts/browser_smoke.py
 python scripts/mission_smoke.py
 ```
 
-The sandbox smoke test opens Chromium and fulfills browser requests from `dist/` at a
-virtual HTTPS `/phase-vector/` URL. It checks engine startup, a visible scene
+Both browser suites use `scripts/browser_site.py` to serve `dist/` at a virtual
+HTTPS `/phase-vector/` URL, preserving the deployment subpath and WASM MIME type.
+The sandbox smoke test checks engine startup, a visible scene
 change after commands, delta-v consumption, exact interval boundaries, queued
 orders, and identical results from playback and manual stepping. A pointer-authored
 plan is executed through the actual Auto button and its final position, velocity,
@@ -787,10 +788,18 @@ pointer ownership, forecast caching, and DOM updates. `web/mission-panel.ts`
 renders status, reservation/history rows, and the result dialog, forwarding actions
 through controller callbacks. `web/mission-preview.ts` computes one observation-only
 arrival estimate for weapon feedback, the map, and the passive inset in
-`web/aim-detail.ts`. `web/mission-map.ts` draws
+`web/aim-detail.ts`; `web/aim-detail-layout.ts` selects the inset's position using
+surface-local geometry without reading the DOM. `web/mission-map.ts` draws
 the supplied state and preview without issuing commands. These are plain modules;
 they do not introduce a separate simulation or command API. Keep the existing
 command-boundary and gesture behavior when changing presentation.
+
+`web/dialog.ts` shares Escape and backdrop dismissal handling between Help,
+Retry, and the result dialog. Each caller retains its own focus and playback
+behavior. `web/help.ts` owns help navigation and language selection; localized
+content lives in `web/help-content.ts`. Dialog styles live in
+`web/styles/dialogs.css`, loaded after the game layout in `web/style.css` to
+preserve the cascade, including the help reader's visible scrollbar.
 
 ## License
 
