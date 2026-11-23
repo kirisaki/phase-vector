@@ -7,6 +7,17 @@ use phase_vector::{
     session::{Command as C, Session},
 };
 
+// Preserve the historical open-space balance independently of current cover tuning.
+fn open_space_config() -> Config {
+    Config {
+        policy: Policy {
+            reaction_seconds: 120.0,
+            ..Policy::default()
+        },
+        ..Config::default()
+    }
+}
+
 fn run_to_end(s: &mut Session) {
     for _ in 0..20 {
         if s.finished() {
@@ -105,7 +116,7 @@ fn swept_goal_entry_and_impact_ordering_include_exact_deadline() {
 
 #[test]
 fn queued_gun_uses_inherited_velocity_reload_and_persists_across_turns() {
-    let mut s = Session::with_mission(scenario::initial_world(), 1, Config::default()).unwrap();
+    let mut s = Session::with_mission(scenario::initial_world(), 1, open_space_config()).unwrap();
     let aim = s.aim().unwrap();
     assert!((240.0..480.0).contains(&aim.flight_seconds));
     s.dispatch(C::QueueShot(aim.target)).unwrap();
@@ -187,7 +198,7 @@ fn hidden_projectiles_cannot_affect_ai_before_sensor_delivery() {
 fn wider_warning_corridor_reacts_to_near_misses_without_inflating_hit_radii() {
     for (offset_km, reacts) in [(100.0, true), (2000.0, false)] {
         let mut session =
-            Session::with_mission(scenario::initial_world(), 1, Config::default()).unwrap();
+            Session::with_mission(scenario::initial_world(), 1, open_space_config()).unwrap();
         let target = session.aim().unwrap().target + V::new(0.0, offset_km * 1000.0);
         session.dispatch(C::QueueShot(target)).unwrap();
         run_to_end(&mut session);
@@ -459,7 +470,8 @@ fn recorded_commands_replay_shots_observations_ai_and_outcome() {
 fn equal_shot_counts_have_different_outcomes_and_blockade_need_not_hit() {
     let mut outcomes = Vec::new();
     for spacing in [300_000.0, 0.0] {
-        let mut s = Session::with_mission(scenario::initial_world(), 1, Config::default()).unwrap();
+        let mut s =
+            Session::with_mission(scenario::initial_world(), 1, open_space_config()).unwrap();
         for _ in 0..4 {
             for round in 0..4 {
                 let target = s.aim().unwrap().target + V::new(0.0, round as f64 * spacing);
@@ -876,6 +888,7 @@ fn evasion_uses_partial_thrust_and_releases_after_the_short_commitment() {
     };
     let policy = Policy {
         safety_radius: 20_000.0,
+        reaction_seconds: 120.0,
         ..Policy::default()
     };
     let d = ai::decide(&own, goal, 0.0, &[track], 0, policy, &Decision::default());
@@ -902,6 +915,7 @@ fn a_second_observed_round_can_block_the_preferred_evasion() {
     };
     let policy = Policy {
         safety_radius: 20_000.0,
+        reaction_seconds: 120.0,
         ..Policy::default()
     };
     let first = ai::decide(
@@ -939,7 +953,7 @@ fn standard_deadline_allows_three_salvos_with_a_wider_spread() {
     for spacing_km in [800.0, 900.0, 1000.0] {
         for start_turn in [0, 1] {
             let mut s =
-                Session::with_mission(scenario::initial_world(), 1, Config::default()).unwrap();
+                Session::with_mission(scenario::initial_world(), 1, open_space_config()).unwrap();
             for _ in 0..start_turn {
                 s.dispatch(C::NextTurn).unwrap();
             }
@@ -981,7 +995,7 @@ fn shorter_deadline_makes_two_spread_salvos_more_forgiving() {
                     1,
                     Config {
                         deadline_tick,
-                        ..Config::default()
+                        ..open_space_config()
                     },
                 )
                 .unwrap();

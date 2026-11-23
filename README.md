@@ -10,7 +10,7 @@ and delta-v expenditure.
 
 **Steps 1–5 complete; Step 6 acceptance exercised, with a provisional moving-cover extension.**
 One friendly ship must stop a non-firing enemy
-from reaching its exit before 1,215 seconds. Maneuver around one moving asteroid
+from reaching its exit before 1,215 seconds. Maneuver around two moving asteroids
 to clear your firing corridor. Fire an unguided railgun at a future
 point; the enemy reacts only to delivered attack observations and tries to
 recover its course. Win by disabling it or delaying it past the deadline.
@@ -612,18 +612,21 @@ not require a game server or custom domain.
 
 ## Moving asteroid cover
 
-The default blockade includes one moving asteroid. Brown **A1** shows its physical
-radius and dotted predicted route; scrubbing the firing-time slider shows its
-future position. **Blocked by A1** and a red contact cross warn when a round will
+The default blockade includes two moving asteroids. Brown **A1** (near your ship) and
+**A2** (near the enemy) show their physical radii and dotted predicted routes.
+Scrubbing the firing-time slider shows their
+future positions. **Blocked by A1/A2** and a red contact cross warn when a round will
 be absorbed before reaching its target. Queue still accepts such a shot, and
 maneuver changes recalculate reservations. Own-ship collision loses the mission;
-enemy collision disables it. The asteroid is indestructible and blocks rounds
-from either side, but does not block sensors.
+enemy collision disables it. Both asteroids are indestructible and block rounds
+from either side, but do not block sensors.
 
 Use Burn on the map to change your firing position. For a reproducible starting
 experiment, drag Burn down to maximum slowdown, advance two intervals, then use
 Home while Burn is focused to coast. From 240 s, three salvos of four shots with
-900 km vertical spacing can deny entry without a hit. The same shots and timing
+200 km vertical spacing can deny entry without a hit with the provisional
+90-second enemy reaction horizon. Four rounds are absorbed by A2 in this trial.
+The same shots and timing
 while coasting are absorbed; repeated lead shots after maneuvering still lose.
 This is a provisional example, not the only winning strategy. See
 [asteroid rules and measured trials](docs/asteroid-cover.md) for tuning values,
@@ -724,7 +727,7 @@ for both APIs, validation, and replanning priority.
   processing plus rounded-up light travel time measured at sampling. Moving
   receivers, noise, occlusion, and relativistic effects are not modeled.
 - The enemy reacts autonomously once per second, within player command intervals.
-  Its 120 s threat horizon is independent of projectile flight time. The provisional
+  Its 90 s threat horizon is independent of projectile flight time. The provisional
   safety corridor is 500 km, with 1 s evasion commitments. The controller checks
   multiple observed rounds together, prefers safe low-thrust candidates, and
   resumes cruise recovery as soon as it predicts that recovery is safe.
@@ -766,7 +769,7 @@ Shared numerical settings have distinct owners:
 
 Whole-second durations become ticks through `timing::seconds_to_ticks`; the
 playback clock must be an integer multiple of the physics frequency. Equal
-numbers with different meanings remain separate: a 30 s reload or 120 s threat
+numbers with different meanings remain separate: a 30 s reload or 90 s threat
 horizon does not inherit the 120 s command interval. Solver tolerances stay
 local with quantity-specific names and units.
 

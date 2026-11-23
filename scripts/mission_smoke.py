@@ -324,7 +324,7 @@ def main():
             coast(page)
             expect(page.locator('#gun-feedback')).not_to_contain_text('Blocked by')
             assert state()['world']['ships'][0]['spent_dv'] > 11000
-            # Cover observed evasion routes with 12 rounds spaced 900 km apart.
+            # Cover observed evasion routes with 12 rounds spaced 200 km apart.
             for turn in range(math.ceil((state()['mission']['deadline_seconds'] - state()['time_seconds']) / timing['interval_seconds'])):
                 if turn < 3:
                     for round_index in range(4):
@@ -341,7 +341,7 @@ def main():
                             }''')
                             page.mouse.move(point['x'], point['y'])
                             page.mouse.down()
-                            page.mouse.move(point['x'], point['y'] - round_index * 900_000 / metres_per_pixel / fine_gain, steps=3)
+                            page.mouse.move(point['x'], point['y'] - round_index * 200_000 / metres_per_pixel / fine_gain, steps=3)
                             page.mouse.up()
                         page.locator('#queue-shot').click()
                     assert len(state()['mission']['shots']) == turn * 4

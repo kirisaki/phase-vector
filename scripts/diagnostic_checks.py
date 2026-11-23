@@ -15,7 +15,7 @@ def lua(page, source, expected=None, error=False):
 
 def check_parameters(page):
     page.locator('#console-toggle').click()
-    lua(page, 'game.parameters().reaction_seconds', '120')
+    lua(page, 'game.parameters().reaction_seconds', '90')
     lua(page, 'game.configure("reaction_seconds", 60); return game.state().mission.run_kind', 'custom')
     lua(page, 'game.configure("reload_seconds", 60); return game.parameters().reload_seconds', '60')
     lua(page, 'game.configure("reload_seconds", 1.1)', 'multiple', error=True)
@@ -79,7 +79,7 @@ def check_evaluation(page):
         assert page.evaluate('readState().world.tick') == 0
         assert page.evaluate('readState().mission.evaluation') is None
         page.locator('#console-toggle').click()
-        lua(page, 'game.parameters().reaction_seconds', '120')
+        lua(page, 'game.parameters().reaction_seconds', '90')
         lua(page, 'game.parameters().deadline_seconds', '120')
         lua(page, 'game.command("mission")')
         page.locator('#console-toggle').click()

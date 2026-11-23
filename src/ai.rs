@@ -43,7 +43,7 @@ pub struct Policy {
 impl Default for Policy {
     fn default() -> Self {
         Self {
-            reaction_seconds: 120.0,
+            reaction_seconds: 90.0,
             safety_radius: 500.0 * crate::units::METRES_PER_KILOMETRE,
             hold_seconds: 1.0,
             recovery_seconds: 120.0,

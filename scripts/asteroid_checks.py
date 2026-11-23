@@ -30,8 +30,8 @@ def coast(page):
 def check_asteroids(page, artifacts):
     def state(): return page.evaluate('readState()')
     original = state()['world']
-    assert len(original['asteroids']) == 1
-    expect(page.locator('#asteroid-map circle')).to_have_count(1)
+    assert len(original['asteroids']) == 2
+    expect(page.locator('#asteroid-map circle')).to_have_count(2)
     expect(page.locator('#gun-feedback')).to_contain_text('Blocked by A1')
     expect(page.locator('#cover-contact text')).to_contain_text('Blocked')
     # Selection changes both the firing solution and the known asteroid position.
@@ -39,13 +39,15 @@ def check_asteroids(page, artifacts):
     page.keyboard.press('PageUp')
     page.keyboard.press('PageUp')
     expect(page.locator('#forecast-time')).to_have_attribute('aria-valuenow', '240')
-    expect(page.locator('#asteroid-forecast text')).to_have_text('A1 · 240 s')
+    expect(page.locator('#asteroid-forecast text')).to_have_text(['A1 · 240 s', 'A2 · 240 s'])
     page.wait_for_function('''async () => {
         const {mapProjection}=await import(browserModule('map-overlay'));
-        const s=readState(), a=s.world.asteroids[0], svg=document.querySelector('#mission-overlay');
+        const s=readState(), svg=document.querySelector('#mission-overlay');
+        return s.world.asteroids.every(a => {
         const v=mapProjection(svg,s.map), [x,y]=v.project({x:a.position.x+a.velocity.x*240,y:a.position.y+a.velocity.y*240});
-        const g=document.querySelector('#asteroid-forecast g');
+        const g=document.querySelector(`#asteroid-forecast g[data-asteroid-id="${a.id}"]`);
         return g.getAttribute('transform')===`translate(${x} ${y})`;
+        });
     }''')
     page.locator('#queue-shot').click()
     order=state()['mission']['queued'][0]
@@ -57,8 +59,18 @@ def check_asteroids(page, artifacts):
     assert state()['world']==original
     for width,height in [(1360,1000),(390,844)]:
         page.set_viewport_size({'width':width,'height':height})
-        expect(page.locator('#asteroid-map circle')).to_be_visible()
-        expect(page.locator('#asteroid-forecast circle')).to_be_visible()
+        for circle in page.locator('#asteroid-map circle').all(): expect(circle).to_be_visible()
+        for circle in page.locator('#asteroid-forecast circle').all(): expect(circle).to_be_visible()
+        # Enemy-side cover labels face inward and avoid the current motion labels.
+        page.wait_for_function('''() => {
+            const a=document.querySelector('#asteroid-map g[data-asteroid-id="2"] text').getBoundingClientRect();
+            const map=document.querySelector('#mission-overlay').getBoundingClientRect();
+            return a.left >= map.left && a.right <= map.right &&
+                ['enemy-speed','enemy-motion'].every(id => {
+                    const b=document.getElementById(id).getBoundingClientRect();
+                    return a.right <= b.left || a.left >= b.right || a.bottom <= b.top || a.top >= b.bottom;
+                });
+        }''')
         page.screenshot(path=str(artifacts / f'asteroid-plan-{width}.png'))
     page.set_viewport_size({'width':1360,'height':1000})
     page.locator('#retry').click()

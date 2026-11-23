@@ -112,7 +112,7 @@ its assumptions, adjustable fixture, and measured acceptance cases.
 - Enemy reaction lead time adjustable independently of projectile flight time,
   subject to light propagation and the observation rules. Light crosses the
   initial range in about 0.801 s. Step 3 uses 1-second samples and processing,
-  plus quantized light delay; a 120-second threat horizon controls enemy reaction.
+  plus quantized light delay; a 90-second threat horizon controls enemy reaction in the two-asteroid trial.
 - Tune parameters against measurable mission outcomes rather than a scripted
   success path.
 

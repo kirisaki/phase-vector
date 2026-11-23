@@ -20,7 +20,12 @@ export function drawAsteroids(svg: SVGSVGElement, state: MissionState, view: Pro
     const center = document.createElementNS(ns, 'path');
     center.setAttribute('d', 'M-4 0H4M0 -4V4');
     const text = document.createElementNS(ns, 'text');
-    text.setAttribute('x', '10'); text.setAttribute('y', '-10'); text.textContent = label;
+    // Enemy-side labels face inward and sit below the ship's motion labels.
+    const left = x > view.width / 2;
+    text.setAttribute('text-anchor', left ? 'end' : 'start');
+    text.setAttribute('x', left ? '-10' : '10');
+    text.setAttribute('y', String(left ? group === future ? 48 : 18 : -10));
+    text.textContent = label;
     node.append(circle, center, text); group.append(node);
   };
   for (const a of state.world.asteroids) {

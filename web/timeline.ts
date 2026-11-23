@@ -120,7 +120,7 @@ export function createTimeline(onChange: () => void) {
         }
       }
       label.textContent = error || (forecast
-        ? `Fire ${forecast.time_seconds.toFixed(2)} s · +${(forecast.time_seconds - state.time_seconds).toFixed(2)} s${forecast.own_collision ? " · COLLISION" : " · A1 forecast"}`
+        ? `Fire ${forecast.time_seconds.toFixed(2)} s · +${(forecast.time_seconds - state.time_seconds).toFixed(2)} s${forecast.own_collision ? " · COLLISION" : ` · ${forecast.asteroids.map(a => "A" + a.id).join("/")} forecast`}`
         : 'Live · drag to plan firing');
       slider.setAttribute('aria-valuetext', forecast ? `${forecast.time_seconds.toFixed(2)} seconds firing time, predicted positions` : 'Live; drag to choose a firing time');
     },

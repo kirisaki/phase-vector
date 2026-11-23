@@ -17,7 +17,13 @@ fn main() {
         let mut s = Session::with_mission(
             phase_vector::scenario::initial_world(),
             1,
-            phase_vector::mission::Config::default(),
+            phase_vector::mission::Config {
+                policy: phase_vector::ai::Policy {
+                    reaction_seconds: 120.0,
+                    ..phase_vector::ai::Policy::default()
+                },
+                ..phase_vector::mission::Config::default()
+            },
         )
         .unwrap();
         let mut turn = 0;

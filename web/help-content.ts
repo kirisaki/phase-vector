@@ -35,8 +35,8 @@ export const helpContent: Record<HelpTopic, Section> = {
     ],
     groups: [{ id: 'victory', title: t('勝利のためのヒント', 'Blockade tips'), entries: [
       { title: t('小惑星を避けて射線を開く', 'Maneuver to clear asteroid cover'),
-        text: t('茶色の A1 は移動する小惑星です。弾は遮られ、艦艇が衝突すると行動不能になります。Blocked は遮蔽の予告です。Burn で射撃位置を変え、時間バーで小惑星の未来位置を確認しましょう。たとえば最初の 2 区間で減速し、Coast に戻してから敵の逃げ道を狙えます。',
-          'Brown A1 is a moving asteroid. It stops rounds and disables ships on contact. Blocked warns of a cover intercept. Change your firing position with Burn and scrub time to inspect the asteroid. Try slowing for two intervals, then Coast and place shots across the enemy escape route.') },
+        text: t('茶色の A1・A2 は移動する小惑星です。弾は遮られ、艦艇が衝突すると行動不能になります。Blocked は遮蔽の予告です。Burn で射撃位置を変え、時間バーで小惑星の未来位置を確認しましょう。たとえば最初の 2 区間で減速し、Coast に戻してから敵の逃げ道を狙えます。',
+          'Brown A1 and A2 are moving asteroids. It stops rounds and disables ships on contact. Blocked warns of a cover intercept. Change your firing position with Burn and scrub time to inspect the asteroid. Try slowing for two intervals, then Coast and place shots across the enemy escape route.') },
       { title: t('予測は確定した未来ではありません', 'A prediction is not a guarantee'),
         text: t('敵の予測航路は、遅れて届く観測からの推定です。敵は攻撃を観測すると回避します。同じ場所への連射だけでなく、逃げ道を塞ぐ配置を試しましょう。',
           'The enemy forecast extrapolates delayed observations. The enemy may evade once it observes attacks. Try covering escape routes instead of repeatedly targeting one point.') },

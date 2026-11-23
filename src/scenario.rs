@@ -60,6 +60,7 @@ pub fn initial_world() -> World {
 pub fn blockade_world() -> World {
     let mut world = initial_world();
     world.asteroids.push(default_asteroid());
+    world.asteroids.push(enemy_cover());
     world
 }
 
@@ -71,4 +72,15 @@ pub fn default_asteroid() -> crate::physics::Asteroid {
         450.0 * METRES_PER_KILOMETRE,
     )
     .expect("valid provisional asteroid")
+}
+
+/// Smaller cover near the enemy-side center of the firing corridor.
+pub fn enemy_cover() -> crate::physics::Asteroid {
+    crate::physics::Asteroid::new(
+        2,
+        Vector2::new(100_000.0, -3_100.0) * METRES_PER_KILOMETRE,
+        Vector2::new(0.0, -28.125) * METRES_PER_KILOMETRE,
+        150.0 * METRES_PER_KILOMETRE,
+    )
+    .expect("valid enemy-side asteroid")
 }

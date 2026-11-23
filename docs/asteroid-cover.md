@@ -1,6 +1,6 @@
 # Asteroid cover trial
 
-The blockade now contains one moving, indestructible circular asteroid. This
+The blockade now contains two moving, indestructible circular asteroids. This
 extends the original open-space mission: a firing-position change can open a
 ballistic corridor, but positioning alone does not guarantee denial.
 
@@ -30,23 +30,29 @@ ballistic corridor, but positioning alone does not guarantee denial.
 
 ## Provisional setup
 
-All standard asteroid values live in `scenario::default_asteroid()`.
-`scenario::blockade_world()` adds that fixture; `scenario::initial_world()` keeps
+Standard asteroid values live in `scenario::default_asteroid()` (A1) and
+`scenario::enemy_cover()` (A2). `scenario::blockade_world()` adds both fixtures; `scenario::initial_world()` keeps
 an empty-terrain sandbox and the historical open-space test fixture.
 
-| Property | Current value |
-| --- | --- |
-| Initial center | (-100,000, -3,100) km |
-| Velocity | (0, +65.625) km/s |
-| Physical radius | 450 km |
-| Initial distance along the ship-to-ship axis from own ship | 20,000 km |
-| First predicted lead-round cover contact | Approximately 30 s after firing |
+| Property | A1: own-side cover | A2: enemy-side cover |
+| --- | --- | --- |
+| Initial center | (-100,000, -3,100) km | (+100,000, -3,100) km |
+| Velocity | (0, +65.625) km/s | (0, -28.125) km/s |
+| Physical radius | 450 km | 150 km |
+| Initial axis distance from the nearer ship | 20,000 km | 20,000 km |
 
-The radius is a large-asteroid trial, not a rendering radius. The asteroid moves
-near the crossing points of coasting lead shots, so merely waiting does not open
-the early firing corridor. A modest transverse change to the firing position
-can move the round outside its physical disk. No reaction, deadline, muzzle-speed,
-ship-radius, or score-weight tuning was changed for this addition.
+A2 is near the enemy-side center of the firing corridor, not centered on the
+enemy hull or its unopposed route. Both are known inertial bodies. A1 remains
+unchanged from the first cover trial. Its placement near coasting lead-shot
+crossings means that waiting alone does not clear early shots. A2 adds a smaller
+second obstruction; clearing A1 no longer guarantees a clear complete shot.
+
+The enemy threat horizon is shortened from 120 to **90 seconds**, independently
+of the 120-second command interval and projectile flight time. This changes how
+far ahead it evaluates observed threats, not a delay after seeing a round. A
+shorter horizon can make denial harder: the enemy may spend less time detouring.
+The deadline, muzzle speed, acceleration, safety corridor, and scoring weights
+are unchanged. All values remain provisional.
 
 For experiments, construct an `Asteroid::new(id, position, velocity, radius)` and
 replace `world.asteroids` before `Session::with_mission(world, 1, config)`.
@@ -82,13 +88,13 @@ is not a global path planner or an AI that optimizes hiding behind cover.
 
 ## Interface and diagnostics
 
-- Brown **A1** is the live asteroid, with its physical circular silhouette and a
-  small symbolic center cross. Its dotted track uses the same forecast horizon
-  as the ship routes. The label states physical radius in kilometres.
-- Moving the firing-time slider adds a dashed asteroid circle at that time.
+- Brown **A1** and **A2** show live physical circular silhouettes and small
+  symbolic center crosses. Each dotted track uses the same forecast horizon
+  as the ship routes. Each label states physical radius in kilometres.
+- Moving the firing-time slider adds a dashed circle for each asteroid at that time.
   It does not move the world. Ship and round forecasts use the same selected time;
   rounds predicted to have hit terrain are absent from the future round markers.
-- **Blocked by A1** in weapon feedback and a red cross on the map identify the
+- **Blocked by A1/A2** in weapon feedback and a red cross on the map identify the
   predicted round contact and absolute time. The preview line stops at cover.
   Queued rows and target labels also mark blocked shots. Fine aim retains its
   enemy estimate but reports the obstruction in its heading.
@@ -116,21 +122,38 @@ lead points separated vertically by the listed spacing, at the earliest free
 30-second firing slots. Burns end before the first salvo; subsequent motion
 coasts. The enemy receives no privileged future orders.
 
-| Strategy | First salvo | Shots | Absorbed | Outcome | Own delta-v | Score |
-| --- | --- | --- | --- | --- | --- | --- |
-| No attack | — | 0 | 0 | Breakthrough at 1,173.333 s | 0 km/s | 0 |
-| Coast, +900 km spacing | 240 s | 12 | 12 | Breakthrough at 1,173.333 s | 0 km/s | 0 |
-| Slow at 5 G for 240 s, repeated lead | 240 s | 12 | 0 | Breakthrough at 1,201.357 s | 11.768 km/s | 0 |
-| Slow at 5 G for 120 s, +900 km spacing | 120 s | 12 | 1 | Timeout victory | 5.884 km/s | 1,710 |
-| Slow at 5 G for 240 s, +900 km spacing | 240 s | 12 | 0 | Timeout victory | 11.768 km/s | 1,661 |
-| Slow at 5 G for 360 s, +900 km spacing | 360 s | 12 | 0 | Timeout victory | 17.652 km/s | 1,612 |
-| Speed up at 5 G for 360 s, -900 km spacing | 360 s | 12 | 0 | Timeout victory | 17.652 km/s | 1,612 |
+Current two-asteroid / 90-second-horizon examples (12 shots, zero ship hits):
 
-All rows have zero ship hits. Victories occur at the unchanged 1,215 s deadline.
-The equal-budget, equal-start comparisons distinguish the two decisions: maneuver
-opens the corridor, and shot placement induces enough delay. Different burn
-lengths and the opposite direction also work, with different fuel costs; these
-are examples, not an exhaustive strategy search or a final balance claim.
+| Strategy | First salvo | Absorbed | Outcome | Own delta-v | Score |
+| --- | --- | --- | --- | --- | --- |
+| Coast, +200 km spacing | 240 s | 12 by A1 | Breakthrough at 1,173.333 s | 0 km/s | 0 |
+| Slow at 5 G for 240 s, repeated lead | 240 s | 0 | Breakthrough at 1,201.630 s | 11.768 km/s | 0 |
+| Slow at 5 G for 240 s, +200 km spacing | 240 s | 4 by A2 | Timeout at 1,215 s | 11.768 km/s | 1,661 |
+| Slow at 5 G for 240 s, +900 km spacing | 240 s | 0 | Breakthrough at 1,183.553 s | 11.768 km/s | 0 |
+
+No attack still produces a breakthrough at 1,173.333 s, with no terrain collision.
+The successful equal-budget strategy needs both a firing-position change and
+shot placement. Not every unobstructed shot contributes useful delay.
+
+Use `cargo run --locked --example asteroid_trials -- --compare` to separate the
+layout and horizon changes. The comparison includes the old one-asteroid /
+120-second baseline, then two asteroids with 120, 110, 105, 90, and 60 seconds:
+
+| Same strategy | One asteroid, 120 s | Two asteroids, 120 s | Two asteroids, 90 s | Two asteroids, 60 s |
+| --- | --- | --- | --- | --- |
+| Slow 240 s, +900 km spacing | Timeout | Timeout | Breakthrough | Breakthrough |
+| Slow 360 s, +900 km spacing | Timeout | Breakthrough (2 rounds absorbed) | Breakthrough | Breakthrough |
+| Slow 240 s, +200 km spacing | Timeout | Timeout (4 rounds absorbed) | Timeout | Breakthrough at 1,213.741 s |
+
+`cargo run --locked --example cover_balance_sweep` samples 39 fixed placements
+per horizon: 13 spacings crossed with three starting offsets, after the same
+240-second slowdown. Two samples win at 90 seconds, none at 60, and four at 110.
+The second 90-second winning sample starts 600 km below lead and spaces shots
+400 km apart. These are deterministic examples, **not player win rates** or proof
+that other placements fail. The current 90-second choice offers a meaningfully
+shorter reaction horizon with verified non-hit wins; it is not claimed to be
+easier than the previous balance. Physical playtesting should guide the next
+adjustment.
 
 `tests/asteroids.rs` covers moving-object sweeps, temporal misses, cover for both
 owners, contact priority, disabled propulsion, terminal ordering, prediction versus
@@ -142,8 +165,7 @@ fixtures where they test the old balance or unobstructed flight.
 map gestures, timeline ephemerides, fixed reservation recalculation, disappeared
 round trails, a predicted and executed own-ship collision, Retry, and
 desktop/phone-sized layouts. The mission suite performs
-the 240-second slowdown through the map controls and then wins with 12 spread
-rounds through Queue and Fine aim. Its expected score includes maneuver fuel.
+the 240-second slowdown through the map controls and then wins with 12 rounds at 200 km spacing through Queue and Fine aim. Its expected score includes maneuver fuel.
 The physics sandbox browser suite continues to cover the original UI, Lua, Help,
 playback, and navigation behavior. Physical phone and Safari validation remain
 outside the automated Chromium evidence.

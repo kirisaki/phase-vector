@@ -243,6 +243,7 @@ fn ai_uses_cover_without_hidden_rounds_and_ignores_stale_tracks_past_cover() {
     let terrain = vec![rock(V::new(-500.0, 0.0), V::ZERO, 50.0)];
     let policy = Policy {
         safety_radius: 1.0,
+        reaction_seconds: 120.0,
         ..Policy::default()
     };
     let normal = ai::decide(
@@ -285,8 +286,8 @@ fn ai_uses_cover_without_hidden_rounds_and_ignores_stale_tracks_past_cover() {
 #[test]
 fn same_twelve_shots_need_both_maneuver_and_placement_to_deny_without_hits() {
     for (burn, spread, expected) in [
-        (0.0, 900_000.0, Outcome::Breakthrough),
-        (-scenario::MAX_ACCELERATION, 900_000.0, Outcome::Timeout),
+        (0.0, 200_000.0, Outcome::Breakthrough),
+        (-scenario::MAX_ACCELERATION, 200_000.0, Outcome::Timeout),
         (-scenario::MAX_ACCELERATION, 0.0, Outcome::Breakthrough),
     ] {
         let mut s = Session::blockade();
@@ -310,7 +311,20 @@ fn same_twelve_shots_need_both_maneuver_and_placement_to_deny_without_hits() {
         assert!(s.world().impacts.is_empty());
         assert_eq!(
             s.world().asteroid_impacts.len(),
-            if burn == 0.0 { 12 } else { 0 }
+            if burn == 0.0 {
+                12
+            } else if spread > 0.0 {
+                4
+            } else {
+                0
+            }
+        );
+        let blocking_id = if burn == 0.0 { 1 } else { 2 };
+        assert!(
+            s.world()
+                .asteroid_impacts
+                .iter()
+                .all(|hit| hit.asteroid_id == blocking_id)
         );
         assert!(s.world().ships[1].remaining_dv > 0.0);
         let first = s.world().clone();
@@ -359,7 +373,7 @@ fn lua_exposes_the_same_cover_and_forecast_and_custom_retry_restores_terrain() {
     assert_eq!(
         host.evaluate("return #game.state().asteroids, game.state().ship.disabled")
             .unwrap(),
-        "1\tfalse"
+        "2\tfalse"
     );
     assert_eq!(host.evaluate("local x,y=game.aim_at(240); local s=game.preview_launch(x,y,240); return s.blocked_by, s.blocked_seconds > 240").unwrap(),"1\ttrue");
     let value = host
@@ -381,4 +395,52 @@ fn lua_exposes_the_same_cover_and_forecast_and_custom_retry_restores_terrain() {
     assert_eq!(s.world(), &world);
     assert!(Asteroid::new(1, V::ZERO, V::ZERO, 0.0).is_err());
     assert!(Asteroid::new(1, V::new(f64::NAN, 0.0), V::ZERO, 1.0).is_err());
+}
+
+#[test]
+fn standard_reaction_horizon_delays_evasion_until_the_threat_is_closer() {
+    let own = Ship::new(2, V::ZERO, V::ZERO, 500.0, 50.0, 60_000.0).unwrap();
+    let track = Track {
+        id: 7,
+        sampled_tick: 0,
+        received_tick: 0,
+        position: V::new(-100_000_000.0, 0.0),
+        velocity: V::new(1_000_000.0, 0.0),
+        radius: 1.0,
+    };
+    let current = Policy::default();
+    assert_eq!(current.reaction_seconds, 90.0);
+    let earlier = ai::decide(
+        &own,
+        V::ZERO,
+        0.0,
+        std::slice::from_ref(&track),
+        0,
+        Policy {
+            reaction_seconds: 120.0,
+            ..current
+        },
+        &Decision::default(),
+    );
+    let waiting = ai::decide(
+        &own,
+        V::ZERO,
+        0.0,
+        std::slice::from_ref(&track),
+        0,
+        current,
+        &Decision::default(),
+    );
+    let closer = ai::decide(
+        &own,
+        V::ZERO,
+        0.0,
+        &[track],
+        40,
+        current,
+        &Decision::default(),
+    );
+    assert_eq!(earlier.threat_id, Some(7));
+    assert_eq!(waiting.threat_id, None);
+    assert_eq!(closer.threat_id, Some(7));
 }
