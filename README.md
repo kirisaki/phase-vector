@@ -218,8 +218,7 @@ about 57 seconds at the previous 1,230-second deadline. See the
 placement-dependent wins with eight or twelve shots in the open-space baseline.
 The default asteroid trial additionally requires clearing the firing corridor; see
 [asteroid cover](docs/asteroid-cover.md). Exact simultaneous
-impact/entry favors disablement; entry at the deadline beats timeout. Both victory
-types receive the same base score.
+impact/entry favors disablement; entry at the deadline beats timeout. Disablement earns higher victory points than timeout.
 
 A centered result dialog announces VICTORY or DEFEAT with the reason, elapsed
 time, shots fired, and delta-v spent. The battlefield stays visible without
@@ -228,18 +227,31 @@ outside the dialog dismisses it so the frozen battlefield can be inspected. The
 inline result and Retry button remain available after dismissal.
 
 Terminal results also show a total score and its three components. Running missions
-have no final score. Victory earns 1,000 base points, plus `max(0, 500 - 20 × shots
-fired)` for shot economy and `floor(500 × remaining friendly Δv / initial friendly
-Δv)` for fuel economy, clamped to 0–500. Zero initial Δv earns no fuel bonus.
+have no final score. Disablement earns **2,000 victory points**, including an enemy
+asteroid collision. Timeout earns **1,000 + floor(500 × enemy Δv consumed / initial
+enemy Δv)**, with the depletion bonus clamped to 0–500. Disablement has no extra
+depletion bonus, so an early hit is not penalized for leaving enemy fuel unused.
+A zero initial enemy budget earns no depletion bonus.
+
+On either victory, add `max(0, 500 - 20 × shots fired)` for shot economy and
+`floor(500 × remaining friendly Δv / initial friendly Δv)` for fuel economy,
+clamped to 0–500. Zero initial friendly Δv earns no fuel bonus.
 Defeat earns zero points in every component, while retaining actual resource
 usage in the breakdown. Reserved or cancelled shots are not counted; only
-physical launches cost points. There is no extra kill or speed bonus.
+physical launches cost points. There is no speed bonus. Timeout totals range from
+1,000–2,500 and disablement totals from 2,000–3,000. Fuel exhaustion alone never
+ends the mission.
 
 The score uses the frozen terminal world (including the full final physics tick's
 fuel expenditure) and stays unchanged after dismissal, pause, or playback-speed
 changes. It remains available in the inline status and at
 `game.state().mission.evaluation` in Lua. The fields are `total`, `victory_points`,
-`shot_points`, `fuel_points`, `shots_fired`, and `spent_delta_v` (m/s).
+`shot_points`, `fuel_points`, `shots_fired`, and `spent_delta_v` (m/s), plus
+`enemy_depletion_points`, `enemy_initial_delta_v`, and `enemy_remaining_delta_v`
+(the latter two in m/s). `enemy_depletion_points` is already included in
+`victory_points`; do not add it again. Enemy fuel uses the true terminal state and
+the scenario's initial budget, not a delayed observation or a fixed standard budget.
+This result-only disclosure does not change observed predictions during play.
 `evaluation` is nil in Lua / null in UI JSON before a result.
 
 Results identify **Standard**, **Custom settings**, or **Debug run**. Custom means

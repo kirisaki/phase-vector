@@ -55,6 +55,8 @@ def check_evaluation(page):
         expect(page.locator('#result-title')).to_have_text('VICTORY')
         expect(page.locator('#result-score')).to_have_text('1950')
         expect(page.locator('#score-victory')).to_have_text('1000')
+        expect(page.locator('#score-victory-detail')).to_contain_text('0 enemy Δv depletion')
+        expect(page.locator('#score-victory-detail')).to_contain_text('60.0 / 60.0 km/s')
         expect(page.locator('#score-shots')).to_have_text('460')
         expect(page.locator('#score-fuel')).to_have_text('490')
         expect(page.locator('#result-run-kind')).to_have_text('Debug run')

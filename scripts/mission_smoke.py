@@ -8,7 +8,7 @@ from browser_site import RELEASE_URL, route_release_site
 from map_navigation_checks import check_map_navigation
 from planning_checks import check_planning
 from browser_controls import read_ui_settings, connect_engine
-from diagnostic_checks import check_parameters, check_evaluation
+from diagnostic_checks import check_parameters, check_evaluation, lua
 from aim_detail_checks import check_aim_detail
 from asteroid_checks import check_asteroids, plan_slowdown, coast
 
@@ -366,8 +366,16 @@ def main():
             expect(page.locator('#mission-status')).to_contain_text('Victory')
             expect(page.locator('#mission-result')).to_be_visible()
             expect(page.locator('#result-title')).to_have_text('VICTORY')
-            expect(page.locator('#result-score')).to_have_text('1661')
+            expect(page.locator('#result-score')).to_have_text('1807')
             expect(page.locator('#result-run-kind')).to_have_text('Standard')
+            expect(page.locator('#score-victory')).to_have_text('1146')
+            expect(page.locator('#score-victory-detail')).to_contain_text('146 enemy Δv depletion')
+            score = current['mission']['evaluation']
+            assert score['enemy_depletion_points'] == 146
+            assert score['enemy_initial_delta_v'] == 60000
+            # Normal map tracks still hide enemy fuel; only the final score discloses it.
+            assert 'remaining_dv' not in current['world']['ships'][1]
+            assert 0 < score['enemy_remaining_delta_v'] < score['enemy_initial_delta_v']
             expect(page.locator('#result-reason')).to_contain_text('missed its deadline')
             expect(page.locator('#result-shots')).to_have_text('12')
             expect(page.locator('#mission-metrics')).to_contain_text('12 shots')
@@ -379,6 +387,7 @@ def main():
             expect(page.locator('#retry')).to_be_focused()
             # The diagnostic REPL exposes decision reasons and observed tracks separately.
             page.locator('#console-toggle').click()
+            lua(page, 'local s = game.state(); local e = s.mission.evaluation; return e.total, e.enemy_depletion_points, e.enemy_remaining_delta_v == s.ships[2].remaining_dv', '1807\t146\ttrue')
             page.locator('#lua-input').fill('return game.state().mission.ai_reason, game.state().mission.observed_attacks')
             page.locator('#run').click()
             expect(page.locator('#console-output .result').last).not_to_have_text('nil\tnil')

@@ -43,6 +43,13 @@ export const helpContent: Record<HelpTopic, Section> = {
       { title: t('撃沈しなくても勝てます', 'You can win without a hit'),
         text: t('Δv の枯渇や一時的な航路逸脱だけでは勝利になりません。期限まで EXIT への到達を阻止する必要があります。無攻撃なら敵は突破します。',
           'Fuel exhaustion or a temporary detour alone does not win. Keep the enemy out of EXIT until the deadline. Without attacks, it breaks through.') },
+    ] }, { id: 'scoring', title: t('スコアの計算', 'Scoring'), entries: [
+      { title: t('撃破と時間切れ阻止', 'Disablement and timeout'), text: t('敵の無力化は勝利点 2,000 点。時間切れでの阻止は 1,000 点に、敵の Δv 消費率 × 500 点を加えます（端数切り捨て）。敵の初期 Δv がゼロなら消耗加点はありません。敵が小惑星に衝突した場合も無力化として扱います。',
+        'Disabling the enemy earns 2,000 victory points. A timeout earns 1,000 plus 500 times the fraction of enemy Δv consumed, rounded down. A zero initial enemy Δv budget earns no depletion bonus. An enemy asteroid collision also counts as disablement.') },
+      { title: t('射撃と自艦 Δv の節約', 'Shot and friendly Δv economy'), text: t('勝利時はさらに、500 − 発射数 × 20 点（最低 0 点）と、自艦の Δv 残存率 × 500 点（端数切り捨て）を加えます。未発射の予約は数えません。自艦の初期 Δv がゼロなら Δv 節約点はありません。',
+        'On victory, add max(0, 500 − 20 × rounds fired) and 500 times your remaining Δv fraction, rounded down. Unfired reservations do not count. Zero initial friendly Δv earns no fuel economy points.') },
+      { title: t('結果画面の見方', 'Reading the result'), text: t('Victory は消耗加点を含む勝利点、Shot economy は射撃節約点、Δv economy は自艦の Δv 節約点です。敵の終了時 Δv と消耗加点も表示します。敗北は一律 0 点。敵の Δv 枯渇だけでは勝利になりません。',
+        'Victory includes any enemy depletion bonus; Shot economy and Δv economy reward your resource savings. The result also shows final enemy Δv and the depletion bonus. Every defeat scores zero. Enemy Δv exhaustion alone does not win.') },
     ] }],
   },
   controls: {

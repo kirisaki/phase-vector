@@ -33,8 +33,13 @@ export function createMissionPanel({ onCancelShot, onRetry, onConfirmRetry, onCa
     el('score-victory').textContent = String(score.victory_points);
     el('score-shots').textContent = String(score.shot_points);
     el('score-fuel').textContent = String(score.fuel_points);
+    const enemyFuel = `Enemy Δv remaining: ${decimal(score.enemy_remaining_delta_v / 1000)} / ${decimal(score.enemy_initial_delta_v / 1000)} km/s.`;
+    el('score-victory-detail').textContent = m.outcome === 'timeout'
+      ? `Victory: ${score.victory_points - score.enemy_depletion_points} base + ${score.enemy_depletion_points} enemy Δv depletion. ${enemyFuel}`
+      : m.outcome === 'disabled' ? `Enemy disabled: ${score.victory_points} fixed victory points. ${enemyFuel}`
+      : `Defeat: no victory or economy points. ${enemyFuel}`;
     el('result-settings-note').textContent = m.run_kind === 'standard'
-      ? 'Both victory types earn the same base points. Fewer shots and less Δv spent earn more.'
+      ? 'Fewer shots and less friendly Δv spent earn more.'
       : m.run_kind === 'custom' ? 'Custom starting conditions. Retry repeats these settings.'
       : 'Parameters changed during play. Retry restores the starting settings; this score is diagnostic.';
     if (shownOutcome !== m.outcome) {

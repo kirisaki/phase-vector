@@ -346,6 +346,21 @@ impl Host {
                             let evaluation = Table::new(&ctx);
                             evaluation.set(ctx, "total", score.total)?;
                             evaluation.set(ctx, "victory_points", score.victory_points)?;
+                            evaluation.set(
+                                ctx,
+                                "enemy_depletion_points",
+                                score.enemy_depletion_points,
+                            )?;
+                            evaluation.set(
+                                ctx,
+                                "enemy_initial_delta_v",
+                                score.enemy_initial_delta_v,
+                            )?;
+                            evaluation.set(
+                                ctx,
+                                "enemy_remaining_delta_v",
+                                score.enemy_remaining_delta_v,
+                            )?;
                             evaluation.set(ctx, "shot_points", score.shot_points)?;
                             evaluation.set(ctx, "fuel_points", score.fuel_points)?;
                             evaluation.set(ctx, "shots_fired", score.shots_fired as f64)?;

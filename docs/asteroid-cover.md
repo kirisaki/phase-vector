@@ -133,10 +133,12 @@ Current two-asteroid / 90-second-horizon examples (12 shots, zero ship hits):
 | --- | --- | --- | --- | --- | --- |
 | Coast, +200 km spacing | 240 s | 12 by A1 | Breakthrough at 1,173.333 s | 0 km/s | 0 |
 | Slow at 5 G for 240 s, repeated lead | 240 s | 0 | Breakthrough at 1,201.630 s | 11.768 km/s | 0 |
-| Slow at 5 G for 240 s, +200 km spacing | 240 s | 4 by A2 | Timeout at 1,215 s | 11.768 km/s | 1,661 |
+| Slow at 5 G for 240 s, +200 km spacing | 240 s | 4 by A2 | Timeout at 1,215 s | 11.768 km/s | 1,807 |
 | Slow at 5 G for 240 s, +900 km spacing | 240 s | 1 by A2 | Breakthrough at 1,193.850 s | 11.768 km/s | 0 |
 
 No attack still produces a breakthrough at 1,173.333 s, with no terrain collision.
+The successful trial earns 1,146 victory points (including 146 for enemy Δv
+depletion), 260 shot economy points, and 401 friendly fuel economy points.
 The successful equal-budget strategy needs both a firing-position change and
 shot placement. Not every unobstructed shot contributes useful delay.
 

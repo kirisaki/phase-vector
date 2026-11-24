@@ -66,15 +66,26 @@ running, evaluation is absent. After a result it uses the frozen world:
 
 | Component | Victory | Defeat |
 | --- | --- | --- |
-| Victory points | 1,000 for either disablement or timeout | 0 |
+| Victory points | Disablement: 2,000. Timeout: 1,000 + floor(500 × enemy Δv consumed / initial enemy Δv), with the bonus clamped to 0–500 | 0 |
 | Shot economy | max(0, 500 - 20 times actual launches) | 0 |
 | Fuel economy | floor(500 times remaining friendly delta-v / initial friendly delta-v), clamped to 0–500 | 0 |
 
-Zero initial delta-v awards zero fuel points. The total is the sum of these three
-components. Actual launches and delta-v expenditure are reported even on defeat.
+Zero initial friendly delta-v awards zero fuel economy points. Zero initial enemy
+delta-v awards zero depletion points. Disablement, including an enemy asteroid
+collision, earns fixed victory points regardless of remaining enemy fuel; it has
+no depletion bonus. Timeout uses actual consumption relative to the scenario's
+initial enemy budget, including custom budgets, rather than observed or estimated
+fuel. Retry restores that baseline. Fuel exhaustion alone remains insufficient
+for victory.
+
+`enemy_depletion_points` is a subcomponent of `victory_points`, not another term
+to add to the total. `enemy_initial_delta_v` and `enemy_remaining_delta_v` report
+true terminal accounting in m/s, only when evaluation exists.
+
+The total is the sum of the three components. Actual launches and delta-v expenditure are reported even on defeat.
 Unfired reservations and cancellations do not cost points. There is no separate
-kill, speed, damage, or enemy-fuel bonus. Default successful runs therefore score
-between 1,000 and 2,000, and every defeat scores zero.
+speed or damage bonus. Timeout totals range from 1,000–2,500; disablement totals
+range from 2,000–3,000. Every defeat scores zero.
 
 The final world is frozen at the end of the event's physical tick, so fuel usage
 includes that complete tick even when the displayed event time is fractional.
@@ -95,16 +106,17 @@ settings and true enemy state do not enter normal prediction rendering.
   detached Lua values, edit history, Retry baselines, and standard restoration.
 - `tests/evaluation.rs`: real timeout and disabling-hit outcomes, zero-point
   defeat, unlaunched reservations, fuel normalization, bonus limits, zero initial
-  fuel, stable terminal scores, stepping equivalence, and UI/Lua agreement.
+  fuel on either side, enemy depletion fractions and rounding, terrain disablement,
+  stable terminal scores, stepping equivalence, and UI/Lua agreement.
 - `scripts/diagnostic_checks.py`, called by the CI mission smoke test: visible Lua
   settings/errors, custom/debug identification, score breakdown, retained inline
   score, and baseline restoration on desktop, portrait, and landscape layouts.
 - Existing browser checks retain coverage of planning, observation-based aiming,
   touch, Auto/Commit/Skip, results, and in-game Retry confirmation.
 - Historical open-space placement trials: no attack and repeated lead shots
-  lose (0 points); eight spread shots win without hits (1,840 points) at the
-  current 1,215-second deadline; twelve spread shots win without hits (1,760 points);
-  sixteen spread shots win without hits (1,680 points).
+  lose (0 points); eight spread shots win without hits (1,979 points) at the
+  current 1,215-second deadline; twelve spread shots win without hits (1,923 points);
+  sixteen spread shots win without hits (2,015 points).
 
 Chromium interaction checks exercise the built artifact under the GitHub Pages
 project path and the Vite development build. They do not establish compatibility

@@ -1,5 +1,6 @@
 // Element identities in index.html. Keep this table aligned with the markup.
 interface Elements {
+  'score-victory-detail': HTMLParagraphElement;
   'help-open': HTMLButtonElement;
   'help-dialog': HTMLDialogElement;
   'help-title': HTMLHeadingElement;

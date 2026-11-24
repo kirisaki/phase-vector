@@ -26,6 +26,7 @@ export interface QueuedShot {
 export type Outcome = 'running' | 'breakthrough' | 'disabled' | 'own_disabled' | 'timeout';
 export interface Evaluation {
   total: number; victory_points: number; shot_points: number; fuel_points: number;
+  enemy_depletion_points: number; enemy_initial_delta_v: number; enemy_remaining_delta_v: number;
   shots_fired: number; spent_delta_v: number;
 }
 export interface Track {
