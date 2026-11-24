@@ -36,11 +36,12 @@ export function validatePayload(input: unknown, kind: Kind) {
   const score = m.score === null ? null : number(m.score, 0, 3000);
   if ((outcome === 'running' || outcome === 'sandbox') !== (score === null)) throw new ApiError(400, 'invalid_score');
   if (kind === 'result' && (score === null || p.rating !== undefined || p.category !== undefined || p.message !== undefined)) throw new ApiError(400, 'invalid_result');
-  const rating = kind === 'feedback' ? number(p.rating, 1, 5) : undefined;
+  // Older cached clients may still send a rating. New reports do not collect one.
+  const rating = kind === 'feedback' && p.rating !== undefined ? number(p.rating, 1, 5) : undefined;
   if (rating !== undefined && !Number.isInteger(rating)) throw new ApiError(400, 'invalid_rating');
   return {
     sessionId: uuid(p.sessionId), submissionId: uuid(p.submissionId),
-    ...(kind === 'feedback' ? { rating, category: choice(p.category, categories), message: text(p.message, 1, 4000) } : {}),
+    ...(kind === 'feedback' ? { ...(rating === undefined ? {} : { rating }), category: choice(p.category, categories), message: text(p.message, 1, 4000) } : {}),
     metadata: {
       version: text(m.version, 1, 80), outcome,
       runKind: choice(m.runKind, ['standard', 'custom', 'debug', 'sandbox']),

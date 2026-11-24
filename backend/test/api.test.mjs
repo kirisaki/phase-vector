@@ -25,7 +25,7 @@ before(async () => {
 });
 after(async () => { await mf?.dispose();  });
 function payload() {
-  return { sessionId: crypto.randomUUID(), submissionId: crypto.randomUUID(), rating: 4, category: 'balance', message: 'A useful blockade trial.',
+  return { sessionId: crypto.randomUUID(), submissionId: crypto.randomUUID(), category: 'balance', message: 'A useful blockade trial.',
     metadata: { version: 'test-commit', outcome: 'running', runKind: 'standard', simulationSeconds: 120,
       forecastSeconds: 240, score: null, shotsFired: 4, ownDeltaVSpent: 1000, viewport: { width: 1360, height: 1000 } } };
 }
@@ -56,7 +56,15 @@ test('stores a private submission and deduplicates retries without double writes
   assert.equal((await mf.dispatchFetch(`https://api.example/v1/feedback/${id}`)).status,404);
   assert.equal((await mf.dispatchFetch('https://api.example/v1/feedback',{headers:{origin}})).status,405);
 });
-test('strict metadata and rating validation never stores enemy state or Lua',async()=>{
+test('accepts cached clients with an optional legacy rating without requiring new reports to send one',async()=>{
+  const legacy={...payload(),rating:4}; const response=await send(legacy);
+  assert.equal(response.status,201);
+  const {id}=await response.json();
+  const row=await db.prepare('SELECT payload_json FROM submissions WHERE id=?').bind(id).first();
+  assert.equal(JSON.parse(row.payload_json).rating,4);
+  assert.equal((await send(legacy)).status,200);
+});
+test('strict metadata and legacy rating validation never stores enemy state or Lua',async()=>{
   for(const change of [{rating:0},{rating:6},{rating:2.5},{category:'unknown'},{message:''},{message:'x'.repeat(4001)},
     {sessionId:'not-a-uuid'},{metadata:{...payload().metadata,enemy:{remaining_dv:1}}},{lua:'secret'},
     {metadata:{...payload().metadata,simulationSeconds:-1}},{metadata:{...payload().metadata,score:99}}]) {
