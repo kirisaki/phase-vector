@@ -660,6 +660,33 @@ Use `GET` to inspect an existing Pages configuration and `PUT` to change it;
 the creation command is only needed once. This publishes static files and does
 not require a game server or custom domain.
 
+### Favicon and social previews
+
+The favicon uses the wordmark's cyan northeast arrow, with SVG and 32px PNG
+variants and a 180px Apple touch icon. Open Graph and large-image card metadata
+are static HTML, so link previews do not need to execute the game. Their absolute
+URLs target the production GitHub Pages project path; update them if hosting moves.
+
+`web/assets/ogp-start.png` is a real 1200×630 Chromium capture centered on the
+friendly ship at simulation time zero. The capture selects Own ship, zooms in
+once, and crops the map to exclude edge controls. It includes the rendered Bevy
+scene and SVG overlays without advancing the simulation or modifying game rules.
+These images are versioned source assets and are not regenerated during CI.
+
+To refresh them after a visual change, install the browser test dependencies and
+Chromium, then run:
+
+```sh
+python3 scripts/build_web.py
+python3 scripts/capture_social_assets.py
+python3 scripts/build_web.py
+```
+
+The final build copies the refreshed assets into `dist/`. The capture script also
+renders both raster icon sizes from `web/assets/favicon.svg`. Social services
+manage their own preview caches; their final card appearance is not covered by
+the local browser checks.
+
 ## Moving asteroid cover
 
 The default blockade includes two moving asteroids. Brown **A1** (near your ship) and
