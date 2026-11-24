@@ -522,6 +522,31 @@ Each `configure` call is atomic; multiple Lua calls are not a transaction. A
 no-op value creates no history entry. Step size, command duration, ship geometry,
 fuel, and muzzle speed remain fixed in this PoC API.
 
+## Private feedback
+
+**Feedback** in the header or mission result opens a private report form with a
+five-point rating, category, message, and optional application screenshot. The game
+pauses, captures before the dialog opens, and lets you review metadata and the
+image. Images are attached only after selecting the attachment checkbox; no
+report is sent until consent, Turnstile verification, and Send feedback.
+Lua content and true enemy fuel are excluded from capture and metadata. Capture
+failure does not prevent text submission. The game still works with no backend.
+
+The optional `backend/` Worker stores structured reports in D1 and images in
+private R2. It has its own lockfile, tests, and deployment workflow. The production
+bindings identify the owner's resources; deployments to other accounts require
+their own resources, secrets, and public frontend configuration.
+See [the feedback setup and operating guide](backend/README.md) for the complete
+Cloudflare checklist, API contract, retention, privacy, tests, and limitations.
+
+The static build reads public `PV_FEEDBACK_API_URL` and `PV_TURNSTILE_SITE_KEY`
+environment variables and writes `runtime-config.json` with the Git revision.
+For Vite use `.env.local` based on [.env.example](.env.example); for Pages use the
+GitHub Actions variables `FEEDBACK_API_URL` and `TURNSTILE_SITE_KEY`. These are
+public configuration, never secret keys. The UI remains plain TypeScript; only
+the DOM capture module bundles its dependency. Backend deployment is independent
+of Pages and is never triggered by merely opening the game.
+
 ## Verification
 
 ```sh
@@ -533,6 +558,8 @@ cargo run --locked --example asteroid_trials
 cargo clippy --locked --target wasm32-unknown-unknown -- -D warnings
 python3 scripts/build_web.py
 npm run check
+npm --prefix backend ci
+npm --prefix backend test
 ```
 
 Native Rust tests cover inertial motion, acceleration magnitude limits, partial
@@ -559,9 +586,10 @@ python -m pip install -r requirements-browser.txt
 python -m playwright install --with-deps chromium
 python scripts/browser_smoke.py
 python scripts/mission_smoke.py
+python scripts/feedback_smoke.py
 ```
 
-Both browser suites use `scripts/browser_site.py` to serve `dist/` at a virtual
+The browser suites use `scripts/browser_site.py` to serve `dist/` at a virtual
 HTTPS `/phase-vector/` URL, preserving the deployment subpath and WASM MIME type.
 The sandbox smoke test checks engine startup, a visible scene
 change after commands, delta-v consumption, exact interval boundaries, queued

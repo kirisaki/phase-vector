@@ -60,6 +60,9 @@ jobs:
       - name: Check browser Rust code
         run: cargo clippy --locked --target wasm32-unknown-unknown -- -D warnings
       - name: Build the static site
+        env:
+          PV_FEEDBACK_API_URL: ${{ vars.FEEDBACK_API_URL }}
+          PV_TURNSTILE_SITE_KEY: ${{ vars.TURNSTILE_SITE_KEY }}
         run: python3 scripts/build_web.py
       - name: Check TypeScript and generated WASM declarations
         run: npm run check
@@ -67,6 +70,14 @@ jobs:
         run: |
           python3 -m pip install -r requirements-browser.txt
           python3 -m playwright install --with-deps chromium
+      - name: Build the isolated feedback test backend
+        env:
+          WRANGLER_SEND_METRICS: 'false'
+        run: |
+          npm --prefix backend ci
+          npm --prefix backend run build
+      - name: Test private feedback without production credentials
+        run: python3 scripts/feedback_smoke.py
       - name: Test the release artifact at the project subpath
         run: |
           python3 scripts/browser_smoke.py
