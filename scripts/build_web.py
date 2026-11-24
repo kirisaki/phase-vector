@@ -3,6 +3,9 @@
 
 from pathlib import Path
 import re
+import os
+import json
+from urllib.parse import urlparse
 import shutil
 import subprocess
 import sys
@@ -60,6 +63,24 @@ def main():
         subprocess.run(['node', str(ROOT / 'node_modules/typescript/bin/tsc'),
                         '--project', str(ROOT / 'tsconfig.json'), '--noEmit', 'false',
                         '--outDir', str(site)], cwd=ROOT, check=True)
+        # Bundle only the DOM capture dependency; the existing UI stays plain modules.
+        subprocess.run([str(ROOT / 'node_modules/.bin/esbuild'),
+                        str(ROOT / 'web/feedback-capture.ts'), '--bundle', '--format=esm',
+                        '--platform=browser', '--target=es2022',
+                        '--outfile=' + str(site / 'feedback-capture.js')], cwd=ROOT, check=True)
+        (site / 'licenses').mkdir(exist_ok=True)
+        shutil.copy2(ROOT / 'node_modules/html-to-image/LICENSE', site / 'licenses/html-to-image.txt')
+        api_url = os.environ.get('PV_FEEDBACK_API_URL', '')
+        parsed = urlparse(api_url)
+        if api_url and (parsed.username or parsed.password or parsed.query or parsed.fragment
+                        or parsed.path not in ('', '/') or not parsed.netloc
+                        or (parsed.scheme != 'https' and not (parsed.scheme == 'http' and parsed.hostname in ('localhost', '127.0.0.1')))):
+            raise SystemExit('PV_FEEDBACK_API_URL must be an HTTPS origin (HTTP loopback is allowed for local tests)')
+        version = subprocess.check_output(['git', 'describe', '--always', '--dirty'], cwd=ROOT, text=True).strip()
+        (site / 'runtime-config.json').write_text(json.dumps({
+            'version': version, 'feedbackApiUrl': api_url,
+            'turnstileSiteKey': os.environ.get('PV_TURNSTILE_SITE_KEY', ''),
+        }) + '\n')
         entry = site / 'index.html'
         entry.write_text(entry.read_text().replace('./app.ts', './app.js'))
         publish_site(site, dist)

@@ -8,6 +8,7 @@
     <link rel="icon" href="data:,">
     <link rel="stylesheet" href="./style.css">
     <link rel="stylesheet" href="./styles/dialogs.css">
+    <link rel="stylesheet" href="./styles/feedback.css">
     <script type="module" src="./app.ts"></script>
   </head>
   <body>
@@ -15,6 +16,7 @@
       <a class="wordmark" href="./"><span class="mark" aria-hidden="true">↗</span> PHASE VECTOR</a>
       <span class="badge">03 / BLOCKADE</span>
       <button id="help-open" type="button" aria-haspopup="dialog" aria-controls="help-dialog">Help</button>
+      <button id="feedback-open" type="button" aria-haspopup="dialog" aria-controls="feedback-dialog">Feedback</button>
       <button id="console-toggle" type="button" aria-controls="console-panel" aria-expanded="false">Show Lua console</button>
       <a class="source" href="https://github.com/kirisaki/phase-vector">Source ↗</a>
     </header>
@@ -135,6 +137,31 @@
       </div>
       <p id="error" role="alert" hidden></p>
     </main>
+    <dialog id="feedback-dialog" class="game-dialog" aria-labelledby="feedback-title">
+      <div class="feedback-heading"><h2 id="feedback-title">Feedback</h2><button id="feedback-close" type="button" aria-label="Close feedback">×</button></div>
+      <p>Share a private report with the developer. Playback stays paused after closing.</p>
+      <form id="feedback-form">
+        <fieldset id="feedback-fields">
+          <label for="feedback-rating">Overall experience</label>
+          <select id="feedback-rating" name="rating" required><option value="">Choose a rating</option><option value="1">1 — Poor</option><option value="2">2 — Fair</option><option value="3">3 — Okay</option><option value="4">4 — Good</option><option value="5">5 — Great</option></select>
+          <label for="feedback-category">Category</label>
+          <select id="feedback-category" name="category"><option value="bug">Bug</option><option value="controls">Controls / UI</option><option value="balance">Balance</option><option value="performance">Performance</option><option value="other">Other</option></select>
+          <label for="feedback-message">What happened, or what would you change?</label>
+          <textarea id="feedback-message" name="message" rows="4" maxlength="4000" required placeholder="Please avoid personal or sensitive information."></textarea>
+          <img id="feedback-preview" alt="Preview of the application before opening feedback" hidden>
+          <label class="feedback-check"><input id="feedback-attach" type="checkbox"> Attach screenshot (PNG, up to 2 MiB)</label>
+          <button id="feedback-remove-image" type="button">Remove screenshot</button>
+          <p class="feedback-note">Screenshots exclude the Lua console and true enemy fuel readout. Check the preview before attaching. Images are private and expire after the operator’s configured retention period.</p>
+          <details><summary>Review metadata sent with this report</summary><pre id="feedback-metadata"></pre></details>
+          <p class="feedback-note">An anonymous ID lasts for this tab session. No enemy state, Lua contents, page URL, or browser history is included in metadata. Reports and results are self-reported and are not published.</p>
+          <label class="feedback-check"><input id="feedback-consent" type="checkbox"> I agree to send this report, the listed metadata, and the screenshot only if selected. Verification uses Cloudflare Turnstile.</label>
+        </fieldset>
+        <button id="feedback-verify" type="button">Verify before sending</button>
+        <div id="feedback-turnstile"></div>
+        <p id="feedback-status" role="status" aria-live="polite"></p>
+        <button id="feedback-send" type="submit" disabled>Send feedback</button>
+      </form>
+    </dialog>
     <dialog id="help-dialog" class="game-dialog" aria-labelledby="help-title" aria-describedby="help-pause-note">
       <div class="help-header">
         <h2 id="help-title">Help</h2>
@@ -171,7 +198,7 @@
         <div><dt>Shots fired</dt><dd id="result-shots"></dd></div>
         <div><dt>Δv spent</dt><dd id="result-dv"></dd></div>
       </dl>
-      <div class="result-actions"><button id="result-retry" type="button" autofocus>Retry</button><button id="result-view" type="button">View map</button></div>
+      <div class="result-actions"><button id="result-retry" type="button" autofocus>Retry</button><button id="result-view" type="button">View map</button><button id="result-feedback" type="button">Feedback</button></div>
     </dialog>
     <dialog id="retry-confirmation" class="game-dialog" aria-labelledby="retry-title" aria-describedby="retry-reason">
       <p class="result-kicker">RESTART MISSION</p>

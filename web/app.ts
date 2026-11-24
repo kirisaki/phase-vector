@@ -6,6 +6,7 @@ import { createMissionControls } from './mission.js';
 import { createMapNavigation } from './map-navigation.js';
 import { createLuaHighlight } from './lua-highlight.js';
 import { createHelp } from './help.js';
+import { createFeedback } from './feedback.js';
 
 const output = element('console-output');
 const input = element('lua-input');
@@ -42,6 +43,11 @@ const help = createHelp(() => {
 }, (source) => {
   input.value = source;
   showConsole(true);
+});
+
+createFeedback(readState, () => {
+  routeEditor.cancel(); missionControls.cancel(); mapNavigation.cancel();
+  if (ready) invoke(() => command('pause'));
 });
 
 const narrowScreen = matchMedia('(max-width: 900px)');
