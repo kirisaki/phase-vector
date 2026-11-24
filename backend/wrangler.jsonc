@@ -1,0 +1,31 @@
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "phase-vector-feedback-local",
+  "main": "src/index.ts",
+  "compatibility_date": "2026-07-01",
+  "workers_dev": true,
+  "observability": { "enabled": false },
+  "vars": {
+    "ENVIRONMENT": "development",
+    "ALLOWED_ORIGINS": "http://localhost:5173,http://127.0.0.1:5173",
+    "TURNSTILE_HOSTNAMES": "localhost,127.0.0.1",
+    "SCREENSHOT_RETENTION_DAYS": "30"
+  },
+  "d1_databases": [{ "binding": "DB", "database_name": "feedback", "database_id": "00000000-0000-0000-0000-000000000000", "migrations_dir": "migrations" }],
+  "r2_buckets": [{ "binding": "SCREENSHOTS", "bucket_name": "phase-vector-feedback-screenshots-local" }],
+  "triggers": { "crons": ["17 * * * *"] },
+  "env": {
+    "production": {
+      "name": "phase-vector-feedback",
+      "vars": {
+        "ENVIRONMENT": "production",
+        "ALLOWED_ORIGINS": "https://kirisaki.github.io",
+        "TURNSTILE_HOSTNAMES": "kirisaki.github.io",
+        "SCREENSHOT_RETENTION_DAYS": "30"
+      },
+      "d1_databases": [{ "binding": "DB", "database_name": "phase-vector-feedback", "database_id": "0adf5ecc-a85c-415f-8125-96aa7d2aefc8", "migrations_dir": "migrations" }],
+      "r2_buckets": [{ "binding": "SCREENSHOTS", "bucket_name": "phase-vector-feedback" }],
+      "triggers": { "crons": ["17 * * * *"] }
+    }
+  }
+}
