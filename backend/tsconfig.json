@@ -5,5 +5,5 @@
     "strict": true, "noEmit": true, "noUnusedLocals": true, "noUnusedParameters": true,
     "skipLibCheck": true
   },
-  "include": ["src/**/*.ts"]
+  "include": ["src/**/*.ts", "viewer/**/*.ts"]
 }

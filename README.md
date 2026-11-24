@@ -548,6 +548,10 @@ bindings identify the owner's resources; deployments to other accounts require
 their own resources, secrets, and public frontend configuration.
 See [the feedback setup and operating guide](backend/README.md) for the complete
 Cloudflare checklist, API contract, retention, privacy, tests, and limitations.
+The separate [private feedback viewer](backend/viewer/README.md) provides a
+read-only list and detail screen behind Cloudflare Access. It deploys independently
+of the public game and ingestion API; run `python3 scripts/viewer_smoke.py` after
+`npm --prefix backend test` to check its desktop and phone layouts.
 
 The static build reads public `PV_FEEDBACK_API_URL` and `PV_TURNSTILE_SITE_KEY`
 environment variables and writes `runtime-config.json` with the Git revision.

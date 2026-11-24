@@ -3,9 +3,9 @@ name: Feedback backend
 on:
   push:
     branches: [main]
-    paths: ['backend/**', '.github/workflows/backend.yml']
+    paths: ['backend/**', 'scripts/viewer_smoke.py', '.github/workflows/backend.yml']
   pull_request:
-    paths: ['backend/**', '.github/workflows/backend.yml']
+    paths: ['backend/**', 'scripts/viewer_smoke.py', '.github/workflows/backend.yml']
   workflow_dispatch:
     inputs:
       deploy:
@@ -36,6 +36,12 @@ jobs:
           cache-dependency-path: backend/package-lock.json
       - run: npm ci
       - run: npm test
+      - name: Install viewer browser test tools
+        run: |
+          python3 -m pip install -r ../requirements-browser.txt
+          python3 -m playwright install --with-deps chromium
+      - name: Test the private viewer with simulated Access
+        run: python3 ../scripts/viewer_smoke.py
 
   deploy:
     if: github.event_name == 'workflow_dispatch' && inputs.deploy && github.ref == 'refs/heads/main'

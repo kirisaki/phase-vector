@@ -20,3 +20,5 @@ Thumbs.db
 /backend/.dev.vars
 /backend/.dev.vars.*
 !/backend/.dev.vars.example
+/backend/viewer/.dev.vars*
+/backend/viewer/.wrangler/

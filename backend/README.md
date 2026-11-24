@@ -3,7 +3,8 @@
 This directory deploys independently of the Rust/WASM game on GitHub Pages. It
 contains one TypeScript Cloudflare Worker, D1 migrations, and a private R2 binding.
 The game runs with no API configured or available. There is no public read API,
-admin dashboard, account system, leaderboard, or change to simulation rules.
+account system, leaderboard, or change to simulation rules. A separate
+[private read-only viewer](viewer/README.md) uses Cloudflare Access for inspection.
 
 ## Local setup (no production credentials)
 
@@ -123,7 +124,7 @@ Pages pushes. Local `npm run deploy` remains an alternative to GitHub automation
   does **not** automatically transmit play results; this endpoint is available for
   a future opt-in caller. Use Turnstile action `result` instead of `feedback`.
 - `GET /health`: process liveness only; it does not verify secrets/storage.
-- No report listing, screenshot download, or administrative HTTP endpoint exists.
+- This ingestion Worker has no report listing, screenshot download, or administrative endpoint.
 
 JSON requests use `{ "payload": { ... }, "token": "..." }`. Image uploads use
 multipart fields `payload` (JSON string), `token`, and optionally `screenshot`.
@@ -194,7 +195,8 @@ information voluntarily supplied by a user, so preview and review matter.
 
 ## Private inspection
 
-Use your authenticated Cloudflare dashboard or Wrangler. For example, from
+Use the [Access-protected viewer](viewer/README.md), your authenticated Cloudflare
+dashboard, or Wrangler. For example, from
 `backend/`:
 
 ```sh
@@ -204,7 +206,7 @@ npx wrangler r2 object get phase-vector-feedback/screenshots/REPLACE_WITH_REPORT
 
 Inspect message/metadata with a parameterized query or a selected row in the
 console. Do not publish raw exports, add a public R2 domain, or commit downloaded
-images. There is no application-level admin API to secure in this scope.
+images. The separate viewer authenticates every page and screenshot request.
 
 ## Screenshot method and verification limits
 
