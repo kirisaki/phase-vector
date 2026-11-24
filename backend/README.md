@@ -111,9 +111,13 @@ Pages pushes. Local `npm run deploy` remains an alternative to GitHub automation
 
 ## API contract
 
-- `POST /v1/feedback`: anonymous explicit feedback, rating 1–5, category
+- `POST /v1/feedback`: anonymous explicit feedback, category
   `bug | controls | balance | performance | other`, message 1–4,000 characters,
   metadata, and optional PNG.
+  New clients omit ratings. An optional integer `rating` of 1–5 is still accepted
+  for older cached clients, including their existing deduplication fingerprints.
+  Deploy this compatible Worker update before publishing a frontend that omits
+  the formerly required rating. No D1 schema migration is needed for this change.
 - `POST /v1/results`: optional explicit terminal-result reports, using the same
   metadata and protections but no rating, category, message, or image. The game
   does **not** automatically transmit play results; this endpoint is available for
@@ -146,6 +150,11 @@ mission result (and in the sandbox). No enemy state, observations, detailed scor
 object, Lua content, full page URL, user agent string, or browsing history is
 collected. All values remain untrusted client reports, not verified game results.
 Unknown fields are rejected rather than silently retained.
+
+Help and Feedback share a first-party language preference cookie with a one-year
+lifetime, the application path, SameSite=Lax, and Secure on HTTPS. It contains
+only `ja` or `en`, never report text or game state. Existing Help preferences in
+localStorage migrate once, and blocked cookies leave an in-memory preference.
 
 The frontend creates a random ID per tab session using sessionStorage; it does
 not fingerprint or link browsers across sessions. Closing the dialog discards

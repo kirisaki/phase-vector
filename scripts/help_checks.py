@@ -93,7 +93,10 @@ def check_help(page):
     page.mouse.click(3, 3)
     expect(dialog).to_be_hidden()
     expect(opener).to_be_focused()
-    # Stored choice takes precedence over the browser's initial language.
+    # The shared cookie takes precedence over the browser's initial language.
+    cookie=next(c for c in page.context.cookies() if c['name']=='phase-vector.language')
+    assert cookie['value']=='ja' and cookie['sameSite']=='Lax'
+    assert page.evaluate("localStorage.getItem('phase-vector.help-language')") is None
     page.reload()
     expect(page.locator('body')).to_have_attribute('data-ready', 'true', timeout=90000)
     expect(dialog).to_have_attribute('lang', 'ja')

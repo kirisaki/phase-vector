@@ -183,9 +183,12 @@ and scroll the controls internally; short keyboard-sized viewports use the compa
 | Reload page | Start a new simulation and Lua session |
 
 Help provides **Quick start**, **Controls**, and **Lua REPL** sections. Its language
-switch affects only help; game controls and Lua commands remain in English. On
+switch is shared with Feedback; game controls and Lua commands remain in English. On
 first use, a Japanese browser language selects Japanese and other languages use
-English. The choice is stored locally when browser storage is available. Switching
+English. An explicit choice is stored for one year in the first-party
+`phase-vector.language` cookie, scoped to the application path with SameSite=Lax
+and Secure on HTTPS. Existing localStorage preferences migrate once to this cookie.
+If cookies are unavailable, the choice lasts for the current page. Switching
 language retains the current section and expanded references. The guide remains
 available while the engine is loading, but Lua insertion waits for readiness.
 
@@ -525,12 +528,19 @@ fuel, and muzzle speed remain fixed in this PoC API.
 ## Private feedback
 
 **Feedback** in the header or mission result opens a private report form with a
-five-point rating, category, message, and optional application screenshot. The game
+category, message, and optional application screenshot. No rating is requested. The game
 pauses, captures before the dialog opens, and lets you review metadata and the
 image. Images are attached only after selecting the attachment checkbox; no
 report is sent until consent, Turnstile verification, and Send feedback.
 Lua content and true enemy fuel are excluded from capture and metadata. Capture
 failure does not prevent text submission. The game still works with no backend.
+
+On desktop the form uses two columns, with a separate Data & privacy tab for the
+metadata review. Both tabs fit without dialog scrolling at the tested desktop
+viewports (900×600 through 1360×1000); smaller/mobile viewports can scroll to keep
+all controls accessible. Japanese/English controls in Feedback and Help share
+the same language cookie. Changing language preserves the report and attachment
+choice; an existing verification must be repeated in the new language.
 
 The optional `backend/` Worker stores structured reports in D1 and images in
 private R2. It has its own lockfile, tests, and deployment workflow. The production

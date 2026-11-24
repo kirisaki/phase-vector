@@ -4,6 +4,7 @@ import base64
 import io
 import json
 import subprocess
+import time
 from pathlib import Path
 from urllib.request import urlopen
 from playwright.sync_api import sync_playwright, expect
@@ -13,7 +14,43 @@ from browser_controls import connect_engine
 
 ROOT=Path(__file__).resolve().parents[1]
 ARTIFACTS=ROOT/'artifacts'
-TURNSTILE='''window.turnstile={render:(node,options)=>{window.feedbackChallenge=options;setTimeout(()=>options.callback('browser:'+crypto.randomUUID()),0);return 'test-widget'},remove:()=>{},reset:()=>{}};'''
+TURNSTILE='''window.turnstile={render:(node,options)=>{window.feedbackChallenge=options;const box=document.createElement('div');box.style.cssText=options.size==='compact'?'width:150px;height:140px':'width:300px;height:65px';box.textContent='Verification';node.replaceChildren(box);setTimeout(()=>options.callback('browser:'+crypto.randomUUID()),0);return 'test-widget'},remove:()=>document.getElementById('feedback-turnstile').replaceChildren(),reset:()=>{}};'''
+
+def read_metadata(page):
+    values=page.locator('#feedback-metadata').evaluate("e=>Object.fromEntries([...e.children].map(n=>[n.dataset.metadataKey,JSON.parse(n.dataset.value)]))")
+    return {'sessionId':values.pop('sessionId'),'metadata':values}
+
+def check_desktop_layout_and_language(page):
+    expect(page.locator('#feedback-rating')).to_have_count(0)
+    page.locator('#feedback-message').fill('Keep this text / この文章を保持')
+    page.locator('#feedback-attach').check();page.locator('#feedback-consent').check()
+    for width,height in [(1360,1000),(1280,720),(1024,600),(900,600)]:
+        page.set_viewport_size({'width':width,'height':height})
+        for language in ['ja','en']:
+            page.locator(f'[data-feedback-language="{language}"]').click()
+            expect(page.locator('#feedback-dialog')).to_have_attribute('lang',language)
+            expect(page.locator('#help-dialog')).to_have_attribute('lang',language)
+            expect(page.locator('#feedback-message')).to_have_value('Keep this text / この文章を保持')
+            expect(page.locator('#feedback-attach')).to_be_checked()
+            page.locator('#feedback-verify').click()
+            expect(page.locator('#feedback-send')).to_be_enabled()
+            assert page.evaluate('window.feedbackChallenge.language')==language
+            for tab in ['report','review']:
+                page.locator(f'#feedback-{tab}-tab').click()
+                page.wait_for_timeout(80)
+                geometry=page.locator('#feedback-dialog').evaluate('e=>({scroll:e.scrollHeight,height:e.clientHeight,width:e.scrollWidth,clientWidth:e.clientWidth})')
+                assert geometry['scroll']<=geometry['height']+1,(width,height,language,tab,geometry)
+                assert geometry['width']<=geometry['clientWidth']+1,geometry
+                expect(page.locator('#feedback-send')).to_be_in_viewport()
+            page.locator('#feedback-report-tab').click()
+            page.screenshot(path=str(ARTIFACTS/f'feedback-layout-{width}-{language}.png'))
+    cookies=page.context.cookies()
+    cookie=next(c for c in cookies if c['name']=='phase-vector.language')
+    assert cookie['value']=='en' and cookie['path']=='/phase-vector/' and cookie['sameSite']=='Lax' and cookie['secure']
+    assert 364*86400 < cookie['expires']-time.time() < 366*86400
+    assert page.evaluate("localStorage.getItem('phase-vector.help-language')") is None
+    page.set_viewport_size({'width':1360,'height':1000})
+    page.locator('#feedback-attach').uncheck();page.locator('#feedback-consent').uncheck()
 
 def main():
     ARTIFACTS.mkdir(exist_ok=True)
@@ -69,11 +106,11 @@ def main():
                         return sum((g>110 and b>110 and r<160) if color=='cyan' else (r>160 and 70<g<220 and b<170) for r,g,b in image.getdata())
                     assert count(map_pixels)>=count(reference_map)*0.65,(width,crop,color,count(map_pixels),count(reference_map))
                 assert page.evaluate('readState().world.tick')==before['world']['tick']
-                page.locator('#feedback-fields summary').click()
-                assert page.locator('#feedback-fields details').evaluate('e => e.scrollHeight <= e.clientHeight + 1'), 'Metadata must not be clipped'
-                metadata=json.loads(page.locator('#feedback-metadata').inner_text())
+                if width==1360:check_desktop_layout_and_language(page)
+                page.locator('#feedback-review-tab').click()
+                metadata=read_metadata(page)
+                page.locator('#feedback-report-tab').click()
                 assert set(metadata['metadata'])=={'version','outcome','runKind','simulationSeconds','forecastSeconds','score','shotsFired','ownDeltaVSpent','viewport'}
-                page.locator('#feedback-rating').select_option('4')
                 page.locator('#feedback-category').select_option('balance')
                 page.locator('#feedback-message').fill(f'Desktop/mobile feedback {width}')
                 page.locator('#feedback-attach').check()
@@ -81,6 +118,7 @@ def main():
                 page.locator('#feedback-verify').click()
                 expect(page.locator('#feedback-send')).to_be_enabled()
                 # Simulate losing the response after the Worker already stored the report.
+                page.locator('#feedback-review-tab').click()
                 urlopen(api+'/__test/lose-next').close()
                 page.locator('#feedback-send').click()
                 expect(page.locator('#feedback-status')).to_contain_text('Submission failed')
@@ -91,8 +129,10 @@ def main():
                 expect(page.locator('#feedback-status')).to_contain_text('received privately')
                 matching=[r for r in rows() if json.loads(r['payload_json']).get('message')==f'Desktop/mobile feedback {width}']
                 assert len(matching)==1
+                assert 'rating' not in json.loads(matching[0]['payload_json'])
                 stored=urlopen(api+'/__test/image/'+matching[0]['id']).read();assert stored==png
                 page.locator('#feedback-close').click()
+                page.locator('#help-open').click();page.locator('[data-help-language="ja"]').click();page.locator('#help-close').click()
                 # Console contents must be absent from both image and metadata.
                 page.locator('#console-toggle').click()
                 page.locator('#lua-input').fill('PRIVATE_LUA_CANARY')
@@ -100,18 +140,25 @@ def main():
                 page.locator('#feedback-open').click()
                 expect(page.locator('#feedback-dialog')).to_be_visible(timeout=30000)
                 expect(page.locator('#feedback-preview')).to_be_visible()
-                assert 'PRIVATE_LUA_CANARY' not in page.locator('#feedback-metadata').inner_text()
+                expect(page.locator('#feedback-dialog')).to_have_attribute('lang','ja')
+                page.locator('[data-feedback-language="en"]').click()
+                assert 'PRIVATE_LUA_CANARY' not in json.dumps(read_metadata(page))
                 redacted=page.locator('#feedback-preview').evaluate('''img=>{const c=document.createElement('canvas');c.width=img.naturalWidth;c.height=img.naturalHeight;const x=c.getContext('2d');x.drawImage(img,0,0);return [...x.getImageData(0,0,c.width,c.height).data].filter((v,i,a)=>i%4===0&&v>240&&a[i+1]<10&&a[i+2]>240).length}''')
                 assert redacted==0
                 page.locator('#feedback-remove-image').click()
                 expect(page.locator('#feedback-preview')).to_be_hidden()
-                page.locator('#feedback-rating').select_option('3');page.locator('#feedback-message').fill('Text-only report')
+                page.locator('#feedback-message').fill('Text-only report')
                 page.locator('#feedback-consent').check();page.locator('#feedback-verify').click()
                 expect(page.locator('#feedback-send')).to_be_enabled();page.locator('#feedback-send').click()
                 expect(page.locator('#feedback-status')).to_contain_text('received privately')
                 assert all(r['image_key'] is None for r in rows() if json.loads(r['payload_json']).get('message')=='Text-only report')
                 page.screenshot(path=str(ARTIFACTS/f'feedback-dialog-{width}.png'))
                 assert page.evaluate('document.documentElement.scrollWidth <= innerWidth')
+                page.locator('[data-feedback-language="ja"]').click();page.locator('#feedback-close').click()
+                page.reload();expect(page.locator('body')).to_have_attribute('data-ready','true',timeout=90000)
+                expect(page.locator('#help-dialog')).to_have_attribute('lang','ja')
+                expect(page.locator('#feedback-dialog')).to_have_attribute('lang','ja')
+                expect(page.locator('html')).to_have_attribute('lang','en')
                 assert not errors,errors
                 page.close()
             # A capture error must still allow an explicit text-only submission.
@@ -126,7 +173,7 @@ def main():
             page.locator('#feedback-open').click()
             expect(page.locator('#feedback-status')).to_contain_text('Screenshot unavailable')
             expect(page.locator('#feedback-attach')).to_be_disabled()
-            page.locator('#feedback-rating').select_option('2');page.locator('#feedback-message').fill('Capture failed but text works')
+            page.locator('#feedback-message').fill('Capture failed but text works')
             page.locator('#feedback-consent').check();page.locator('#feedback-verify').click()
             expect(page.locator('#feedback-send')).to_be_enabled()
             page.evaluate("window.feedbackChallenge['expired-callback']()")
@@ -151,14 +198,33 @@ def main():
             page.locator('#result-feedback').click()
             expect(page.locator('#feedback-dialog')).to_be_visible(timeout=30000)
             expect(page.locator('#feedback-preview')).to_be_visible()
-            page.locator('#feedback-fields summary').click()
-            result_metadata=json.loads(page.locator('#feedback-metadata').inner_text())['metadata']
+            page.locator('#feedback-review-tab').click()
+            result_metadata=read_metadata(page)['metadata']
             assert result_metadata['outcome']=='breakthrough' and result_metadata['score']==0
             page.locator('#feedback-close').click()
             expect(page.locator('#result-feedback')).to_be_focused()
             page.close()
+            # Migrate the previous Help choice once; blocked cookies must not break dialogs.
+            for blocked in [False,True]:
+                page=browser.new_page(viewport={'width':1280,'height':720});route_release_site(page)
+                page.route('**/runtime-config.json',lambda r:r.fulfill(json={'version':'language-test','feedbackApiUrl':'','turnstileSiteKey':''}))
+                if blocked:
+                    page.add_init_script("Object.defineProperty(Document.prototype,'cookie',{get:()=>'',set:()=>{throw new DOMException('Blocked','SecurityError')}})")
+                else:
+                    page.add_init_script("if(!sessionStorage.getItem('legacy-test')){localStorage.setItem('phase-vector.help-language','ja');sessionStorage.setItem('legacy-test','1')}")
+                page.goto(RELEASE_URL);expect(page.locator('body')).to_have_attribute('data-ready','true',timeout=90000)
+                if not blocked:
+                    expect(page.locator('#help-dialog')).to_have_attribute('lang','ja')
+                    expect(page.locator('#feedback-dialog')).to_have_attribute('lang','ja')
+                    assert page.evaluate("localStorage.getItem('phase-vector.help-language')") is None
+                    assert any(c['name']=='phase-vector.language' and c['value']=='ja' for c in page.context.cookies())
+                page.locator('#help-open').click();page.locator('[data-help-language="ja"]').click()
+                expect(page.locator('#feedback-dialog')).to_have_attribute('lang','ja')
+                page.reload();expect(page.locator('body')).to_have_attribute('data-ready','true',timeout=90000)
+                expect(page.locator('#help-dialog')).to_have_attribute('lang','en' if blocked else 'ja')
+                page.close()
             browser.close()
-        print('PASS: full DOM/WebGL/SVG screenshots, private opt-in upload, metadata review/redaction, D1/R2 persistence, lost-response deduplication, text-only reports, desktop/mobile layouts')
+        print('PASS: full DOM/WebGL/SVG screenshots, private opt-in upload, metadata review/redaction, D1/R2 persistence, lost-response deduplication, text-only reports, rating-free reports, compact desktop/mobile layouts, shared language cookie')
     finally:
         server.terminate();server.wait(timeout=15)
 

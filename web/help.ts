@@ -1,23 +1,14 @@
 import { bindDialogDismiss } from './dialog.js';
 import { element } from './dom.js';
 import { helpContent, helpLabels, type HelpLanguage, type HelpTopic } from './help-content.js';
-
-const languageKey = 'phase-vector.help-language';
-
-function initialLanguage(): HelpLanguage {
-  try {
-    const saved = localStorage.getItem(languageKey);
-    if (saved === 'ja' || saved === 'en') return saved;
-  } catch { /* Help remains usable when browser storage is unavailable. */ }
-  return /^ja(?:-|$)/i.test(navigator.language) ? 'ja' : 'en';
-}
+import { getDialogLanguage, setDialogLanguage, onDialogLanguageChange } from './dialog-language.js';
 
 export function createHelp(onOpen: () => void, onInsert: (source: string) => void) {
   const dialog = element('help-dialog'), body = element('help-body');
   const opener = element('help-open');
   const languages = dialog.querySelectorAll<HTMLButtonElement>('[data-help-language]');
   const topics = dialog.querySelectorAll<HTMLButtonElement>('[data-help-topic]');
-  let language = initialLanguage(), topic: HelpTopic = 'quick', ready = false;
+  let language: HelpLanguage = getDialogLanguage(), topic: HelpTopic = 'quick', ready = false;
   const expanded = new Map<string, boolean>();
   const positions: Record<HelpTopic, number> = { quick: 0, controls: 0, lua: 0 };
 
@@ -101,10 +92,9 @@ export function createHelp(onOpen: () => void, onInsert: (source: string) => voi
   for (const button of languages) button.addEventListener('click', () => {
     const next = button.dataset.helpLanguage;
     if (next !== 'ja' && next !== 'en') return;
-    remember(); language = next;
-    try { localStorage.setItem(languageKey, language); } catch { /* Retain the session choice. */ }
-    render();
+    setDialogLanguage(next);
   });
+  onDialogLanguageChange(next => { remember(); language = next; render(); });
   for (const button of topics) button.addEventListener('click', () => {
     const next = button.dataset.helpTopic;
     if (next !== 'quick' && next !== 'controls' && next !== 'lua') return;

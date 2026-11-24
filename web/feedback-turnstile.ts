@@ -1,5 +1,5 @@
 interface Turnstile {
-  render(container: HTMLElement, options: { sitekey: string; action: string; theme: string; size: 'compact' | 'normal';
+  render(container: HTMLElement, options: { sitekey: string; action: string; theme: string; language: 'ja' | 'en'; size: 'compact' | 'normal';
     callback: (token: string) => void; 'expired-callback': () => void; 'error-callback': () => void }): string;
   remove(id: string): void;
   reset(id: string): void;

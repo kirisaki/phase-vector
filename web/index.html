@@ -138,28 +138,49 @@
       <p id="error" role="alert" hidden></p>
     </main>
     <dialog id="feedback-dialog" class="game-dialog" aria-labelledby="feedback-title">
-      <div class="feedback-heading"><h2 id="feedback-title">Feedback</h2><button id="feedback-close" type="button" aria-label="Close feedback">×</button></div>
-      <p>Share a private report with the developer. Playback stays paused after closing.</p>
-      <form id="feedback-form">
+      <div class="feedback-heading">
+        <h2 id="feedback-title" data-feedback-text="title">Feedback</h2>
+        <div id="feedback-language" role="group" aria-label="Language / 言語">
+          <button type="button" data-feedback-language="ja" lang="ja" aria-pressed="false">日本語</button>
+          <button type="button" data-feedback-language="en" lang="en" aria-pressed="false">English</button>
+        </div>
+        <button id="feedback-close" type="button" aria-label="Close feedback">×</button>
+      </div>
+      <p id="feedback-intro" data-feedback-text="intro">Send a private report. Playback stays paused after closing.</p>
+      <div id="feedback-tabs" role="tablist" aria-label="Feedback">
+        <button id="feedback-report-tab" type="button" role="tab" aria-selected="true" aria-controls="feedback-entry" data-feedback-tab="report" data-feedback-text="report">Report</button>
+        <button id="feedback-review-tab" type="button" role="tab" aria-selected="false" aria-controls="feedback-review" tabindex="-1" data-feedback-tab="review" data-feedback-text="review">Data &amp; privacy</button>
+      </div>
+      <form id="feedback-form" novalidate>
         <fieldset id="feedback-fields">
-          <label for="feedback-rating">Overall experience</label>
-          <select id="feedback-rating" name="rating" required><option value="">Choose a rating</option><option value="1">1 — Poor</option><option value="2">2 — Fair</option><option value="3">3 — Okay</option><option value="4">4 — Good</option><option value="5">5 — Great</option></select>
-          <label for="feedback-category">Category</label>
-          <select id="feedback-category" name="category"><option value="bug">Bug</option><option value="controls">Controls / UI</option><option value="balance">Balance</option><option value="performance">Performance</option><option value="other">Other</option></select>
-          <label for="feedback-message">What happened, or what would you change?</label>
-          <textarea id="feedback-message" name="message" rows="4" maxlength="4000" required placeholder="Please avoid personal or sensitive information."></textarea>
-          <img id="feedback-preview" alt="Preview of the application before opening feedback" hidden>
-          <label class="feedback-check"><input id="feedback-attach" type="checkbox"> Attach screenshot (PNG, up to 2 MiB)</label>
-          <button id="feedback-remove-image" type="button">Remove screenshot</button>
-          <p class="feedback-note">Screenshots exclude the Lua console and true enemy fuel readout. Check the preview before attaching. Images are private and expire after the operator’s configured retention period.</p>
-          <details><summary>Review metadata sent with this report</summary><pre id="feedback-metadata"></pre></details>
-          <p class="feedback-note">An anonymous ID lasts for this tab session. No enemy state, Lua contents, page URL, or browser history is included in metadata. Reports and results are self-reported and are not published.</p>
-          <label class="feedback-check"><input id="feedback-consent" type="checkbox"> I agree to send this report, the listed metadata, and the screenshot only if selected. Verification uses Cloudflare Turnstile.</label>
+          <div id="feedback-entry" role="tabpanel" aria-labelledby="feedback-report-tab">
+            <div class="feedback-writing">
+              <label for="feedback-category" data-feedback-text="category">Category</label>
+              <select id="feedback-category" name="category"><option value="bug" data-feedback-text="bug">Bug</option><option value="controls" data-feedback-text="controls">Controls / UI</option><option value="balance" data-feedback-text="balance">Balance</option><option value="performance" data-feedback-text="performance">Performance</option><option value="other" data-feedback-text="other">Other</option></select>
+              <label for="feedback-message" data-feedback-text="message">What happened, or what would you change?</label>
+              <textarea id="feedback-message" name="message" rows="4" maxlength="4000" required placeholder="Please avoid personal or sensitive information."></textarea>
+            </div>
+            <div class="feedback-image">
+              <img id="feedback-preview" alt="Application screenshot before opening feedback" hidden>
+              <div class="feedback-image-options">
+                <label class="feedback-check"><input id="feedback-attach" type="checkbox"><span data-feedback-text="attach">Attach screenshot (PNG, up to 2 MiB)</span></label>
+                <button id="feedback-remove-image" type="button" data-feedback-text="remove">Remove image</button>
+              </div>
+            </div>
+          </div>
+          <div id="feedback-review" role="tabpanel" aria-labelledby="feedback-review-tab" hidden>
+            <dl id="feedback-metadata"></dl>
+            <p class="feedback-note" data-feedback-text="imageNote">Check the preview. Lua content and true enemy fuel are excluded.</p>
+            <p class="feedback-note" data-feedback-text="privacy">Reports are private. Images expire after the configured retention period; text and metadata remain until deleted by the developer. No enemy state, Lua content, page URL, or browsing history is included in metadata.</p>
+          </div>
+          <label class="feedback-check feedback-consent"><input id="feedback-consent" type="checkbox"><span data-feedback-text="consent">I agree to send this report and the listed data, with the image only if selected. Verification uses Cloudflare Turnstile.</span></label>
         </fieldset>
-        <button id="feedback-verify" type="button">Verify before sending</button>
-        <div id="feedback-turnstile"></div>
+        <div class="feedback-actions">
+          <button id="feedback-verify" type="button" data-feedback-text="verify">Verify</button>
+          <div id="feedback-turnstile"></div>
+          <button id="feedback-send" type="submit" data-feedback-text="send" disabled>Send feedback</button>
+        </div>
         <p id="feedback-status" role="status" aria-live="polite"></p>
-        <button id="feedback-send" type="submit" disabled>Send feedback</button>
       </form>
     </dialog>
     <dialog id="help-dialog" class="game-dialog" aria-labelledby="help-title" aria-describedby="help-pause-note">
